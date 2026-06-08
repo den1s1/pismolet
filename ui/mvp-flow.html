@@ -75,6 +75,7 @@
     .box h3 { margin:0 0 12px; }
     .csv-example { overflow:hidden; border-radius:16px; border:1px solid var(--line); background:white; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; }
     .csv-example div { display:grid; grid-template-columns:1fr 1fr; }
+    .csv-example.single div { grid-template-columns:1fr; }
     .csv-example span { padding:10px 12px; border-bottom:1px solid var(--line); }
     .csv-example div:last-child span { border-bottom:0; }
     .csv-example .head span { background:var(--accent-soft); font-weight:800; color:#1e40af; }
@@ -185,15 +186,22 @@
     </section>
 
     <section class="panel screen wizard-step" id="upload" hidden>
-      <h2>1. Загрузите таблицу с адресами</h2>
-      <p class="lead">Подойдёт CSV или XLSX. Обязательная колонка — email. Имя можно добавить, но для первой версии лучше начать только с email.</p>
+      <h2>1. Добавьте адреса</h2>
+      <p class="lead">Можно загрузить таблицу Excel или просто вставить список адресов. Нужны только email.</p>
       <div class="two-col">
         <div>
-          <div class="dropzone"><strong>Перетащите файл сюда</strong><span>или нажмите, чтобы выбрать CSV/XLSX до 10 000 строк</span></div>
-          <div class="actions"><button class="btn" data-step="write">Файл загружен, дальше</button><button class="btn secondary">Скачать пример таблицы</button></div>
+          <div class="dropzone"><strong>Перетащите таблицу Excel сюда</strong><span>или нажмите, чтобы выбрать файл до 10 000 строк</span></div>
+          <div style="margin-top:16px" class="box">
+            <h3>Или вставьте адреса вручную</h3>
+            <label>Список email
+              <textarea placeholder="anna@example.ru&#10;club@example.ru&#10;ivan@example.ru"></textarea>
+              <span class="hint">Каждый адрес — с новой строки. Можно вставить список прямо из таблицы или письма.</span>
+            </label>
+          </div>
+          <div class="actions"><button class="btn" data-step="write">Адреса добавлены, дальше</button><button class="btn secondary">Скачать пример таблицы</button></div>
           <div style="margin-top:18px" class="notice warn">Письмолёт не принимает купленные, спарсенные и чужие базы. Перед отправкой нужно подтвердить источник адресов.</div>
         </div>
-        <div class="box"><h3>Пример таблицы</h3><div class="csv-example"><div class="head"><span>email</span><span>name</span></div><div><span>anna@example.ru</span><span>Анна</span></div><div><span>club@example.ru</span><span>Клуб</span></div><div><span>ivan@example.ru</span><span></span></div></div><p class="hint" style="margin-top:12px">Для MVP достаточно одной колонки email. ФИО лучше не требовать у новых клиентов без необходимости.</p></div>
+        <div class="box"><h3>Пример простой таблицы</h3><div class="csv-example single"><div class="head"><span>email</span></div><div><span>anna@example.ru</span></div><div><span>club@example.ru</span></div><div><span>ivan@example.ru</span></div></div><p class="hint" style="margin-top:12px">Для MVP используем только email. Дополнительные колонки пока не используются.</p></div>
       </div>
     </section>
 
