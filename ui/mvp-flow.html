@@ -248,6 +248,70 @@
       line-height: 1.08;
     }
 
+
+    .campaign-title-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .campaign-title-row h1 {
+      margin-bottom: 0;
+    }
+
+    .text-link {
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      padding: 0;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .write-row {
+      align-items: start;
+    }
+
+    .write-field {
+      display: grid;
+      grid-template-rows: 22px 52px auto;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .field-title {
+      min-height: 22px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .required {
+      color: #dc2626;
+      font-weight: 900;
+    }
+
+    .field-hint {
+      display: block;
+      min-height: 18px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      font-weight: 400;
+    }
+
+    .write-field input,
+    .write-field select {
+      min-height: 52px;
+      line-height: 1.25;
+    }
+
     .wizard-head p {
       margin: 0;
       color: var(--muted);
@@ -839,10 +903,10 @@
 
     <section class="screen wizard" id="wizard" hidden>
       <div class="wizard-head">
-        <div>
-          <h1>Новая рассылка</h1>
+        <div class="campaign-title-row">
+          <h1 id="campaignTitle">Новая рассылка</h1>
+          <button class="text-link" type="button" data-rename-campaign>Изменить название</button>
         </div>
-        <button class="btn secondary" data-go="dashboard">Вернуться в кабинет</button>
       </div>
 
       <nav class="progress" aria-label="Шаги рассылки">
@@ -882,17 +946,18 @@
 
     <section class="panel screen wizard-step" id="write" hidden>
       <h2>2. Напишите письмо</h2>
-      <p class="lead">Простое письмо без конструктора и сложных шаблонов. Ссылка отписки и служебный блок будут добавлены автоматически.</p>
 
       <div class="two-col">
         <div class="form-grid">
-          <div class="row">
-            <label>От кого
-              <input id="senderInput" value="Библиотека №5" />
-              <span class="hint">Получатели увидят это имя в письме.</span>
+          <div class="row write-row">
+            <label class="write-field">
+              <span class="field-title">От кого <span class="required">*</span></span>
+              <input id="senderInput" value="Библиотека №5" required />
+              <span class="field-hint">Получатели увидят это имя в письме.</span>
             </label>
 
-            <label>Тип письма
+            <label class="write-field">
+              <span class="field-title">Тип письма</span>
               <select>
                 <option>Информационное</option>
                 <option>Рекламное</option>
@@ -918,7 +983,7 @@
           </label>
 
           <div class="actions">
-            <button class="btn" data-step="pay">Проверить, посчитать и оплатить</button>
+            <button class="btn" data-step="pay">Проверить и оплатить</button>
             <button class="btn secondary">Отправить тест себе</button>
           </div>
         </div>
@@ -1103,6 +1168,19 @@
       const id = target.dataset.go || target.dataset.step || target.dataset.target;
       if (id) showScreen(id);
     });
+
+
+    const campaignTitle = document.getElementById('campaignTitle');
+    const renameCampaignButton = document.querySelector('[data-rename-campaign]');
+
+    if (renameCampaignButton && campaignTitle) {
+      renameCampaignButton.addEventListener('click', () => {
+        const nextTitle = window.prompt('Название рассылки', campaignTitle.textContent.trim());
+        if (nextTitle && nextTitle.trim()) {
+          campaignTitle.textContent = nextTitle.trim();
+        }
+      });
+    }
 
     const senderInput = document.getElementById('senderInput');
     const subjectInput = document.getElementById('subjectInput');
