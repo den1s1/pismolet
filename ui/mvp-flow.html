@@ -1,9 +1,1139 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Письмолёт — кабинет</title>
-<link rel="icon" href="../assets/brand/favicon.svg" type="image/svg+xml">
-<style>
-:root{--bg:#f8fafc;--card:#fff;--text:#1f2937;--muted:#64748b;--line:#dbe4ef;--accent:#2563eb;--ok:#15803d;--warn:#b7791f;--dark:#0f172a}*{box-sizing:border-box}body{margin:0;background:var(--
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Письмолёт — кабинет и запуск рассылки</title>
+  <link rel="icon" href="../assets/brand/favicon.svg" type="image/svg+xml" />
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #64748b;
+      --line: #dbe4ef;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --accent-soft: #eff6ff;
+      --ok: #15803d;
+      --warn: #b7791f;
+      --warn-soft: #fff7ed;
+      --dark: #0f172a;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 34%),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    header {
+      background: rgba(248, 250, 252, 0.9);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .topbar {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      text-decoration: none;
+    }
+
+    .brand-logo {
+      width: 184px;
+      height: auto;
+      display: block;
+    }
+
+    .account {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .profile-menu {
+      position: relative;
+    }
+
+    .profile-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #bfdbfe;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      padding: 10px 14px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
+    }
+
+    .profile-dropdown {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 10px);
+      min-width: 230px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 8px;
+      display: none;
+      z-index: 10;
+    }
+
+    .profile-menu:hover .profile-dropdown,
+    .profile-menu:focus-within .profile-dropdown {
+      display: grid;
+      gap: 4px;
+    }
+
+    .profile-email {
+      padding: 10px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 4px;
+      user-select: text;
+    }
+
+    .profile-dropdown a,
+    .profile-dropdown button {
+      display: block;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      text-align: left;
+      text-decoration: none;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .profile-dropdown a:hover,
+    .profile-dropdown button:hover {
+      background: #f1f5f9;
+    }
+
+    .page {
+      max-width: 1120px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 36px 24px 72px;
+      display: grid;
+      gap: 22px;
+    }
+
+    .screen[hidden] {
+      display: none;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      letter-spacing: -0.03em;
+    }
+
+    .lead {
+      margin: 0 0 22px;
+      color: var(--muted);
+    }
+
+    .quick-start {
+      min-height: 280px;
+      display: grid;
+      align-content: center;
+      justify-items: start;
+      gap: 12px;
+      background: linear-gradient(135deg, var(--dark), #1e3a8a);
+      color: white;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .quick-start::after {
+      content: "";
+      position: absolute;
+      width: 280px;
+      height: 280px;
+      right: -90px;
+      top: -80px;
+      border-radius: 999px;
+      background: rgba(147, 197, 253, 0.16);
+    }
+
+    .quick-start p {
+      color: #bfdbfe;
+      margin: 0 0 8px;
+      max-width: 540px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .quick-start h1 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.05;
+      letter-spacing: -0.05em;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-logo {
+      width: 190px;
+      height: auto;
+      margin-bottom: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .wizard {
+      display: grid;
+      gap: 22px;
+    }
+
+    .wizard-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .wizard-head h1 {
+      margin: 0 0 6px;
+      font-size: clamp(28px, 4vw, 40px);
+      letter-spacing: -0.045em;
+      line-height: 1.08;
+    }
+
+    .wizard-head p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .progress {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .progress button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 10px 12px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .progress button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .dropzone {
+      border: 2px dashed #93c5fd;
+      background: #eff6ff;
+      border-radius: 24px;
+      padding: 34px;
+      text-align: center;
+    }
+
+    .dropzone strong {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 6px;
+    }
+
+    .dropzone span,
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 400;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      font-weight: 700;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      padding: 13px 14px;
+      font: inherit;
+      background: #fff;
+      color: var(--text);
+    }
+
+    textarea {
+      min-height: 190px;
+      resize: vertical;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 0.9fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .box {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 20px;
+    }
+
+    .box h3 {
+      margin: 0 0 12px;
+    }
+
+    .csv-example {
+      overflow: hidden;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: white;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .csv-example span {
+      display: block;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .csv-example span:last-child {
+      border-bottom: 0;
+    }
+
+    .csv-example .head {
+      background: var(--accent-soft);
+      font-weight: 800;
+      color: #1e40af;
+    }
+
+    .mail-preview {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      overflow: hidden;
+    }
+
+    .mail-preview-header {
+      background: #f8fafc;
+      border-bottom: 1px solid var(--line);
+      padding: 14px 16px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .mail-preview-body {
+      padding: 18px;
+    }
+
+    .mail-preview-body h4 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    .mail-preview-body p {
+      margin: 0 0 10px;
+    }
+
+    .unsubscribe {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .list li:last-child {
+      border-bottom: 0;
+    }
+
+    .list span {
+      color: var(--muted);
+    }
+
+    .list b {
+      text-align: right;
+    }
+
+    .pay-card {
+      background: linear-gradient(135deg, #eff6ff, #fff);
+      border: 1px solid #bfdbfe;
+      border-radius: 28px;
+      padding: 26px;
+      box-shadow: 0 18px 36px rgba(37, 99, 235, 0.12);
+    }
+
+    .pay-card small {
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .pay-card .sum {
+      display: block;
+      margin: 8px 0 6px;
+      font-size: clamp(42px, 7vw, 72px);
+      line-height: 1;
+      letter-spacing: -0.07em;
+      color: var(--accent);
+      font-weight: 900;
+    }
+
+    .payment-box {
+      margin-top: 18px;
+      background: var(--dark);
+      color: #fff;
+      border-radius: 22px;
+      padding: 20px;
+    }
+
+    .payment-box input {
+      background: #1f2937;
+      border-color: #374151;
+      color: #fff;
+    }
+
+    .payment-box label {
+      color: #fff;
+    }
+
+    .notice {
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+      font-size: 14px;
+    }
+
+    .notice.warn {
+      background: var(--warn-soft);
+      color: #9a3412;
+      border-color: #fed7aa;
+    }
+
+    .checks {
+      display: grid;
+      gap: 12px;
+    }
+
+    .check {
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      gap: 10px;
+      align-items: start;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .check input {
+      width: 18px;
+      height: 18px;
+      margin-top: 3px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 20px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+    }
+
+    .btn:hover {
+      background: var(--accent-dark);
+    }
+
+    .btn.secondary {
+      background: #eaf2ff;
+      color: var(--accent-dark);
+      box-shadow: none;
+    }
+
+    .btn.ghost {
+      background: transparent;
+      color: var(--muted);
+      box-shadow: none;
+    }
+
+    .success {
+      display: grid;
+      place-items: center;
+      text-align: center;
+      min-height: 380px;
+    }
+
+    .success-icon {
+      width: 86px;
+      height: 86px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: #e0f2fe;
+      color: var(--accent);
+      font-size: 46px;
+      margin-bottom: 18px;
+    }
+
+    .history-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .history-row:last-child {
+      border-bottom: 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-weight: 700;
+      font-size: 12px;
+      background: #dcfce7;
+      color: var(--ok);
+      white-space: nowrap;
+      align-self: start;
+    }
+
+    .badge.warn {
+      background: #fff4d6;
+      color: var(--warn);
+    }
+
+    @media (max-width: 900px) {
+      .two-col,
+      .wizard-head {
+        grid-template-columns: 1fr;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .progress {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .brand-logo {
+        width: 160px;
+      }
+
+      .page {
+        padding: 22px 14px 48px;
+      }
+
+      .panel {
+        padding: 22px;
+        border-radius: 22px;
+      }
+
+      .row,
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .progress {
+        grid-template-columns: 1fr;
+      }
+
+      .profile-dropdown {
+        left: 0;
+        right: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <a class="brand" href="public-site.html" aria-label="Письмолёт — перейти на лендинг">
+        <img class="brand-logo" src="../assets/brand/logo-horizontal.svg" alt="Письмолёт" />
+      </a>
+
+      <div class="account">
+        <div class="profile-menu">
+          <button class="profile-button" type="button" aria-haspopup="true">
+            Профиль ▾
+          </button>
+
+          <div class="profile-dropdown" role="menu">
+            <div class="profile-email">demo@example.ru</div>
+            <a href="#upload" data-go="upload" role="menuitem">Новая рассылка</a>
+            <a href="#history" data-go="history" role="menuitem">История</a>
+            <a href="#payments" data-go="payments" role="menuitem">Платежи</a>
+            <a href="#" role="menuitem">Выйти</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="screen" id="dashboard">
+      <div class="panel quick-start">
+        <img class="hero-logo" src="../assets/brand/logo-horizontal-inverted.svg" alt="Письмолёт" />
+        <h1>Создать простую рассылку</h1>
+        <p>Загрузите таблицу с адресами, напишите письмо, увидьте стоимость и оплатите отправку.</p>
+        <button class="btn" data-go="upload">Создать рассылку</button>
+      </div>
+
+      <section class="panel" style="margin-top:22px">
+        <h2>Последние рассылки</h2>
+
+        <div class="history-row">
+          <div>
+            <b>Приглашаем на встречу в субботу</b><br>
+            <span class="hint">681 письмо · 102 ₽ · сегодня</span>
+          </div>
+          <span class="badge warn">Отправляется</span>
+        </div>
+
+        <div class="history-row">
+          <div>
+            <b>Летняя программа библиотеки</b><br>
+            <span class="hint">430 писем · 65 ₽ · сегодня</span>
+          </div>
+          <span class="badge warn">Ожидает оплаты</span>
+        </div>
+
+        <div class="history-row">
+          <div>
+            <b>Расписание занятий на июнь</b><br>
+            <span class="hint">214 писем · 32 ₽ · 5 июня</span>
+          </div>
+          <span class="badge">Отправлено</span>
+        </div>
+
+        <div class="actions">
+          <button class="btn secondary" data-go="history">Открыть историю</button>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel screen" id="payments" hidden>
+      <h2>Платежи</h2>
+      <p class="lead">В MVP показываем простую историю оплат и расчётов перед отправкой.</p>
+
+      <div class="history-row">
+        <div>
+          <b>Летняя программа библиотеки</b><br>
+          <span class="hint">430 писем · 65 ₽ · требуется оплата</span>
+        </div>
+        <span class="badge warn">Ожидает оплаты</span>
+      </div>
+
+      <div class="history-row">
+        <div>
+          <b>Приглашаем на встречу в субботу</b><br>
+          <span class="hint">681 письмо · 102 ₽ · оплачено сегодня</span>
+        </div>
+        <span class="badge">Оплачено</span>
+      </div>
+
+      <div class="actions">
+        <button class="btn secondary" data-go="dashboard">Вернуться в кабинет</button>
+      </div>
+    </section>
+
+    <section class="panel screen" id="profile" hidden>
+      <h2>Профиль пользователя</h2>
+      <p class="lead">Минимальные настройки аккаунта: контактный email, имя отправителя, ответы, лимиты и платёжная информация.</p>
+
+      <div class="two-col">
+        <div class="form-grid">
+          <div class="box">
+            <h3>Контакты</h3>
+            <div class="form-grid">
+              <label>Email для входа<input value="demo@example.ru" /></label>
+              <label>Имя пользователя<input value="Демо-пользователь" /></label>
+              <label>Телефон для связи<input placeholder="+7 900 000-00-00" /></label>
+            </div>
+          </div>
+
+          <div class="box">
+            <h3>Отправитель по умолчанию</h3>
+            <div class="form-grid">
+              <label>От кого<input value="Библиотека №5" /></label>
+              <label>Email для пересылки ответов<input value="demo@example.ru" /></label>
+              <span class="hint">Получатели увидят имя отправителя в письме. Ответы будут пересылаться на указанный email.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="box">
+            <h3>Статус и лимиты</h3>
+            <ul class="list">
+              <li><span>Статус аккаунта</span><b>Новый клиент</b></li>
+              <li><span>Дневной лимит</span><b>1000 писем</b></li>
+              <li><span>Первые рассылки</span><b>Могут уйти на проверку</b></li>
+            </ul>
+            <div class="notice warn" style="margin-top:14px">Лимит и необходимость проверки могут меняться по истории отправок, жалобам и рискам.</div>
+          </div>
+
+          <div class="box">
+            <h3>Оплата</h3>
+            <ul class="list">
+              <li><span>Способ оплаты</span><b>Перед отправкой</b></li>
+              <li><span>Баланс</span><b>0 ₽</b></li>
+              <li><span>Исключённые адреса</span><b>Не оплачиваются</b></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn">Сохранить изменения</button>
+        <button class="btn secondary" data-go="dashboard">Вернуться в кабинет</button>
+      </div>
+    </section>
+
+    <section class="screen wizard" id="wizard" hidden>
+      <div class="wizard-head">
+        <div>
+          <h1>Новая рассылка</h1>
+          <p>Четыре шага: адреса, письмо, расчёт с оплатой и отправка.</p>
+        </div>
+        <button class="btn secondary" data-go="dashboard">Вернуться в кабинет</button>
+      </div>
+
+      <nav class="progress" aria-label="Шаги рассылки">
+        <button class="active" data-target="upload">1. Адреса</button>
+        <button data-target="write">2. Письмо</button>
+        <button data-target="pay">3. Расчёт и оплата</button>
+        <button data-target="done">4. Готово</button>
+      </nav>
+    </section>
+
+    <section class="panel screen wizard-step" id="upload" hidden>
+      <h2>1. Добавьте адреса</h2>
+      <p class="lead">Можно загрузить таблицу Excel или просто вставить список адресов. Для MVP достаточно email.</p>
+
+      <div class="two-col">
+        <div>
+          <div class="dropzone">
+            <strong>Перетащите таблицу Excel сюда</strong>
+            <span>или нажмите, чтобы выбрать файл до 10 000 строк</span>
+          </div>
+
+          <div style="margin-top:16px" class="box">
+            <h3>Или вставьте адреса вручную</h3>
+            <label>Список email
+              <textarea placeholder="anna@example.ru&#10;club@example.ru&#10;ivan@example.ru"></textarea>
+              <span class="hint">Каждый адрес — с новой строки. Можно вставить список прямо из таблицы или письма.</span>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button class="btn" data-step="write">Адреса добавлены, дальше</button>
+            <button class="btn secondary">Скачать пример таблицы</button>
+          </div>
+
+          <div style="margin-top:18px" class="notice warn">
+            Письмолёт не принимает купленные, спарсенные и чужие базы. Перед отправкой нужно подтвердить источник адресов.
+          </div>
+        </div>
+
+        <div class="box">
+          <h3>Пример простой таблицы</h3>
+          <div class="csv-example">
+            <span class="head">email</span>
+            <span>anna@example.ru</span>
+            <span>club@example.ru</span>
+            <span>ivan@example.ru</span>
+          </div>
+          <p class="hint" style="margin-top:12px">Для MVP используем только email. Дополнительные колонки можно добавить позже.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel screen wizard-step" id="write" hidden>
+      <h2>2. Напишите письмо</h2>
+      <p class="lead">Простое письмо без конструктора и сложных шаблонов. Ссылка отписки и служебный блок будут добавлены автоматически.</p>
+
+      <div class="two-col">
+        <div class="form-grid">
+          <div class="row">
+            <label>От кого
+              <input id="senderInput" value="Библиотека №5" />
+              <span class="hint">Получатели увидят это имя в письме.</span>
+            </label>
+
+            <label>Тип письма
+              <select>
+                <option>Информационное</option>
+                <option>Рекламное</option>
+                <option>Сервисное</option>
+                <option>Не уверен</option>
+              </select>
+            </label>
+          </div>
+
+          <label>Тема
+            <input id="subjectInput" value="Приглашаем на встречу в субботу" />
+          </label>
+
+          <label>Текст письма
+            <textarea id="bodyInput">Здравствуйте!
+
+В эту субботу в 12:00 у нас пройдёт встреча читательского клуба. Будем рады видеть вас.
+
+Адрес: ул. Примерная, 10.
+
+С уважением,
+Библиотека №5</textarea>
+          </label>
+
+          <div class="actions">
+            <button class="btn" data-step="pay">Проверить, посчитать и оплатить</button>
+            <button class="btn secondary">Отправить тест себе</button>
+          </div>
+        </div>
+
+        <div class="box">
+          <h3>Превью письма</h3>
+          <div class="mail-preview">
+            <div class="mail-preview-header">
+              От: <span id="previewSender">Библиотека №5</span> &lt;hello@pismolet.ru&gt;
+            </div>
+            <div class="mail-preview-body">
+              <h4 id="previewSubject">Приглашаем на встречу в субботу</h4>
+              <p id="previewBody">Здравствуйте!<br><br>В эту субботу в 12:00 у нас пройдёт встреча читательского клуба. Будем рады видеть вас.<br><br>Адрес: ул. Примерная, 10.<br><br>С уважением,<br>Библиотека №5</p>
+              <div class="unsubscribe" id="serviceBlock">Вы получили это письмо от Библиотека №5 через Письмолёт, потому что отправитель указал, что у него есть законное основание связаться с вами по этому адресу. Если вы не хотите получать такие письма через Письмолёт, вы можете отписаться от всех рассылок через сервис.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel screen wizard-step" id="pay" hidden>
+      <h2>3. Проверьте расчёт и оплатите</h2>
+      <p class="lead">Система убрала дубли, ошибки и адреса из глобальной отписки. Оплата будет только за письма, принятые к отправке.</p>
+
+      <div class="stats">
+        <div class="stat"><b>742</b><span>строки в файле</span></div>
+        <div class="stat"><b>681</b><span>принято к отправке</span></div>
+        <div class="stat"><b>38</b><span>дубли и ошибки</span></div>
+        <div class="stat"><b>23</b><span>глобально отписались</span></div>
+      </div>
+
+      <div class="two-col" style="margin-top:18px">
+        <div class="box">
+          <h3>Подтверждения перед оплатой</h3>
+          <div class="checks">
+            <label class="check">
+              <input type="checkbox" />
+              <span>Я подтверждаю, что имею законное основание для обработки загруженных адресов и отправки писем этим адресатам.</span>
+            </label>
+
+            <label class="check">
+              <input type="checkbox" />
+              <span>Я не использую купленную, украденную, спарсенную или чужую базу.</span>
+            </label>
+
+            <label class="check">
+              <input type="checkbox" />
+              <span>Если письмо является рекламным, я подтверждаю наличие согласия на рекламную рассылку.</span>
+            </label>
+          </div>
+
+          <div class="notice warn" style="margin-top:14px">
+            Оплата не гарантирует отправку запрещённых или рискованных рассылок. При риске рассылка уйдёт на проверку.
+          </div>
+        </div>
+
+        <div class="pay-card">
+          <small>К оплате сейчас</small>
+          <strong class="sum">102 ₽</strong>
+          <p>681 письмо × 0,15 ₽. За исключённые 61 адрес не платите.</p>
+
+          <ul class="list" style="margin-top:18px">
+            <li><span>Принято писем</span><b>681</b></li>
+            <li><span>Цена за письмо</span><b>0,15 ₽</b></li>
+            <li><span>Не списываем за исключённые</span><b>61</b></li>
+          </ul>
+
+          <div class="payment-box">
+            <img src="../assets/brand/logo-horizontal-inverted.svg" alt="Письмолёт" style="width:150px;height:auto;margin-bottom:14px" />
+            <div class="form-grid">
+              <label>Номер карты<input placeholder="0000 0000 0000 0000" /></label>
+
+              <div class="row">
+                <label>Срок<input placeholder="ММ/ГГ" /></label>
+                <label>CVC<input placeholder="***" /></label>
+              </div>
+
+              <button class="btn" data-step="done" style="width:100%">Оплатить 102 ₽ и запустить</button>
+              <span class="hint">В реальном сервисе здесь будет платёжная страница платёжного агента.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn ghost" data-step="write">Вернуться к письму</button>
+      </div>
+    </section>
+
+    <section class="panel screen wizard-step" id="done" hidden>
+      <div class="success">
+        <div class="success-icon">✓</div>
+        <h2>Рассылка запущена</h2>
+        <p class="lead" style="max-width:560px">Мы проверим письмо, исключим отписавшихся ещё раз перед отправкой и начнём рассылку постепенно, чтобы не отправлять всё одним залпом.</p>
+
+        <div class="stats" style="width:100%;margin-top:18px">
+          <div class="stat"><b>681</b><span>писем в очереди</span></div>
+          <div class="stat"><b>102 ₽</b><span>оплачено</span></div>
+          <div class="stat"><b>0</b><span>жалоб сейчас</span></div>
+          <div class="stat"><b>0</b><span>ответов сейчас</span></div>
+        </div>
+
+        <div class="actions" style="justify-content:center">
+          <button class="btn" data-go="history">Посмотреть историю</button>
+          <button class="btn secondary" data-go="dashboard">В кабинет</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel screen" id="history" hidden>
+      <h2>История рассылок</h2>
+      <p class="lead">Минимальная история без сложной аналитики. Подробные события и логи остаются внутри системы.</p>
+
+      <div class="history-row">
+        <div>
+          <b>Приглашаем на встречу в субботу</b><br>
+          <span class="hint">681 письмо · 102 ₽ · сегодня</span>
+        </div>
+        <span class="badge warn">Отправляется</span>
+      </div>
+
+      <div class="history-row">
+        <div>
+          <b>Летняя программа библиотеки</b><br>
+          <span class="hint">430 писем · 65 ₽ · сегодня</span>
+        </div>
+        <span class="badge warn">Ожидает оплаты</span>
+      </div>
+
+      <div class="history-row">
+        <div>
+          <b>Расписание занятий на июнь</b><br>
+          <span class="hint">214 писем · 32 ₽ · 5 июня</span>
+        </div>
+        <span class="badge">Отправлено</span>
+      </div>
+
+      <div class="history-row">
+        <div>
+          <b>Напоминание участникам клуба</b><br>
+          <span class="hint">97 писем · 15 ₽ · 29 мая</span>
+        </div>
+        <span class="badge">Отправлено</span>
+      </div>
+
+      <div class="actions">
+        <button class="btn" data-go="upload">Новая рассылка</button>
+        <button class="btn secondary" data-go="dashboard">В кабинет</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const wizardSteps = ['upload', 'write', 'pay', 'done'];
+    const allScreens = [...document.querySelectorAll('.screen')];
+    const progressButtons = [...document.querySelectorAll('.progress button')];
+
+    function showScreen(id) {
+      const isWizardStep = wizardSteps.includes(id);
+
+      allScreens.forEach(screen => {
+        if (screen.id === 'wizard') {
+          screen.hidden = !isWizardStep;
+        } else {
+          screen.hidden = screen.id !== id;
+        }
+      });
+
+      progressButtons.forEach(button => {
+        button.classList.toggle('active', button.dataset.target === id);
+      });
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    document.addEventListener('click', event => {
+      const target = event.target.closest('[data-go], [data-step], [data-target]');
+      if (!target) return;
+
+      event.preventDefault();
+
+      const id = target.dataset.go || target.dataset.step || target.dataset.target;
+      if (id) showScreen(id);
+    });
+
+    const senderInput = document.getElementById('senderInput');
+    const subjectInput = document.getElementById('subjectInput');
+    const bodyInput = document.getElementById('bodyInput');
+    const previewSender = document.getElementById('previewSender');
+    const previewSubject = document.getElementById('previewSubject');
+    const previewBody = document.getElementById('previewBody');
+    const serviceBlock = document.getElementById('serviceBlock');
+
+    function updatePreview() {
+      if (!senderInput) return;
+
+      const sender = senderInput.value || 'Отправитель';
+
+      previewSender.textContent = sender;
+      previewSubject.textContent = subjectInput.value || 'Тема письма';
+      previewBody.innerHTML = (bodyInput.value || 'Текст письма').replace(/\n/g, '<br>');
+
+      if (serviceBlock) {
+        serviceBlock.textContent = `Вы получили это письмо от ${sender} через Письмолёт, потому что отправитель указал, что у него есть законное основание связаться с вами по этому адресу. Если вы не хотите получать такие письма через Письмолёт, вы можете отписаться от всех рассылок через сервис.`;
+      }
+    }
+
+    [senderInput, subjectInput, bodyInput].forEach(input => {
+      if (input) input.addEventListener('input', updatePreview);
+    });
+  </script>
+</body>
+</html>
