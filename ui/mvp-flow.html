@@ -487,9 +487,78 @@
       font-size: 12px;
     }
 
+
+    .info-tooltip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      margin-left: 6px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      color: var(--muted);
+      background: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: help;
+      vertical-align: middle;
+    }
+
+    .info-tooltip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 10px);
+      transform: translateX(-50%);
+      width: min(280px, 80vw);
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--dark);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.35;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .info-tooltip:hover::after,
+    .info-tooltip:focus::after {
+      opacity: 1;
+    }
+
+    .pay-summary-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .pay-summary-line small {
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .pay-summary-line .sum {
+      margin: 0;
+    }
+
+    .ad-consent[hidden] {
+      display: none;
+    }
+
     .stats {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 12px;
     }
 
@@ -712,7 +781,76 @@
         grid-template-columns: 1fr;
       }
 
-      .stats {
+  
+    .info-tooltip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      margin-left: 6px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      color: var(--muted);
+      background: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: help;
+      vertical-align: middle;
+    }
+
+    .info-tooltip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 10px);
+      transform: translateX(-50%);
+      width: min(280px, 80vw);
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--dark);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.35;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .info-tooltip:hover::after,
+    .info-tooltip:focus::after {
+      opacity: 1;
+    }
+
+    .pay-summary-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .pay-summary-line small {
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .pay-summary-line .sum {
+      margin: 0;
+    }
+
+    .ad-consent[hidden] {
+      display: none;
+    }
+
+    .stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
@@ -741,7 +879,76 @@
       }
 
       .row,
-      .stats {
+  
+    .info-tooltip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      margin-left: 6px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      color: var(--muted);
+      background: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: help;
+      vertical-align: middle;
+    }
+
+    .info-tooltip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 10px);
+      transform: translateX(-50%);
+      width: min(280px, 80vw);
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--dark);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.35;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .info-tooltip:hover::after,
+    .info-tooltip:focus::after {
+      opacity: 1;
+    }
+
+    .pay-summary-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .pay-summary-line small {
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .pay-summary-line .sum {
+      margin: 0;
+    }
+
+    .ad-consent[hidden] {
+      display: none;
+    }
+
+    .stats {
         grid-template-columns: 1fr;
       }
 
@@ -958,7 +1165,7 @@
 
             <label class="write-field">
               <span class="field-title">Тип письма</span>
-              <select>
+              <select id="messageTypeSelect">
                 <option>Информационное</option>
                 <option>Рекламное</option>
                 <option>Сервисное</option>
@@ -1006,13 +1213,14 @@
 
     <section class="panel screen wizard-step" id="pay" hidden>
       <h2>3. Проверьте расчёт и оплатите</h2>
-      <p class="lead">Система убрала дубли, ошибки и адреса из глобальной отписки. Оплата будет только за письма, принятые к отправке.</p>
+      <p class="lead">Оплата будет только за письма, принятые к отправке.</p>
 
       <div class="stats">
         <div class="stat"><b>742</b><span>строки в файле</span></div>
         <div class="stat"><b>681</b><span>принято к отправке</span></div>
         <div class="stat"><b>38</b><span>дубли и ошибки</span></div>
-        <div class="stat"><b>23</b><span>глобально отписались</span></div>
+        <div class="stat"><b>23</b><span>не сможем отправить <span class="info-tooltip" tabindex="0" data-tooltip="К сожалению этим адресатам мы не сможет отправить Ваше письмо в соответсвии с внутренними правилами сайта">i</span></span></div>
+        <div class="stat"><b>6</b><span>отписались <span class="info-tooltip" tabindex="0" data-tooltip="Эти адресаты ранее отписались от ваших рассылок. Вы более не сможете отправлять им письма">i</span></span></div>
       </div>
 
       <div class="two-col" style="margin-top:18px">
@@ -1026,12 +1234,12 @@
 
             <label class="check">
               <input type="checkbox" />
-              <span>Я не использую купленную, украденную, спарсенную или чужую базу.</span>
+              <span>Я не использую купленную или чужую базу.</span>
             </label>
 
-            <label class="check">
+            <label class="check ad-consent" id="adConsentCheck" hidden>
               <input type="checkbox" />
-              <span>Если письмо является рекламным, я подтверждаю наличие согласия на рекламную рассылку.</span>
+              <span>Я подтверждаю наличие согласия на рекламную рассылку.</span>
             </label>
           </div>
 
@@ -1041,8 +1249,10 @@
         </div>
 
         <div class="pay-card">
-          <small>К оплате сейчас</small>
-          <strong class="sum">102 ₽</strong>
+          <div class="pay-summary-line">
+            <small>К оплате</small>
+            <strong class="sum">102 ₽</strong>
+          </div>
           <p>681 письмо × 0,15 ₽. За исключённые 61 адрес не платите.</p>
 
           <ul class="list" style="margin-top:18px">
@@ -1051,26 +1261,10 @@
             <li><span>Не списываем за исключённые</span><b>61</b></li>
           </ul>
 
-          <div class="payment-box">
-            <img src="../assets/brand/logo-horizontal-inverted.svg" alt="Письмолёт" style="width:150px;height:auto;margin-bottom:14px" />
-            <div class="form-grid">
-              <label>Номер карты<input placeholder="0000 0000 0000 0000" /></label>
-
-              <div class="row">
-                <label>Срок<input placeholder="ММ/ГГ" /></label>
-                <label>CVC<input placeholder="***" /></label>
-              </div>
-
-              <button class="btn" data-step="done" style="width:100%">Оплатить 102 ₽ и запустить</button>
-              <span class="hint">В реальном сервисе здесь будет платёжная страница платёжного агента.</span>
-            </div>
-          </div>
+          <button class="btn" data-step="done" style="width:100%;margin-top:18px">Оплатить 102 ₽ и запустить</button>
         </div>
       </div>
 
-      <div class="actions">
-        <button class="btn ghost" data-step="write">Вернуться к письму</button>
-      </div>
     </section>
 
     <section class="panel screen wizard-step" id="done" hidden>
@@ -1180,6 +1374,20 @@
           campaignTitle.textContent = nextTitle.trim();
         }
       });
+    }
+
+
+    const messageTypeSelect = document.getElementById('messageTypeSelect');
+    const adConsentCheck = document.getElementById('adConsentCheck');
+
+    function updateAdConsentVisibility() {
+      if (!messageTypeSelect || !adConsentCheck) return;
+      adConsentCheck.hidden = messageTypeSelect.value !== 'Рекламное';
+    }
+
+    if (messageTypeSelect) {
+      messageTypeSelect.addEventListener('change', updateAdConsentVisibility);
+      updateAdConsentVisibility();
     }
 
     const senderInput = document.getElementById('senderInput');
