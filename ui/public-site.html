@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Письмолёт — простая email-рассылка без скрытых копий и настройки домена</title>
+  <meta name="description" content="Загрузите таблицу с адресами, напишите письмо, оплатите и запустите рассылку клиентам. Без скрытых копий, SPF, DKIM, DMARC и сложных платформ." />
+  <link rel="icon" href="../assets/brand/favicon.svg" type="image/svg+xml" />
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #64748b;
+      --line: #dbe4ef;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --accent-soft: #eff6ff;
+      --ok: #15803d;
+      --warn: #b7791f;
+      --danger: #b42318;
+      --dark: #0f172a;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top left, rgba(96, 165, 250, 0.20), transparent 32%), var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    a { color: inherit; }
+    p { margin: 0; }
+    h1, h2, h3 { margin: 0; line-height: 1.08; letter-spacing: -0.045em; }
+    h1 { font-size: clamp(40px, 7vw, 74px); }
+    h2 { font-size: clamp(28px, 4vw, 44px); }
+    h3 { font-size: 22px; }
+    .muted { color: var(--muted); }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(248, 250, 252, .92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 15px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .brand { display: inline-flex; align-items: center; text-decoration: none; }
+    .brand-logo { width: 184px; height: auto; display: block; }
+    .nav { display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 14px; }
+    .nav a { text-decoration: none; }
+    .page { max-width: 1180px; margin: 0 auto; padding: 42px 24px 70px; }
+    .screen[hidden] { display: none; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 20px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(37, 99, 235, .22);
+    }
+    .btn:hover { background: var(--accent-dark); }
+    .btn.secondary { background: #eaf2ff; color: var(--accent-dark); box-shadow: none; }
+    .btn.ghost { background: transparent; color: var(--muted); box-shadow: none; padding-left: 0; padding-right: 0; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 34px;
+      align-items: center;
+      padding: 38px;
+      border: 1px solid var(--line);
+      border-radius: 34px;
+      background: radial-gradient(circle at top right, rgba(96,165,250,.26), transparent 38%), linear-gradient(135deg,#fff 0%,#f8fbff 100%);
+      box-shadow: var(--shadow);
+    }
+    .hero p { max-width: 760px; color: var(--muted); font-size: 20px; margin-top: 18px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; align-items: center; }
+    .microcopy { margin-top: 16px; color: var(--muted); font-size: 14px; }
+    .product-card {
+      background: var(--dark);
+      color: white;
+      border-radius: 30px;
+      padding: 28px;
+      box-shadow: 0 22px 48px rgba(15, 23, 42, .22);
+      display: grid;
+      gap: 18px;
+    }
+    .product-card .logo { width: 180px; height: auto; }
+    .mini-flow { display: grid; gap: 10px; }
+    .mini-step { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); }
+    .mini-step b { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 999px; background: #fff; color: var(--accent); font-size: 14px; }
+    .price-preview { margin-top: 4px; background: #fff; color: var(--text); border-radius: 22px; padding: 18px; }
+    .price-preview strong { display: block; font-size: 40px; letter-spacing: -.06em; color: var(--accent); }
+
+    section.block { margin-top: 26px; }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 30px; padding: 30px; box-shadow: var(--shadow); }
+    .panel-head { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; margin-bottom: 20px; }
+    .panel-head p { max-width: 720px; color: var(--muted); margin-top: 10px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 22px; padding: 20px; box-shadow: 0 10px 26px rgba(15, 23, 42, .05); }
+    .card h3 { margin-bottom: 8px; }
+    .card p, .card li { color: var(--muted); }
+    .card small { display: inline-flex; margin-bottom: 10px; padding: 5px 10px; border-radius: 999px; background: var(--accent-soft); color: #1e40af; font-weight: 800; }
+    .step-number { width: 42px; height: 42px; border-radius: 15px; display: grid; place-items: center; margin-bottom: 12px; background: var(--accent); color: #fff; font-weight: 900; }
+    .list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .list li { padding-left: 28px; position: relative; }
+    .list li::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--ok); font-weight: 900; }
+    .notice { border-radius: 24px; padding: 22px; border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; }
+    .notice strong { display: block; margin-bottom: 6px; color: #7c2d12; }
+
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 18px; background: #fff; border: 1px solid var(--line); }
+    th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--accent-soft); color: #1e40af; }
+    tr:last-child td { border-bottom: 0; }
+
+    .faq { display: grid; gap: 10px; }
+    details { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; }
+    summary { cursor: pointer; font-weight: 800; }
+    details p { margin-top: 10px; color: var(--muted); }
+
+    .article-card { display: grid; align-content: space-between; min-height: 230px; }
+    .article-card .tag { color: var(--accent); font-weight: 800; font-size: 13px; margin-bottom: 12px; }
+    .article-card a { margin-top: 18px; color: var(--accent); font-weight: 800; text-decoration: none; }
+
+    .article-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; align-items: start; }
+    .article { background: #fff; border: 1px solid var(--line); border-radius: 30px; padding: 34px; box-shadow: var(--shadow); }
+    .article h1 { font-size: clamp(34px, 5vw, 56px); margin-bottom: 16px; }
+    .article h2 { font-size: 30px; margin-top: 34px; margin-bottom: 12px; }
+    .article p { margin: 14px 0; color: #344054; }
+    .article ul, .article ol { color: #344054; }
+    .article li { margin: 7px 0; }
+    .article .description { font-size: 18px; color: var(--muted); margin-bottom: 22px; }
+    .sidebar { position: sticky; top: 96px; display: grid; gap: 12px; }
+    .sidebar .card { box-shadow: none; }
+
+    .final-cta { margin-top: 28px; background: linear-gradient(135deg, var(--dark), #1e3a8a); color: #fff; border-radius: 34px; padding: 36px; display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; }
+    .final-cta p { color: #bfdbfe; margin-top: 10px; max-width: 720px; }
+    footer { max-width: 1180px; margin: 0 auto; padding: 0 24px 42px; color: var(--muted); font-size: 14px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    footer a { text-decoration: none; margin-right: 14px; }
+
+    @media (max-width: 920px) {
+      .hero, .grid-2, .grid-3, .grid-4, .article-layout, .final-cta { grid-template-columns: 1fr; }
+      .nav { flex-wrap: wrap; justify-content: flex-end; }
+      .sidebar { position: static; }
+    }
+    @media (max-width: 620px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .brand-logo { width: 160px; }
+      .page { padding: 24px 14px 50px; }
+      .hero, .panel, .article, .final-cta { border-radius: 24px; padding: 22px; }
+      .grid-4 { grid-template-columns: 1fr; }
+      h1 { font-size: 38px; }
+      .hero p { font-size: 17px; }
+      th, td { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <a class="brand" href="#home" data-page="home" aria-label="Письмолёт">
+        <img class="brand-logo" src="../assets/brand/logo-horizontal.svg" alt="Письмолёт" />
+      </a>
+      <nav class="nav" aria-label="Главная навигация">
+        <a href="#how" data-scroll="how">Как работает</a>
+        <a href="#audiences" data-scroll="audiences">Для кого</a>
+        <a href="#articles" data-page="articles">Статьи</a>
+        <a href="mvp-flow.html">Войти</a>
+        <a class="btn secondary" href="mvp-flow.html#upload">Попробовать</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="screen" id="home">
+      <div class="hero">
+        <div>
+          <h1>Простая рассылка клиентам без скрытых копий и настройки домена</h1>
+          <p>Загрузите таблицу с адресами, напишите письмо, увидьте стоимость, оплатите и запустите рассылку. Письмолёт сам уберёт дубли, невалидные адреса и тех, кто уже отписался.</p>
+          <div class="actions">
+            <a class="btn" href="mvp-flow.html#upload">Попробовать простую рассылку</a>
+            <a class="btn secondary" href="#how" data-scroll="how">Посмотреть, как работает</a>
+          </div>
+          <div class="microcopy">Для малого бизнеса, НКО, мероприятий и локальных проектов. Рассылать можно только по своей законной базе.</div>
+        </div>
+        <aside class="product-card" aria-label="Пример расчёта рассылки">
+          <img class="logo" src="../assets/brand/logo-horizontal-inverted.svg" alt="Письмолёт" />
+          <div class="mini-flow">
+            <div class="mini-step"><b>1</b><span>Адреса из Excel или списком</span></div>
+            <div class="mini-step"><b>2</b><span>Простое письмо без конструктора</span></div>
+            <div class="mini-step"><b>3</b><span>Проверка дублей и отписавшихся</span></div>
+            <div class="mini-step"><b>4</b><span>Оплата и постепенная отправка</span></div>
+          </div>
+          <div class="price-preview">
+            <span class="muted">Пример расчёта</span>
+            <strong>102 ₽</strong>
+            <p class="muted">681 письмо принято к отправке. За исключённые адреса платить не нужно.</p>
+          </div>
+        </aside>
+      </div>
+
+      <section class="block panel">
+        <div class="panel-head">
+          <div>
+            <h2>Когда скрытая копия уже не спасает</h2>
+            <p>Отправить письмо 10–20 людям через обычную почту ещё можно. Но когда адресатов становится 100, 300 или 1000, начинаются ошибки и ручная возня.</p>
+          </div>
+        </div>
+        <div class="grid-3">
+          <div class="card"><h3>Адреса в таблице</h3><p>Список живёт в Excel, старом письме или заметках, и его нужно аккуратно перенести в рассылку.</p></div>
+          <div class="card"><h3>Риск раскрыть базу</h3><p>Один неверный клик — и получатели увидят чужие email-адреса.</p></div>
+          <div class="card"><h3>Отписки вручную</h3><p>Нужно помнить, кто уже просил больше не писать, и не добавлять его обратно.</p></div>
+        </div>
+      </section>
+
+      <section class="block panel" id="how">
+        <div class="panel-head">
+          <div>
+            <h2>Четыре простых шага</h2>
+            <p>Без сегментов, автоворонок, дизайнерских шаблонов и технических настроек.</p>
+          </div>
+        </div>
+        <div class="grid-4">
+          <div class="card"><div class="step-number">1</div><h3>Добавьте адреса</h3><p>Загрузите Excel или вставьте список email вручную. Для MVP нужен только email.</p></div>
+          <div class="card"><div class="step-number">2</div><h3>Напишите письмо</h3><p>Простой текст письма, имя отправителя и тема. Ссылка отписки добавится сервисом.</p></div>
+          <div class="card"><div class="step-number">3</div><h3>Проверьте расчёт</h3><p>Письмолёт покажет, сколько адресов принято, сколько исключено и сколько стоит отправка.</p></div>
+          <div class="card"><div class="step-number">4</div><h3>Оплатите и запустите</h3><p>После оплаты рассылка проходит проверки и отправляется постепенно, без залпа.</p></div>
+        </div>
+      </section>
+
+      <section class="block panel">
+        <div class="panel-head">
+          <div>
+            <h2>Меньше ручной возни и ошибок</h2>
+            <p>Письмолёт закрывает базовую гигиену простой рассылки, но не превращается в сложный email-маркетинговый комбайн.</p>
+          </div>
+        </div>
+        <div class="grid-3">
+          <div class="card"><h3>Проверка адресов</h3><p>Сервис убирает дубли, явные ошибки и адреса из глобальной отписки до расчёта стоимости.</p></div>
+          <div class="card"><h3>Без настройки домена</h3><p>В MVP пользователь не настраивает DNS, SPF, DKIM, DMARC, SMTP и репутацию домена.</p></div>
+          <div class="card"><h3>Ответы получателей</h3><p>Ответы можно пересылать отправителю через сервис, чтобы клиент не терял обратную связь.</p></div>
+        </div>
+      </section>
+
+      <section class="block panel">
+        <div class="panel-head">
+          <div>
+            <h2>Почему не просто скрытая копия</h2>
+            <p>Скрытая копия подходит для маленьких ручных отправок. Письмолёт нужен, когда таблица и отписки уже становятся отдельной задачей.</p>
+          </div>
+          <a class="btn secondary" href="#bcc" data-page="bcc">Подробнее</a>
+        </div>
+        <table aria-label="Сравнение скрытой копии и Письмолёта">
+          <thead><tr><th>Задача</th><th>Скрытая копия</th><th>Письмолёт</th></tr></thead>
+          <tbody>
+            <tr><td>10–20 адресов</td><td>Нормально</td><td>Может быть избыточно</td></tr>
+            <tr><td>100–1000 адресов</td><td>Неудобно и рискованно</td><td>Основной сценарий</td></tr>
+            <tr><td>Не раскрыть адреса</td><td>Зависит от внимательности</td><td>Получатели не видят базу</td></tr>
+            <tr><td>Убрать дубли и ошибки</td><td>Вручную</td><td>До расчёта и отправки</td></tr>
+            <tr><td>Отписка</td><td>Вручную</td><td>Автоматическая ссылка отписки</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="block panel" id="audiences">
+        <div class="panel-head">
+          <div>
+            <h2>Для кого</h2>
+            <p>Для тех, кому нужно просто написать своей базе, а не запускать сложный маркетинг.</p>
+          </div>
+        </div>
+        <div class="grid-4">
+          <div class="card"><small>Малый бизнес</small><h3>Клиенты и записи</h3><p>Расписание, переезд, новости, напоминания и простые объявления.</p></div>
+          <div class="card"><small>НКО</small><h3>Волонтёры и партнёры</h3><p>Письма участникам, донорам, партнёрам и локальным сообществам.</p></div>
+          <div class="card"><small>Мероприятия</small><h3>Участники</h3><p>Напоминания, материалы, изменения расписания и письма после события.</p></div>
+          <div class="card"><small>Клубы</small><h3>Сообщества</h3><p>Регулярные письма участникам без скрытых копий и ручных отписок.</p></div>
+        </div>
+      </section>
+
+      <section class="block notice">
+        <strong>Письмолёт не для холодного спама</strong>
+        Сервис предназначен для рассылок по своей законной базе: клиентам, участникам, подписчикам, волонтёрам, партнёрам или людям, с которыми у отправителя есть основание для связи. Купленные, спарсенные, скачанные из интернета и чужие базы запрещены.
+      </section>
+
+      <section class="block panel">
+        <div class="panel-head"><div><h2>Частые вопросы</h2><p>Короткие ответы для тех, кто выбирает между обычной почтой, скрытой копией и простым сервисом.</p></div></div>
+        <div class="faq">
+          <details open><summary>Можно ли отправить рассылку без настройки домена?</summary><p>Да. В MVP письма отправляются с домена сервиса, а пользователь не занимается DNS, SPF, DKIM, DMARC или SMTP.</p></details>
+          <details><summary>Можно ли загрузить Excel?</summary><p>Да. Можно загрузить таблицу Excel или вставить список email вручную.</p></details>
+          <details><summary>Что будет с дублями и ошибочными email?</summary><p>Сервис исключит их до расчёта стоимости и отправки.</p></details>
+          <details><summary>Можно ли рассылать по купленной базе?</summary><p>Нет. Купленные, спарсенные, скачанные из интернета и чужие базы запрещены.</p></details>
+          <details><summary>Чем Письмолёт отличается от больших сервисов рассылок?</summary><p>Большие платформы мощнее и подходят для профессионального email-маркетинга. Письмолёт — для простой рассылки из таблицы без технических настроек.</p></details>
+        </div>
+      </section>
+
+      <section class="block panel" id="articles">
+        <div class="panel-head">
+          <div>
+            <h2>Полезно знать</h2>
+            <p>Статьи для пользователей, которые сейчас отправляют письма через обычную почту, Excel и скрытую копию.</p>
+          </div>
+          <a class="btn secondary" href="#articles" data-page="articles">Все статьи</a>
+        </div>
+        <div class="grid-2">
+          <article class="card article-card">
+            <div>
+              <div class="tag">Скрытая копия</div>
+              <h3>Как написать клиентам без скрытых копий и случайного раскрытия адресов</h3>
+              <p>Что делать, если нужно отправить письмо клиентам или участникам из таблицы и не раскрыть адреса получателей друг другу.</p>
+            </div>
+            <a href="#article-bcc" data-page="article-bcc">Читать статью →</a>
+          </article>
+          <article class="card article-card">
+            <div>
+              <div class="tag">Excel</div>
+              <h3>Как сделать email-рассылку из Excel-таблицы</h3>
+              <p>Как подготовить таблицу с email-адресами и отправить простое письмо клиентам, участникам или подписчикам без скрытых копий.</p>
+            </div>
+            <a href="#article-excel" data-page="article-excel">Читать статью →</a>
+          </article>
+        </div>
+      </section>
+
+      <section class="final-cta">
+        <div>
+          <h2>Попробуйте простую рассылку без скрытых копий</h2>
+          <p>Добавьте адреса, напишите письмо, проверьте расчёт и запустите отправку после оплаты.</p>
+        </div>
+        <a class="btn" href="mvp-flow.html#upload">Попробовать</a>
+      </section>
+    </section>
+
+    <section class="screen" id="articles" hidden>
+      <section class="panel">
+        <div class="panel-head">
+          <div><h1 style="font-size:clamp(34px,5vw,58px)">Статьи Письмолёта</h1><p>Практические материалы о простых рассылках из таблицы, скрытой копии, отписках и подготовке адресов.</p></div>
+          <a class="btn secondary" href="#home" data-page="home">На главную</a>
+        </div>
+        <div class="grid-2">
+          <article class="card article-card">
+            <div><div class="tag">Скрытая копия</div><h3>Как написать клиентам без скрытых копий и случайного раскрытия адресов</h3><p>Когда обычной почты достаточно, почему скрытая копия не решает все проблемы и как отправить письмо аккуратнее.</p></div>
+            <a href="#article-bcc" data-page="article-bcc">Открыть →</a>
+          </article>
+          <article class="card article-card">
+            <div><div class="tag">Excel</div><h3>Как сделать email-рассылку из Excel-таблицы</h3><p>Минимальная таблица, проверка адресов, дубли, ошибки, отписавшиеся и запуск простой рассылки.</p></div>
+            <a href="#article-excel" data-page="article-excel">Открыть →</a>
+          </article>
+          <article class="card article-card">
+            <div><div class="tag">Скоро</div><h3>Как сделать простую email-рассылку без настройки домена</h3><p>Объяснение для пользователей, которые не хотят разбираться в DNS, SPF, DKIM, DMARC и SMTP.</p></div>
+            <a href="#home" data-page="home">Пока ссылка на главную →</a>
+          </article>
+          <article class="card article-card">
+            <div><div class="tag">Скоро</div><h3>Почему нельзя делать рассылку по купленной базе email</h3><p>Антиспам-материал о рисках купленных, спарсенных и чужих адресов.</p></div>
+            <a href="#home" data-page="home">Пока ссылка на главную →</a>
+          </article>
+        </div>
+      </section>
+    </section>
+
+    <section class="screen" id="bcc" hidden>
+      <section class="hero">
+        <div>
+          <h1>Альтернатива скрытой копии для рассылки клиентам</h1>
+          <p>Если адресов уже не 20, а 100, 300 или 1000, скрытая копия становится рискованной. Письмолёт помогает отправить письмо аккуратно: без раскрытия адресов, с проверкой списка и отпиской.</p>
+          <div class="actions"><a class="btn" href="mvp-flow.html#upload">Попробовать вместо скрытой копии</a><a class="btn secondary" href="#home" data-page="home">На главную</a></div>
+        </div>
+        <aside class="product-card"><h3>Когда пора переходить</h3><ul class="list"><li>адресатов десятки или сотни;</li><li>письма повторяются;</li><li>нужно учитывать отписки;</li><li>страшно раскрыть адреса;</li><li>хочется видеть историю отправки.</li></ul></aside>
+      </section>
+      <section class="block panel">
+        <h2>Почему скрытая копия неудобна</h2>
+        <p class="muted" style="margin-top:10px">Скрытая копия полезна для разовой отправки небольшому числу людей. Но в регулярных рассылках она превращается в ручную работу: нужно самому вести таблицу, удалять отписавшихся, следить за дублями и не ошибиться с полем получателей.</p>
+        <div class="grid-3" style="margin-top:20px"><div class="card"><h3>Ошибка поля</h3><p>Адреса можно случайно вставить в открытое поле получателей.</p></div><div class="card"><h3>Нет учёта отписок</h3><p>Отписавшихся приходится помнить и удалять вручную.</p></div><div class="card"><h3>Нет проверки списка</h3><p>Дубли, ошибки и старые адреса остаются на совести отправителя.</p></div></div>
+      </section>
+      <section class="block panel"><table><thead><tr><th>Задача</th><th>Скрытая копия</th><th>Письмолёт</th></tr></thead><tbody><tr><td>10–20 адресов</td><td>Нормально</td><td>Может быть избыточно</td></tr><tr><td>100–1000 адресов</td><td>Неудобно</td><td>Подходит</td></tr><tr><td>Не раскрыть адреса</td><td>Зависит от внимательности</td><td>Да</td></tr><tr><td>Убрать дубли</td><td>Вручную</td><td>Автоматически</td></tr><tr><td>Отписка</td><td>Вручную</td><td>Автоматически</td></tr></tbody></table></section>
+    </section>
+
+    <section class="screen" id="excel" hidden>
+      <section class="hero">
+        <div>
+          <h1>Рассылка по email из Excel-таблицы</h1>
+          <p>Загрузите таблицу с адресами, проверьте список, напишите письмо и отправьте рассылку без скрытых копий. Для MVP достаточно одной колонки с email.</p>
+          <div class="actions"><a class="btn" href="mvp-flow.html#upload">Загрузить таблицу и попробовать</a><a class="btn secondary" href="#article-excel" data-page="article-excel">Читать статью</a></div>
+        </div>
+        <aside class="product-card"><h3>Пример таблицы</h3><table><tbody><tr><td style="color:#172033"><b>email</b></td></tr><tr><td style="color:#172033">anna@example.ru</td></tr><tr><td style="color:#172033">club@example.ru</td></tr><tr><td style="color:#172033">ivan@example.ru</td></tr></tbody></table></aside>
+      </section>
+      <section class="block panel"><h2>Что проверит сервис</h2><div class="grid-3" style="margin-top:20px"><div class="card"><h3>Пустые строки</h3><p>Лишние строки не попадут в расчёт.</p></div><div class="card"><h3>Ошибки в email</h3><p>Очевидно неправильные адреса будут исключены.</p></div><div class="card"><h3>Отписавшиеся</h3><p>Адреса из глобальной отписки не получат письмо.</p></div></div></section>
+      <section class="block notice"><strong>Важно перед загрузкой</strong> Загружать можно только свою законную базу: клиентов, участников, подписчиков, волонтёров, партнёров или других адресатов, с которыми у вас есть основание для связи.</section>
+    </section>
+
+    <section class="screen" id="article-bcc" hidden>
+      <div class="article-layout">
+        <article class="article">
+          <a class="btn ghost" href="#articles" data-page="articles">← Все статьи</a>
+          <h1>Как написать клиентам без скрытых копий и случайного раскрытия адресов</h1>
+          <p class="description">Что делать, если нужно отправить письмо клиентам или участникам из таблицы и не раскрыть адреса получателей друг другу.</p>
+          <h2>Почему поле «Кому» не подходит</h2>
+          <p>Поле «Кому» нужно для обычной переписки. Все получатели видят друг друга и понимают, кто участвует в разговоре.</p>
+          <p>Для письма клиентам или участникам это обычно лишнее. Получатель должен увидеть само письмо, а не список чужих адресов.</p>
+          <h2>Почему скрытая копия не всегда удобна</h2>
+          <p>Скрытая копия скрывает адреса, но не решает остальные задачи.</p>
+          <ul><li>кто уже просил не писать;</li><li>есть ли в таблице повторы;</li><li>есть ли адреса с ошибками;</li><li>где потом искать историю отправки;</li><li>как обрабатывать ответы и просьбы об отписке.</li></ul>
+          <h2>Когда обычной почты достаточно</h2>
+          <p>Обычная почта может подойти, если получателей немного, письмо разовое, все адресаты хорошо вам известны и вы уверены, что не ошибётесь с полями получателей.</p>
+          <h2>Когда нужен отдельный сервис</h2>
+          <p>Отдельный сервис полезен, если список живёт в таблице, адресатов десятки или сотни, письма повторяются, важно не раскрыть адреса и нужна понятная отписка.</p>
+          <h2>Как это работает в Письмолёте</h2>
+          <ol><li>Вы загружаете таблицу или вставляете список email.</li><li>Сервис проверяет адреса и исключает лишнее до отправки.</li><li>Вы пишете простое письмо.</li><li>Сервис показывает расчёт стоимости.</li><li>Вы подтверждаете, что база ваша и получена законно.</li><li>После оплаты и проверок письмо отправляется получателям.</li></ol>
+          <h2>Важно про законную базу</h2>
+          <p>Письмолёт нельзя использовать для купленных, спарсенных, скачанных из интернета или чужих баз. Сервис рассчитан на коммуникацию с теми, с кем у отправителя уже есть законное основание для связи.</p>
+          <div class="actions"><a class="btn" href="mvp-flow.html#upload">Попробовать простую рассылку</a></div>
+        </article>
+        <aside class="sidebar"><div class="card"><h3>Связанные страницы</h3><p><a href="#bcc" data-page="bcc">Альтернатива скрытой копии</a></p><p><a href="#excel" data-page="excel">Рассылка из Excel</a></p></div><div class="notice"><strong>Не для спама</strong> Только своя законная база. Купленные и спарсенные адреса запрещены.</div></aside>
+      </div>
+    </section>
+
+    <section class="screen" id="article-excel" hidden>
+      <div class="article-layout">
+        <article class="article">
+          <a class="btn ghost" href="#articles" data-page="articles">← Все статьи</a>
+          <h1>Как сделать email-рассылку из Excel-таблицы</h1>
+          <p class="description">Как подготовить таблицу с email-адресами и отправить простое письмо клиентам, участникам или подписчикам без скрытых копий.</p>
+          <h2>Минимальная таблица для простой рассылки</h2>
+          <p>Для простой email-рассылки достаточно одной обязательной колонки:</p>
+          <table><tbody><tr><td><b>email</b></td></tr><tr><td>anna@example.ru</td></tr><tr><td>club@example.ru</td></tr><tr><td>ivan@example.ru</td></tr></tbody></table>
+          <p>На первом этапе не нужно добавлять лишние данные. Чем меньше лишнего, тем проще старт и тем ниже риск ошибиться.</p>
+          <h2>Что проверить в таблице до отправки</h2>
+          <ol><li>Пустые строки.</li><li>Повторы адресов.</li><li>Ошибки в email.</li><li>Отписавшихся.</li><li>Источник адресов и основание для связи.</li></ol>
+          <h2>Почему не стоит отправлять из Excel вручную</h2>
+          <p>Excel хранит список, но не отправляет письма аккуратно сам по себе. Обычно дальше приходится копировать адреса в обычную почту и отправлять через скрытую копию.</p>
+          <ul><li>можно вставить адреса в обычное поле получателей;</li><li>можно забыть удалить дубли;</li><li>можно отправить письмо тем, кто уже отказался от писем;</li><li>можно не заметить ошибочные email;</li><li>сложно сохранить понятную историю отправки.</li></ul>
+          <h2>Как загрузить таблицу в Письмолёт</h2>
+          <ol><li>Вы загружаете Excel или вставляете список email.</li><li>Сервис читает адреса.</li><li>Сервис проверяет список.</li><li>Показывает, сколько адресов принято и сколько исключено.</li><li>Вы пишете письмо.</li><li>Сервис считает стоимость отправки.</li><li>Вы подтверждаете источник базы и запускаете рассылку после оплаты.</li></ol>
+          <h2>Какие базы нельзя загружать</h2>
+          <p>Нельзя использовать купленные базы, скачанные из интернета списки, спарсенные адреса, чужие CRM и любые списки, происхождение которых вы не можете объяснить.</p>
+          <h2>Короткий чек-лист перед отправкой</h2>
+          <ul><li>в списке нет лишних строк;</li><li>адреса выглядят корректно;</li><li>база ваша, а не купленная и не чужая;</li><li>вы понимаете цель письма;</li><li>в письме понятно, кто отправитель;</li><li>получатель сможет отписаться.</li></ul>
+          <div class="actions"><a class="btn" href="mvp-flow.html#upload">Попробовать рассылку из Excel</a></div>
+        </article>
+        <aside class="sidebar"><div class="card"><h3>Связанные страницы</h3><p><a href="#excel" data-page="excel">Посадочная про Excel</a></p><p><a href="#article-bcc" data-page="article-bcc">Статья про скрытые копии</a></p></div><div class="notice"><strong>Только email</strong> Для простого MVP используем минимальный сценарий без лишних данных.</div></aside>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>© Письмолёт · простой сервис email-рассылок</div>
+    <div><a href="#home" data-page="home">Главная</a><a href="#articles" data-page="articles">Статьи</a><a href="#home">Правила рассылок</a><a href="#home">Антиспам</a><a href="#home">Контакты</a></div>
+  </footer>
+
+  <script>
+    const screens = [...document.querySelectorAll('.screen')];
+    const validPages = new Set(screens.map(screen => screen.id));
+
+    function showPage(id) {
+      const pageId = validPages.has(id) ? id : 'home';
+      screens.forEach(screen => { screen.hidden = screen.id !== pageId; });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (location.hash.replace('#', '') !== pageId) history.replaceState(null, '', `#${pageId}`);
+    }
+
+    document.addEventListener('click', event => {
+      const pageLink = event.target.closest('[data-page]');
+      if (pageLink) {
+        event.preventDefault();
+        showPage(pageLink.dataset.page);
+        return;
+      }
+      const scrollLink = event.target.closest('[data-scroll]');
+      if (scrollLink) {
+        event.preventDefault();
+        showPage('home');
+        setTimeout(() => document.getElementById(scrollLink.dataset.scroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+      }
+    });
+
+    showPage(location.hash.replace('#', '') || 'home');
+  </script>
+</body>
+</html>
