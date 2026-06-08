@@ -80,7 +80,6 @@
     .mail-preview-body h4 { margin:0 0 12px; font-size:18px; }
     .mail-preview-body p { margin:0 0 10px; }
     .unsubscribe { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
-    .unsubscribe strong { display:block; color:var(--text); margin-bottom:6px; }
     .stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
     .stat { background:#f8fafc; border:1px solid var(--line); border-radius:18px; padding:16px; }
     .stat b { display:block; font-size:24px; letter-spacing:-0.03em; }
@@ -112,10 +111,7 @@
     .history-row:last-child { border-bottom:0; }
     .badge { display:inline-flex; align-items:center; border-radius:999px; padding:5px 10px; font-weight:700; font-size:12px; background:#dcfce7; color:var(--ok); }
     .badge.warn { background:#fff4d6; color:var(--warn); }
-    .optin-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
-    .optin-step { background:#fff; border:1px solid var(--line); border-radius:20px; padding:18px; }
-    .optin-step b { width:34px; height:34px; border-radius:999px; display:grid; place-items:center; background:var(--accent); color:#fff; margin-bottom:10px; }
-    @media (max-width:900px){ .dashboard-grid,.two-col,.wizard-head,.optin-steps{grid-template-columns:1fr}.cards,.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.progress{grid-template-columns:1fr 1fr} }
+    @media (max-width:900px){ .dashboard-grid,.two-col,.wizard-head{grid-template-columns:1fr}.cards,.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.progress{grid-template-columns:1fr 1fr} }
     @media (max-width:560px){ .topbar{align-items:flex-start;flex-direction:column}.brand-logo{width:160px}.account{flex-wrap:wrap}.page{padding:22px 14px 48px}.panel{padding:22px;border-radius:22px}.row,.cards,.stats{grid-template-columns:1fr}.progress{grid-template-columns:1fr} }
   </style>
 </head>
@@ -130,7 +126,6 @@
         <a href="#dashboard" data-go="dashboard">Главная</a>
         <a href="#history" data-go="history">История</a>
         <a href="#profile" data-go="profile">Профиль</a>
-        <a href="#double-optin" data-go="double-optin">Подписка</a>
         <a href="public-site.html">Лендинг</a>
         <a href="#">Выйти</a>
       </div>
@@ -206,49 +201,12 @@
             </ul>
           </div>
           <div class="box">
-            <h3>Подписка и подтверждения</h3>
-            <p class="hint">Если Письмолёт сам собирает или подтверждает подписку адресата, адрес активируется только после клика по ссылке в письме.</p>
-            <div class="actions"><button class="btn secondary" data-go="double-optin">Открыть double opt-in</button></div>
+            <h3>Безопасность базы</h3>
+            <p class="hint">Письмолёт не собирает базу за клиента. Клиент загружает свою базу и перед отправкой подтверждает, что имеет законное основание писать этим адресатам.</p>
           </div>
         </div>
       </div>
       <div class="actions"><button class="btn">Сохранить изменения</button><button class="btn secondary" data-go="dashboard">Вернуться в кабинет</button></div>
-    </section>
-
-    <section class="panel screen" id="double-optin" hidden>
-      <h2>Double opt-in: подтверждение подписки</h2>
-      <p class="lead">Этот сценарий нужен там, где Письмолёт сам собирает или подтверждает подписку адресата. Адрес становится активным только после клика по ссылке в письме.</p>
-      <div class="optin-steps">
-        <div class="optin-step">
-          <b>1</b>
-          <h3>Введите email</h3>
-          <label style="margin-top:12px">Email адресата<input value="anna@example.ru" /></label>
-          <div class="actions"><button class="btn">Отправить подтверждение</button></div>
-        </div>
-        <div class="optin-step">
-          <b>2</b>
-          <h3>Письмо отправлено</h3>
-          <p class="hint">На адрес ушло письмо со ссылкой подтверждения. До клика адрес не считается активным для подписки.</p>
-          <div class="notice warn" style="margin-top:14px">Нельзя считать молчание согласием: нужен явный клик по ссылке.</div>
-        </div>
-        <div class="optin-step">
-          <b>3</b>
-          <h3>Подписка подтверждена</h3>
-          <p class="hint">После перехода по ссылке фиксируются признак double opt-in и дата подтверждения.</p>
-          <span class="badge" style="margin-top:14px">активен после клика</span>
-        </div>
-      </div>
-      <div class="box" style="margin-top:18px">
-        <h3>Состояние адресатов</h3>
-        <ul class="list">
-          <li><span>anna@example.ru · double opt-in</span><b>да · 08.06.2026</b></li>
-          <li><span>club@example.ru · double opt-in</span><b>нет · не активирован</b></li>
-          <li><span>ivan@example.ru · double opt-in</span><b>да · 07.06.2026</b></li>
-        </ul>
-        <p class="hint" style="margin-top:12px">Для каждого адреса хранятся минимум два поля: double opt-in — да/нет и дата подтверждения, если подтверждение было.</p>
-      </div>
-      <div class="notice warn" style="margin-top:18px">Double opt-in подтверждает конкретный сценарий подписки, но не заменяет обязанность клиента подтвердить законность своей базы перед отправкой рассылки.</div>
-      <div class="actions"><button class="btn secondary" data-go="profile">Вернуться в профиль</button><button class="btn" data-go="upload">Создать рассылку</button></div>
     </section>
 
     <section class="screen wizard" id="wizard" hidden>
@@ -301,7 +259,7 @@
 Библиотека №5</textarea></label>
           <div class="actions"><button class="btn" data-step="pay">Проверить, посчитать и оплатить</button><button class="btn secondary">Отправить тест себе</button></div>
         </div>
-        <div class="box"><h3>Превью письма</h3><div class="mail-preview"><div class="mail-preview-header">От: <span id="previewSender">Библиотека №5</span> &lt;hello@pismolet.ru&gt;</div><div class="mail-preview-body"><h4 id="previewSubject">Приглашаем на встречу в субботу</h4><p id="previewBody">Здравствуйте!<br><br>В эту субботу в 12:00 у нас пройдёт встреча читательского клуба. Будем рады видеть вас.<br><br>Адрес: ул. Примерная, 10.<br><br>С уважением,<br>Библиотека №5</p><div class="unsubscribe"><strong>Служебная информация</strong>Отправитель: <span id="previewServiceSender">Библиотека №5</span>.<br>Почему вы получили письмо: отправитель указал, что у него есть законное основание писать на этот адрес.<br><u>Глобально отписаться от всех рассылок через Письмолёт</u>.</div></div></div></div>
+        <div class="box"><h3>Превью письма</h3><div class="mail-preview"><div class="mail-preview-header">От: <span id="previewSender">Библиотека №5</span> &lt;hello@pismolet.ru&gt;</div><div class="mail-preview-body"><h4 id="previewSubject">Приглашаем на встречу в субботу</h4><p id="previewBody">Здравствуйте!<br><br>В эту субботу в 12:00 у нас пройдёт встреча читательского клуба. Будем рады видеть вас.<br><br>Адрес: ул. Примерная, 10.<br><br>С уважением,<br>Библиотека №5</p><div class="unsubscribe" id="serviceBlock">Вы получили это письмо от Библиотека №5 через Письмолёт, потому что отправитель указал, что у него есть законное основание связаться с вами по этому адресу. Если вы не хотите получать такие письма через Письмолёт, вы можете отписаться от всех рассылок через сервис.</div></div></div></div>
       </div>
     </section>
 
@@ -309,17 +267,8 @@
       <h2>3. Проверьте расчёт и оплатите</h2>
       <p class="lead">Система убрала дубли, ошибки и адреса из глобальной отписки. Оплата будет только за письма, принятые к отправке.</p>
       <div class="stats"><div class="stat"><b>742</b><span>строки в файле</span></div><div class="stat"><b>681</b><span>принято к отправке</span></div><div class="stat"><b>38</b><span>дубли и ошибки</span></div><div class="stat"><b>23</b><span>глобально отписались</span></div></div>
-      <div class="box" style="margin-top:18px">
-        <h3>Состояние адресатов</h3>
-        <ul class="list">
-          <li><span>anna@example.ru · double opt-in</span><b>да · 08.06.2026</b></li>
-          <li><span>club@example.ru · double opt-in</span><b>нет · не требуется для этой базы</b></li>
-          <li><span>ivan@example.ru · double opt-in</span><b>да · 07.06.2026</b></li>
-        </ul>
-        <p class="hint" style="margin-top:12px">Если адрес собирался или подтверждался через Письмолёт, он активируется только после клика по ссылке подтверждения.</p>
-      </div>
       <div class="two-col" style="margin-top:18px">
-        <div class="box"><h3>Подтверждения перед оплатой</h3><div class="checks"><label class="check"><input type="checkbox" /> <span>Я подтверждаю, что имею законное основание для обработки загруженных адресов и отправки писем этим адресатам.</span></label><label class="check"><input type="checkbox" /> <span>Я не использую купленную, украденную, спарсенную или чужую базу.</span></label><label class="check"><input type="checkbox" /> <span>Если письмо является рекламным, я подтверждаю наличие согласия на рекламную рассылку.</span></label></div><div class="notice warn" style="margin-top:14px">Double opt-in не заменяет подтверждение законности базы клиентом. Оплата также не гарантирует отправку запрещённых или рискованных рассылок: при риске рассылка уйдёт на проверку.</div></div>
+        <div class="box"><h3>Подтверждения перед оплатой</h3><div class="checks"><label class="check"><input type="checkbox" /> <span>Я подтверждаю, что имею законное основание для обработки загруженных адресов и отправки писем этим адресатам.</span></label><label class="check"><input type="checkbox" /> <span>Я не использую купленную, украденную, спарсенную или чужую базу.</span></label><label class="check"><input type="checkbox" /> <span>Если письмо является рекламным, я подтверждаю наличие согласия на рекламную рассылку.</span></label></div><div class="notice warn" style="margin-top:14px">Оплата не гарантирует отправку запрещённых или рискованных рассылок. При риске рассылка уйдёт на проверку.</div></div>
         <div class="pay-card"><small>К оплате сейчас</small><strong class="sum">102 ₽</strong><p>681 письмо × 0,15 ₽. За исключённые 61 адрес не платите.</p><ul class="list" style="margin-top:18px"><li><span>Принято писем</span><b>681</b></li><li><span>Цена за письмо</span><b>0,15 ₽</b></li><li><span>Не списываем за исключённые</span><b>61</b></li></ul><div class="payment-box"><img src="../assets/brand/logo-horizontal-inverted.svg" alt="Письмолёт" style="width:150px;height:auto;margin-bottom:14px" /><div class="form-grid"><label>Номер карты<input placeholder="0000 0000 0000 0000" /></label><div class="row"><label>Срок<input placeholder="ММ/ГГ" /></label><label>CVC<input placeholder="***" /></label></div><button class="btn" data-step="done" style="width:100%">Оплатить 102 ₽ и запустить</button><span class="hint">В реальном сервисе здесь будет платёжная страница платёжного агента.</span></div></div></div>
       </div>
       <div class="actions"><button class="btn ghost" data-step="write">Вернуться к письму</button></div>
@@ -362,15 +311,16 @@
     const subjectInput = document.getElementById('subjectInput');
     const bodyInput = document.getElementById('bodyInput');
     const previewSender = document.getElementById('previewSender');
-    const previewServiceSender = document.getElementById('previewServiceSender');
     const previewSubject = document.getElementById('previewSubject');
     const previewBody = document.getElementById('previewBody');
+    const serviceBlock = document.getElementById('serviceBlock');
     function updatePreview() {
       if (!senderInput) return;
-      previewSender.textContent = senderInput.value || 'Отправитель';
-      if (previewServiceSender) previewServiceSender.textContent = senderInput.value || 'Отправитель';
+      const sender = senderInput.value || 'Отправитель';
+      previewSender.textContent = sender;
       previewSubject.textContent = subjectInput.value || 'Тема письма';
       previewBody.innerHTML = (bodyInput.value || 'Текст письма').replace(/\n/g, '<br>');
+      if (serviceBlock) serviceBlock.textContent = `Вы получили это письмо от ${sender} через Письмолёт, потому что отправитель указал, что у него есть законное основание связаться с вами по этому адресу. Если вы не хотите получать такие письма через Письмолёт, вы можете отписаться от всех рассылок через сервис.`;
     }
     [senderInput, subjectInput, bodyInput].forEach(input => input && input.addEventListener('input', updatePreview));
   </script>
