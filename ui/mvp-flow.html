@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Письмолёт — простой сценарий рассылки</title>
+  <style>
+    :root {
+      --bg: #f6f3ee;
+      --card: #ffffff;
+      --text: #241f1a;
+      --muted: #746b62;
+      --line: #e4ddd3;
+      --accent: #ef6c3e;
+      --accent-dark: #d65325;
+      --soft: #fff1e9;
+      --ok: #2f855a;
+      --warn: #b7791f;
+      --danger: #c53030;
+      --shadow: 0 18px 45px rgba(38, 29, 20, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    a { color: inherit; }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      background: rgba(246, 243, 238, 0.88);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    .topbar {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 13px;
+      background: linear-gradient(135deg, #ef6c3e, #f8b36f);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: 22px;
+      box-shadow: 0 10px 22px rgba(239, 108, 62, 0.25);
+    }
+
+    .account {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .layout {
+      max-width: 1120px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 36px 24px 72px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 28px;
+    }
+
+    .steps {
+      position: sticky;
+      top: 92px;
+      align-self: start;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .steps h2 {
+      margin: 4px 8px 16px;
+      font-size: 16px;
+    }
+
+    .step-link {
+      width: 100%;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      border: 0;
+      background: transparent;
+      padding: 12px 10px;
+      border-radius: 16px;
+      text-align: left;
+      cursor: pointer;
+      color: var(--muted);
+      font: inherit;
+    }
+
+    .step-link:hover,
+    .step-link.active {
+      background: var(--soft);
+      color: var(--text);
+    }
+
+    .num {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: #f1ebe3;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 13px;
+      flex: 0 0 auto;
+    }
+
+    .step-link.active .num {
+      background: var(--accent);
+      color: white;
+    }
+
+    .step-title { font-weight: 700; display: block; }
+    .step-caption { font-size: 12px; display: block; margin-top: 2px; }
+
+    main { display: grid; gap: 22px; }
+
+    .hero {
+      background: radial-gradient(circle at top right, #ffe1d1, transparent 40%), var(--card);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 30px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.08;
+      letter-spacing: -0.045em;
+    }
+
+    .hero p {
+      max-width: 700px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      letter-spacing: -0.03em;
+    }
+
+    .panel .lead {
+      margin: 0 0 22px;
+      color: var(--muted);
+    }
+
+    .dropzone {
+      border: 2px dashed #e2b69c;
+      background: #fff8f4;
+      border-radius: 24px;
+      padding: 34px;
+      text-align: center;
+    }
+
+    .dropzone strong { display: block; font-size: 20px; margin-bottom: 6px; }
+    .dropzone span { color: var(--muted); }
+
+    .form-grid { display: grid; gap: 16px; }
+
+    label {
+      display: grid;
+      gap: 8px;
+      font-weight: 700;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      padding: 13px 14px;
+      font: inherit;
+      background: #fffdfb;
+      color: var(--text);
+    }
+
+    textarea { min-height: 190px; resize: vertical; }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 400;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      background: #fbf8f3;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .stat b { display: block; font-size: 24px; letter-spacing: -0.03em; }
+    .stat span { color: var(--muted); font-size: 13px; }
+
+    .summary {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 18px;
+    }
+
+    .box {
+      background: #fbf8f3;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 20px;
+    }
+
+    .box h3 { margin: 0 0 12px; }
+
+    .list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .list li:last-child { border-bottom: 0; }
+    .list span { color: var(--muted); }
+    .list b { text-align: right; }
+
+    .price {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+
+    .price strong { font-size: 36px; letter-spacing: -0.05em; }
+
+    .notice {
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: #f7faf7;
+      color: #22543d;
+      border: 1px solid #c6e2cf;
+      font-size: 14px;
+    }
+
+    .notice.warn {
+      background: #fffaf0;
+      color: #744210;
+      border-color: #f6d795;
+    }
+
+    .checks {
+      display: grid;
+      gap: 12px;
+    }
+
+    .check {
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      gap: 10px;
+      align-items: start;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .check input { width: 18px; height: 18px; margin-top: 3px; }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 22px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 20px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 12px 24px rgba(239, 108, 62, 0.22);
+    }
+
+    .btn:hover { background: var(--accent-dark); }
+    .btn.secondary { background: #f1ebe3; color: var(--text); box-shadow: none; }
+    .btn.ghost { background: transparent; color: var(--muted); box-shadow: none; }
+
+    .payment-card {
+      max-width: 440px;
+      background: #111827;
+      color: white;
+      border-radius: 28px;
+      padding: 24px;
+      box-shadow: 0 22px 60px rgba(17, 24, 39, 0.22);
+    }
+
+    .payment-card input { background: #1f2937; border-color: #374151; color: white; }
+    .payment-card label { color: white; }
+    .payment-card .hint { color: #aab3c2; }
+
+    .success {
+      display: grid;
+      place-items: center;
+      text-align: center;
+      min-height: 380px;
+    }
+
+    .success-icon {
+      width: 86px;
+      height: 86px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: #e7f7ee;
+      color: var(--ok);
+      font-size: 46px;
+      margin-bottom: 18px;
+    }
+
+    .history-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .history-row:last-child { border-bottom: 0; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-weight: 700;
+      font-size: 12px;
+      background: #e7f7ee;
+      color: var(--ok);
+    }
+
+    .badge.warn { background: #fff4d6; color: var(--warn); }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .steps { position: static; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .summary { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .account { flex-wrap: wrap; }
+      .layout { padding: 22px 14px 48px; }
+      .hero, .panel { padding: 22px; border-radius: 22px; }
+      .row { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="topbar">
+        <div class="brand">
+          <div class="logo">✈</div>
+          <div>
+            <div>Письмолёт</div>
+            <small style="color: var(--muted); font-weight: 600;">простая рассылка без скрытой копии</small>
+          </div>
+        </div>
+        <div class="account">
+          <span>demo@example.ru</span>
+          <a href="#history">История</a>
+          <a href="#">Выйти</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="steps" aria-label="Шаги рассылки">
+        <h2>Новая рассылка</h2>
+        <button class="step-link active" data-target="upload"><span class="num">1</span><span><span class="step-title">Адреса</span><span class="step-caption">Загрузить таблицу</span></span></button>
+        <button class="step-link" data-target="write"><span class="num">2</span><span><span class="step-title">Письмо</span><span class="step-caption">Тема и текст</span></span></button>
+        <button class="step-link" data-target="checkout"><span class="num">3</span><span><span class="step-title">Расчёт</span><span class="step-caption">Сколько писем и цена</span></span></button>
+        <button class="step-link" data-target="payment"><span class="num">4</span><span><span class="step-title">Оплата</span><span class="step-caption">Оплатить отправку</span></span></button>
+        <button class="step-link" data-target="done"><span class="num">5</span><span><span class="step-title">Готово</span><span class="step-caption">Рассылка запущена</span></span></button>
+      </aside>
+
+      <main>
+        <section class="hero">
+          <h1>Загрузите адреса, напишите письмо, оплатите — мы отправим.</h1>
+          <p>Без настройки домена, SMTP, SPF, DKIM и скрытых копий. Письмолёт сам уберёт дубли, невалидные адреса и тех, кто уже отписался.</p>
+        </section>
+
+        <section class="panel screen" id="upload">
+          <h2>1. Загрузите таблицу с адресами</h2>
+          <p class="lead">Подойдёт CSV или XLSX. Обязательная колонка — email. Имя можно добавить, но для первой версии лучше начать только с email.</p>
+          <div class="dropzone">
+            <strong>Перетащите файл сюда</strong>
+            <span>или нажмите, чтобы выбрать CSV/XLSX до 10 000 строк</span>
+          </div>
+          <div class="actions">
+            <button class="btn" data-go="write">Файл загружен, дальше</button>
+            <button class="btn secondary">Скачать пример таблицы</button>
+          </div>
+          <div style="margin-top: 18px" class="notice warn">Письмолёт не принимает купленные, спарсенные и чужие базы. Перед отправкой нужно подтвердить источник адресов.</div>
+        </section>
+
+        <section class="panel screen" id="write" hidden>
+          <h2>2. Напишите письмо</h2>
+          <p class="lead">Простое письмо без конструктора и сложных шаблонов. Ссылка отписки и служебный блок будут добавлены автоматически.</p>
+          <div class="form-grid">
+            <div class="row">
+              <label>От кого
+                <input value="Библиотека №5" />
+                <span class="hint">Получатели увидят это имя в письме.</span>
+              </label>
+              <label>Тип письма
+                <select>
+                  <option>Информационное</option>
+                  <option>Рекламное</option>
+                  <option>Сервисное</option>
+                  <option>Не уверен</option>
+                </select>
+              </label>
+            </div>
+            <label>Тема
+              <input value="Приглашаем на встречу в субботу" />
+            </label>
+            <label>Текст письма
+              <textarea>Здравствуйте!
+
+В эту субботу в 12:00 у нас пройдёт встреча читательского клуба. Будем рады видеть вас.
+
+Адрес: ул. Примерная, 10.
+
+С уважением,
+Библиотека №5</textarea>
+            </label>
+          </div>
+          <div class="actions">
+            <button class="btn" data-go="checkout">Проверить и посчитать стоимость</button>
+            <button class="btn secondary">Отправить тест себе</button>
+          </div>
+        </section>
+
+        <section class="panel screen" id="checkout" hidden>
+          <h2>3. Проверьте список и стоимость</h2>
+          <p class="lead">Система уже убрала дубли, ошибки и адреса из глобальной отписки. Оплата будет только за письма, принятые к отправке.</p>
+          <div class="stats">
+            <div class="stat"><b>742</b><span>строки в файле</span></div>
+            <div class="stat"><b>681</b><span>принято к отправке</span></div>
+            <div class="stat"><b>38</b><span>дубли и ошибки</span></div>
+            <div class="stat"><b>23</b><span>глобально отписались</span></div>
+          </div>
+          <div class="summary" style="margin-top: 18px">
+            <div class="box">
+              <h3>Подтверждения перед отправкой</h3>
+              <div class="checks">
+                <label class="check"><input type="checkbox" /> <span>Я подтверждаю, что имею законное основание для обработки загруженных адресов и отправки писем этим адресатам.</span></label>
+                <label class="check"><input type="checkbox" /> <span>Я не использую купленную, украденную, спарсенную или чужую базу.</span></label>
+                <label class="check"><input type="checkbox" /> <span>Если письмо является рекламным, я подтверждаю наличие согласия на рекламную рассылку.</span></label>
+              </div>
+            </div>
+            <div class="box">
+              <h3>Расчёт</h3>
+              <ul class="list">
+                <li><span>Принято писем</span><b>681</b></li>
+                <li><span>Цена за письмо</span><b>0,15 ₽</b></li>
+                <li><span>Не списываем за исключённые</span><b>61</b></li>
+              </ul>
+              <div class="price"><span>К оплате</span><strong>102 ₽</strong></div>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn" data-go="payment">Перейти к оплате</button>
+            <button class="btn ghost" data-go="write">Вернуться к письму</button>
+          </div>
+        </section>
+
+        <section class="panel screen" id="payment" hidden>
+          <h2>4. Оплатите рассылку</h2>
+          <p class="lead">После оплаты письмо автоматически уйдёт на проверку и отправку. Денежный баланс в сервисе не хранится.</p>
+          <div class="summary">
+            <div class="payment-card">
+              <h3 style="margin-top:0">Форма оплаты</h3>
+              <div class="form-grid">
+                <label>Номер карты
+                  <input placeholder="0000 0000 0000 0000" />
+                </label>
+                <div class="row">
+                  <label>Срок
+                    <input placeholder="ММ/ГГ" />
+                  </label>
+                  <label>CVC
+                    <input placeholder="***" />
+                  </label>
+                </div>
+                <button class="btn" data-go="done" style="width:100%">Оплатить 102 ₽</button>
+                <span class="hint">В реальном сервисе здесь будет платёжная страница ЮKassa, Робокассы или другого платёжного агента.</span>
+              </div>
+            </div>
+            <div class="box">
+              <h3>Что будет после оплаты</h3>
+              <ul class="list">
+                <li><span>Risk-проверка письма</span><b>автоматически</b></li>
+                <li><span>Ручная модерация</span><b>если нужен review</b></li>
+                <li><span>Отправка</span><b>через очередь</b></li>
+                <li><span>Ответы получателей</span><b>перешлём вам</b></li>
+              </ul>
+              <div class="notice" style="margin-top: 14px">Оплата не гарантирует отправку запрещённых или рискованных рассылок. В таком случае рассылка будет остановлена, а вопрос оплаты решается по правилам сервиса.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel screen" id="done" hidden>
+          <div class="success">
+            <div class="success-icon">✓</div>
+            <h2>Рассылка запущена</h2>
+            <p class="lead" style="max-width: 560px">Мы проверим письмо, исключим отписавшихся ещё раз перед отправкой и начнём рассылку постепенно, чтобы не отправлять всё одним залпом.</p>
+            <div class="stats" style="width:100%; margin-top: 18px">
+              <div class="stat"><b>681</b><span>писем в очереди</span></div>
+              <div class="stat"><b>102 ₽</b><span>оплачено</span></div>
+              <div class="stat"><b>0</b><span>жалоб сейчас</span></div>
+              <div class="stat"><b>0</b><span>ответов сейчас</span></div>
+            </div>
+            <div class="actions" style="justify-content:center">
+              <button class="btn" data-go="history">Посмотреть историю</button>
+              <button class="btn secondary" data-go="upload">Создать ещё одну рассылку</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel screen" id="history" hidden>
+          <h2>История рассылок</h2>
+          <p class="lead">Минимальная история без сложной аналитики. Подробные события и логи остаются внутри системы.</p>
+          <div class="history-row">
+            <div><b>Приглашаем на встречу в субботу</b><br><span class="hint">681 письмо · 102 ₽ · сегодня</span></div>
+            <span class="badge warn">отправляется</span>
+          </div>
+          <div class="history-row">
+            <div><b>Расписание занятий на июнь</b><br><span class="hint">214 писем · 32 ₽ · 5 июня</span></div>
+            <span class="badge">отправлено</span>
+          </div>
+          <div class="history-row">
+            <div><b>Напоминание участникам клуба</b><br><span class="hint">97 писем · 15 ₽ · 29 мая</span></div>
+            <span class="badge">отправлено</span>
+          </div>
+          <div class="actions">
+            <button class="btn" data-go="upload">Новая рассылка</button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const screens = [...document.querySelectorAll('.screen')];
+    const links = [...document.querySelectorAll('.step-link')];
+
+    function show(id) {
+      screens.forEach(screen => screen.hidden = screen.id !== id);
+      links.forEach(link => link.classList.toggle('active', link.dataset.target === id));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    document.addEventListener('click', event => {
+      const target = event.target.closest('[data-go], [data-target]');
+      if (!target) return;
+      const id = target.dataset.go || target.dataset.target;
+      if (id) show(id);
+    });
+  </script>
+</body>
+</html>
