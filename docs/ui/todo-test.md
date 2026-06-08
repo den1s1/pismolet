@@ -1,7 +1,9 @@
-# TODO
+# Временный файл
 
-Created: 2026-06-08 17:45:52 Europe/Vienna.
+Создано: 2026-06-08 17:45:52 Europe/Vienna.
 
-| ID | Task | Created | Done | Done at | Comment |
-|---|---|---|---|---|---|
-| UI-001 | Update mockup text. | 2026-06-08 17:45:52 Europe/Vienna |  |  |  |
+Актуальный TODO для макета находится в файле:
+
+- docs/ui/mvp-flow-todo.md
+
+Этот файл можно удалить при следующей технической правке.
