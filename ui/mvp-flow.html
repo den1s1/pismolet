@@ -125,6 +125,7 @@
         <span>demo@example.ru</span>
         <a href="#dashboard" data-go="dashboard">Главная</a>
         <a href="#history" data-go="history">История</a>
+        <a href="#profile" data-go="profile">Профиль</a>
         <a href="public-site.html">Лендинг</a>
         <a href="#">Выйти</a>
       </div>
@@ -157,6 +158,55 @@
         <div class="history-row"><div><b>Расписание занятий на июнь</b><br><span class="hint">214 писем · 32 ₽ · 5 июня</span></div><span class="badge">отправлено</span></div>
         <div class="actions"><button class="btn secondary" data-go="history">Открыть историю</button></div>
       </section>
+    </section>
+
+    <section class="panel screen" id="profile" hidden>
+      <h2>Профиль пользователя</h2>
+      <p class="lead">Минимальные настройки аккаунта: контактный email, имя отправителя, ответы, лимиты и платёжная информация.</p>
+      <div class="two-col">
+        <div class="form-grid">
+          <div class="box">
+            <h3>Контакты</h3>
+            <div class="form-grid">
+              <label>Email для входа<input value="demo@example.ru" /></label>
+              <label>Имя пользователя<input value="Демо-пользователь" /></label>
+              <label>Телефон для связи<input placeholder="+7 900 000-00-00" /></label>
+            </div>
+          </div>
+          <div class="box">
+            <h3>Отправитель по умолчанию</h3>
+            <div class="form-grid">
+              <label>От кого<input value="Библиотека №5" /></label>
+              <label>Email для пересылки ответов<input value="demo@example.ru" /></label>
+              <span class="hint">Получатели увидят имя отправителя в письме. Ответы будут пересылаться на указанный email.</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="box">
+            <h3>Статус и лимиты</h3>
+            <ul class="list">
+              <li><span>Статус аккаунта</span><b>новый клиент</b></li>
+              <li><span>Дневной лимит</span><b>1000 писем</b></li>
+              <li><span>Первые рассылки</span><b>могут уйти на проверку</b></li>
+            </ul>
+            <div class="notice warn" style="margin-top:14px">Лимит и необходимость проверки могут меняться по истории отправок, жалобам и рискам.</div>
+          </div>
+          <div class="box">
+            <h3>Оплата</h3>
+            <ul class="list">
+              <li><span>Способ оплаты</span><b>перед отправкой</b></li>
+              <li><span>Баланс в рублях</span><b>не хранится</b></li>
+              <li><span>Исключённые адреса</span><b>не оплачиваются</b></li>
+            </ul>
+          </div>
+          <div class="box">
+            <h3>Безопасность базы</h3>
+            <p class="hint">Перед отправкой каждой рассылки нужно подтвердить, что база своя и получена законно. Купленные, спарсенные и чужие базы запрещены.</p>
+          </div>
+        </div>
+      </div>
+      <div class="actions"><button class="btn">Сохранить изменения</button><button class="btn secondary" data-go="dashboard">Вернуться в кабинет</button></div>
     </section>
 
     <section class="screen wizard" id="wizard" hidden>
