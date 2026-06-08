@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="180" viewBox="0 0 720 180">
+<rect width="720" height="180" fill="#ffffff"/>
+<g transform="translate(38 40)" fill="#1F2937" stroke="#1F2937">
+<rect x="10" y="10" width="123" height="100" rx="22" fill="#1F2937" stroke="none"/>
+<path d="M18 34L71 75L124 34" stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M21 96L61 63" stroke="#ffffff" stroke-width="9" stroke-linecap="round" fill="none"/>
+<path d="M122 96L82 63" stroke="#ffffff" stroke-width="9" stroke-linecap="round" fill="none"/>
+<path d="M75 47L163 8L130 96L103 69L75 47Z" fill="#ffffff" stroke="none"/>
+<path d="M36 122C53 112 70 98 88 78" stroke="#1F2937" stroke-width="6" stroke-linecap="round" fill="none"/>
+</g>
+<text x="220" y="98" fill="#1F2937" font-family="Arial, sans-serif" font-size="64" font-weight="800">Письмолёт</text>
+</svg>
