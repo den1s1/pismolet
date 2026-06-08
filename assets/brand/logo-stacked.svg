@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<rect width="512" height="512" fill="#ffffff"/>
+<g transform="translate(166 86)">
+<rect x="0" y="24" width="142" height="110" rx="24" fill="#2563EB"/>
+<path d="M9 50L71 95L133 50" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M12 119L57 82" stroke="#ffffff" stroke-width="10" stroke-linecap="round" fill="none"/>
+<path d="M132 119L87 82" stroke="#ffffff" stroke-width="10" stroke-linecap="round" fill="none"/>
+<path d="M74 58L178 10L139 113L108 81L74 58Z" fill="#ffffff"/>
+<path d="M18 147C39 134 59 116 80 93" stroke="#60A5FA" stroke-width="7" stroke-linecap="round" fill="none"/>
+</g>
+<text x="256" y="316" text-anchor="middle" fill="#1F2937" font-family="Arial, sans-serif" font-size="54" font-weight="800">Письмо</text>
+<text x="369" y="316" text-anchor="middle" fill="#2563EB" font-family="Arial, sans-serif" font-size="54" font-weight="800">лёт</text>
+<text x="256" y="362" text-anchor="middle" fill="#64748B" font-family="Arial, sans-serif" font-size="22">Рассылки, которые легко отправлять</text>
+</svg>
