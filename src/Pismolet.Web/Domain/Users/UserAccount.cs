@@ -1,3 +1,5 @@
+using Pismolet.Web.Domain.Mailings;
+
 namespace Pismolet.Web.Domain.Users;
 
 public sealed record UserAccount(
