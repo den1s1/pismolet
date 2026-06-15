@@ -6,7 +6,7 @@
 
 ## Что реализовано
 
-- Добавлен минимальный .NET web-проект `src/Pismolet.Web`.
+- Добавлен .NET web-проект `src/Pismolet.Web`.
 - Реализован вертикальный auth-flow:
   - регистрация;
   - вход;
@@ -36,11 +36,29 @@
   - выход;
   - подтверждение email.
 
+## Структура после доработки
+
+`Program.cs` оставлен только как composition root:
+
+- подключение cookie-auth;
+- регистрация зависимостей;
+- подключение endpoint-групп;
+- health-check.
+
+Код спринта разнесён по слоям:
+
+- `Domain` — доменные модели пользователя, профиля, рассылки, fake mail и audit record;
+- `Application` — сценарии регистрации, входа, подтверждения email, интерфейсы репозиториев, mailer и audit logger;
+- `Infrastructure` — in-memory реализации хранилища, fake mailer и audit logger;
+- `Endpoints` — HTTP-маршруты;
+- `Rendering` — временный HTML-рендеринг до появления полноценного UI/Blazor-слоя.
+
 ## Технические допущения
 
-- Реализация первого среза использует in-memory dev-store, чтобы быстро получить вертикальный пользовательский сценарий.
-- Для production/MVP persistence нужно перенести модели в EF Core + PostgreSQL согласно `docs/architecture_dotnet.md`.
-- Unit/integration тесты из спринта пока не добавлены как исполняемые тестовые проекты; это нужно закрыть следующим техническим коммитом после выделения доменных классов из `Program.cs`.
+- Реализация первого среза использует in-memory инфраструктуру, чтобы быстро получить вертикальный пользовательский сценарий.
+- Для production/MVP persistence нужно перенести инфраструктурные реализации на EF Core + PostgreSQL согласно `docs/architecture_dotnet.md`.
+- Пароль пока хранится через dev-хешер внутри `UserAccountService`; перед реальной авторизацией нужен нормальный password hasher/Identity-подход.
+- Unit/integration тесты из спринта пока не добавлены как исполняемые тестовые проекты; это нужно закрыть следующим техническим коммитом после создания solution/test-каркаса.
 
 ## Ручная проверка
 
@@ -60,5 +78,5 @@ dotnet run --project src/Pismolet.Web/Pismolet.Web.csproj
 
 ## Требует синхронизации
 
-- `docs/architecture_dotnet.md`: подтвердить, что первый dev-store заменяется на EF Core + PostgreSQL.
+- `docs/architecture_dotnet.md`: подтвердить, что первый in-memory infrastructure layer заменяется на EF Core + PostgreSQL.
 - `docs/sprints.md`: уточнить, что тестовые проекты создаются отдельным техническим подэтапом, если стартовый репозиторий был без solution-каркаса.
