@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pismolet-postgres
+    environment:
+      POSTGRES_DB: pismolet
+      POSTGRES_USER: pismolet
+      POSTGRES_PASSWORD: pismolet
+    ports:
+      - "5432:5432"
+    volumes:
+      - pismolet-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pismolet -d pismolet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pismolet-postgres-data:
