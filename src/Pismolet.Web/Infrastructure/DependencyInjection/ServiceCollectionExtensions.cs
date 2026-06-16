@@ -12,6 +12,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddPismoletWebServices(this IServiceCollection services)
     {
+        // Временные регистрации Sprint 0 для локальной разработки.
         services.AddSingleton<IUserRepository, InMemoryUserRepository>();
         services.AddSingleton<IFakeMailer, InMemoryFakeMailer>();
         services.AddSingleton<IAuditLogger, InMemoryAuditLogger>();
