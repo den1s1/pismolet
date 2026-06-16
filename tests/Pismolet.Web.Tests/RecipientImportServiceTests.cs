@@ -38,7 +38,7 @@ public sealed class RecipientImportServiceTests
             audit);
 
         await using var stream = ToStream("email\nfirst@example.com\nFIRST@example.com\nwrong-email\nblocked@example.com\nsecond@example.com\n");
-        var result = await service.ImportCsvAsync(new ImportRecipientsCommand("client@example.com", created.Mailing!.Id, "list.csv", stream, Request));
+        var result = await service.ImportAsync(new ImportRecipientsCommand("client@example.com", created.Mailing!.Id, "list.csv", stream, Request));
 
         Assert.True(result.Ok);
         Assert.Equal(5, result.Stats.TotalRows);
@@ -47,11 +47,12 @@ public sealed class RecipientImportServiceTests
         Assert.Equal(1, result.Stats.Invalid);
         Assert.Equal(1, result.Stats.GloballySuppressed);
         Assert.Equal(2, mailings.GetForOwner(created.Mailing.Id, "client@example.com")!.Recipients.Count);
+        Assert.NotNull(mailings.GetForOwner(created.Mailing.Id, "client@example.com")!.LastImportBatch);
         Assert.Contains(audit.GetRecords(), record => record.EventType == "recipients_import_completed");
     }
 
     [Fact]
-    public async Task ImportCsv_requires_email_column()
+    public async Task Import_requires_email_column()
     {
         var mailings = new InMemoryMailingRepository();
         var created = new MailingService(mailings, new InMemoryAuditLogger(), new EmailNormalizer())
@@ -64,10 +65,10 @@ public sealed class RecipientImportServiceTests
             new InMemoryAuditLogger());
 
         await using var stream = ToStream("name\nclient@example.com\n");
-        var result = await service.ImportCsvAsync(new ImportRecipientsCommand("client@example.com", created.Mailing!.Id, "list.csv", stream, Request));
+        var result = await service.ImportAsync(new ImportRecipientsCommand("client@example.com", created.Mailing!.Id, "list.csv", stream, Request));
 
         Assert.False(result.Ok);
-        Assert.Equal("В CSV должна быть колонка email.", result.Error);
+        Assert.Equal("В файле должна быть колонка email.", result.Error);
     }
 
     private static MemoryStream ToStream(string content) => new(Encoding.UTF8.GetBytes(content));
