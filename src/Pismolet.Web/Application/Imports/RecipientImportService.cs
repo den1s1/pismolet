@@ -31,7 +31,7 @@ public sealed class RecipientImportService(
 
         Log(command, userEmail, "recipients_import_started", "started");
 
-        using var reader = new StreamReader(command.Content, leaveOpen: true);
+        using var reader = new StreamReader(command.Content);
         var header = await reader.ReadLineAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(header))
         {
