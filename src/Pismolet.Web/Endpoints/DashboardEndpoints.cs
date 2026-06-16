@@ -75,7 +75,10 @@ public static class DashboardEndpoints
 
         var stats = mailing.LastImportStats;
         var next = NextStep(mailing);
-        var body = $"<section class='card'><h1>{H(mailing.Subject)}</h1><p><span class='badge'>{mailing.StatusRu}</span></p><p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
+        var importInfo = mailing.LastImportBatch is null
+            ? string.Empty
+            : $"<p class='muted'>Последний импорт: {H(mailing.LastImportBatch.FileName)} ({mailing.LastImportBatch.SourceFormat})</p>";
+        var body = $"<section class='card'><h1>{H(mailing.Subject)}</h1><p><span class='badge'>{mailing.StatusRu}</span></p>{importInfo}<p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
         return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка", body));
     }
 
@@ -87,7 +90,7 @@ public static class DashboardEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена.")));
         }
 
-        var body = $"<section class='card form-card'><h1>Загрузка адресов</h1><p class='muted'>{H(mailing.Subject)}</p><form method='post' action='/mailings/{mailing.Id}/recipients' enctype='multipart/form-data'><label>CSV-файл с колонкой email<input type='file' name='file' accept='.csv' required></label><button class='button'>Загрузить</button></form><p><a href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></p></section>";
+        var body = $"<section class='card form-card'><h1>Загрузка адресов</h1><p class='muted'>{H(mailing.Subject)}</p><form method='post' action='/mailings/{mailing.Id}/recipients' enctype='multipart/form-data'><label>CSV или XLSX-файл с колонкой email<input type='file' name='file' accept='.csv,.xlsx' required></label><button class='button'>Загрузить</button></form><p><a href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></p></section>";
         return HtmlRenderer.Html(HtmlRenderer.Page("Загрузка адресов", body));
     }
 
@@ -108,16 +111,16 @@ public static class DashboardEndpoints
         var file = form.Files.GetFile("file");
         if (file is null || file.Length == 0)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Выберите CSV-файл.")));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Выберите CSV или XLSX-файл.")));
         }
 
-        if (file.Length > 256 * 1024)
+        if (file.Length > 1024 * 1024)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Файл слишком большой для dev-среза.")));
         }
 
         await using var stream = file.OpenReadStream();
-        var result = await imports.ImportCsvAsync(new ImportRecipientsCommand(email, id, file.FileName, stream, ToRequestMetadata(http)));
+        var result = await imports.ImportAsync(new ImportRecipientsCommand(email, id, file.FileName, stream, ToRequestMetadata(http)));
         if (!result.Ok || result.Mailing is null)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error(result.Error)));
