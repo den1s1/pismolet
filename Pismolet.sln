@@ -2,9 +2,17 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pismolet.Domain", "src\Pismolet.Domain\Pismolet.Domain.csproj", "{88B7E5F8-5E88-4C5C-9343-A2E7D740F111}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pismolet.Application", "src\Pismolet.Application\Pismolet.Application.csproj", "{C8F7E258-45F2-4F4F-9F99-CF6E1A1C8B91}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pismolet.Infrastructure", "src\Pismolet.Infrastructure\Pismolet.Infrastructure.csproj", "{0F514311-DF60-4B0C-98ED-A6F69051C61D}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pismolet.Web", "src\Pismolet.Web\Pismolet.Web.csproj", "{2B246A80-742F-4F52-86E2-D15BAFD831A0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pismolet.Web.Tests", "tests\Pismolet.Web.Tests\Pismolet.Web.Tests.csproj", "{8625535F-3E31-4B9B-B315-54F7CF83B62A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pismolet.IntegrationTests", "tests\Pismolet.IntegrationTests\Pismolet.IntegrationTests.csproj", "{B2CFD447-750D-4AD2-9393-9031A5746F10}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -12,6 +20,18 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{88B7E5F8-5E88-4C5C-9343-A2E7D740F111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88B7E5F8-5E88-4C5C-9343-A2E7D740F111}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88B7E5F8-5E88-4C5C-9343-A2E7D740F111}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88B7E5F8-5E88-4C5C-9343-A2E7D740F111}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8F7E258-45F2-4F4F-9F99-CF6E1A1C8B91}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8F7E258-45F2-4F4F-9F99-CF6E1A1C8B91}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8F7E258-45F2-4F4F-9F99-CF6E1A1C8B91}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8F7E258-45F2-4F4F-9F99-CF6E1A1C8B91}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0F514311-DF60-4B0C-98ED-A6F69051C61D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F514311-DF60-4B0C-98ED-A6F69051C61D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F514311-DF60-4B0C-98ED-A6F69051C61D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F514311-DF60-4B0C-98ED-A6F69051C61D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2B246A80-742F-4F52-86E2-D15BAFD831A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2B246A80-742F-4F52-86E2-D15BAFD831A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2B246A80-742F-4F52-86E2-D15BAFD831A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -20,6 +40,10 @@ Global
 		{8625535F-3E31-4B9B-B315-54F7CF83B62A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8625535F-3E31-4B9B-B315-54F7CF83B62A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8625535F-3E31-4B9B-B315-54F7CF83B62A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2CFD447-750D-4AD2-9393-9031A5746F10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2CFD447-750D-4AD2-9393-9031A5746F10}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2CFD447-750D-4AD2-9393-9031A5746F10}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2CFD447-750D-4AD2-9393-9031A5746F10}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
