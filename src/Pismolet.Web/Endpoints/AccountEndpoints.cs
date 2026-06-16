@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Pismolet.Web.Application.Auth;
+using Pismolet.Web.Application.Common;
 using Pismolet.Web.Rendering;
 
 namespace Pismolet.Web.Endpoints;
@@ -18,7 +19,7 @@ public static class AccountEndpoints
 
         app.MapGet("/account/confirm-email", (string token, IUserAccountService accounts, HttpContext http) =>
         {
-            var ok = accounts.ConfirmEmail(token, http.ToRequestMetadata());
+            var ok = accounts.ConfirmEmail(token, ToRequestMetadata(http));
             var body = ok
                 ? "<section class='card'><h1>Email подтверждён</h1><p><a class='button' href='/account/login'>Войти</a></p></section>"
                 : HtmlRenderer.Error("Ссылка подтверждения недействительна.");
@@ -51,7 +52,7 @@ public static class AccountEndpoints
             Password: form["password"].ToString(),
             DisplayName: form["displayName"].ToString());
 
-        var result = accounts.Register(command, http.ToRequestMetadata());
+        var result = accounts.Register(command, ToRequestMetadata(http));
         if (!result.Ok)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error(result.Error)));
@@ -81,7 +82,7 @@ public static class AccountEndpoints
             Email: form["email"].ToString(),
             Password: form["password"].ToString());
 
-        var user = accounts.Authenticate(command, http.ToRequestMetadata());
+        var user = accounts.Authenticate(command, ToRequestMetadata(http));
         if (user is null)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page(
@@ -108,10 +109,18 @@ public static class AccountEndpoints
         var email = http.User.FindFirstValue(ClaimTypes.Email);
         if (email is not null)
         {
-            accounts.AuditLogout(email, http.ToRequestMetadata());
+            accounts.AuditLogout(email, ToRequestMetadata(http));
         }
 
         await http.SignOutAsync();
         return Results.Redirect("/");
+    }
+
+    private static RequestMetadata ToRequestMetadata(HttpContext http)
+    {
+        var ip = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var userAgent = http.Request.Headers.UserAgent.ToString();
+
+        return new RequestMetadata(ip, string.IsNullOrWhiteSpace(userAgent) ? "unknown" : userAgent);
     }
 }
