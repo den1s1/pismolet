@@ -4,6 +4,10 @@ using Pismolet.Web.Domain.Users;
 
 namespace Pismolet.Web.Infrastructure.Persistence;
 
+/// <summary>
+/// Dev-only in-memory хранилище пользователей для Sprint 0/Sprint 1.
+/// Production-замена должна быть вынесена за IUserRepository и хранить данные в БД.
+/// </summary>
 public sealed class InMemoryUserRepository : IUserRepository
 {
     private readonly ConcurrentDictionary<string, UserAccount> _users = new(StringComparer.OrdinalIgnoreCase);
