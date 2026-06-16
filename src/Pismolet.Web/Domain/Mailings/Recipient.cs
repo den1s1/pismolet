@@ -12,17 +12,20 @@ public sealed record Recipient(
     string SourceEmail,
     string Email,
     RecipientStatus Status,
-    string? ExclusionReason)
+    string? ExclusionReason,
+    Guid? ImportBatchId = null)
 {
-    public static Recipient Accepted(string sourceEmail, string normalizedEmail) => new(
+    public static Recipient Accepted(string sourceEmail, string normalizedEmail, Guid? importBatchId = null) => new(
         sourceEmail,
         normalizedEmail,
         RecipientStatus.Accepted,
-        null);
+        null,
+        importBatchId);
 
     public static Recipient Excluded(
         string sourceEmail,
         string normalizedEmail,
         RecipientStatus status,
-        string reason) => new(sourceEmail, normalizedEmail, status, reason);
+        string reason,
+        Guid? importBatchId = null) => new(sourceEmail, normalizedEmail, status, reason, importBatchId);
 }
