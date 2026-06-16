@@ -10,7 +10,11 @@ public sealed record Mailing(string Subject, string StatusRu)
 
     public ImportStats LastImportStats { get; init; } = ImportStats.Empty;
 
-    public List<Recipient> Recipients { get; init; } = [];
+    public ImportBatch? LastImportBatch { get; init; }
+
+    public List<ImportBatch> ImportBatches { get; init; } = new();
+
+    public List<Recipient> Recipients { get; init; } = new();
 
     public MailingDeclaration? Declaration { get; init; }
 
@@ -25,12 +29,26 @@ public sealed record Mailing(string Subject, string StatusRu)
         OwnerEmail = ownerEmail.Trim().ToLowerInvariant()
     };
 
-    public Mailing WithImportResult(ImportStats stats, IReadOnlyCollection<Recipient> recipients) => this with
+    public Mailing WithImportResult(ImportStats stats, IReadOnlyCollection<Recipient> recipients)
     {
-        StatusRu = "Адреса загружены",
-        LastImportStats = stats,
-        Recipients = recipients.ToList()
-    };
+        var batch = ImportBatch.Completed(Id, "import.csv", ImportSourceFormat.Csv, stats);
+        return WithImportResult(batch, recipients);
+    }
+
+    public Mailing WithImportResult(ImportBatch batch, IReadOnlyCollection<Recipient> recipients)
+    {
+        var batches = ImportBatches.ToList();
+        batches.Add(batch);
+
+        return this with
+        {
+            StatusRu = "Адреса загружены",
+            LastImportStats = batch.ToStats(),
+            LastImportBatch = batch,
+            ImportBatches = batches,
+            Recipients = recipients.ToList()
+        };
+    }
 
     public Mailing WithDeclaration(MailingDeclaration declaration) => this with
     {
