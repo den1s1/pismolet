@@ -238,6 +238,7 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
             db.MailingDeclarations.Add(new MailingDeclarationEntity
             {
                 MailingId = mailing.Id,
+                ImportBatchId = declaration.ImportBatchId,
                 UserEmail = Normalize(declaration.UserEmail),
                 BaseSource = declaration.BaseSource.ToString(),
                 IsBaseLegalityConfirmed = declaration.IsBaseLegalityConfirmed,
@@ -348,7 +349,10 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
         entity.DeclarationVersion,
         entity.CreatedAt,
         entity.Ip,
-        entity.UserAgent);
+        entity.UserAgent)
+    {
+        ImportBatchId = entity.ImportBatchId
+    };
 
     private static MailingMessageDraft ToDomainDraft(MailingMessageDraftEntity entity) => new(
         entity.SenderName,
