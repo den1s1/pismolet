@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Audit;
@@ -14,7 +15,10 @@ public sealed class RecipientImportService(
 {
     public const int MaxRows = 1000;
 
-    public async Task<ImportRecipientsResult> ImportCsvAsync(ImportRecipientsCommand command, CancellationToken cancellationToken = default)
+    public Task<ImportRecipientsResult> ImportCsvAsync(ImportRecipientsCommand command, CancellationToken cancellationToken = default) =>
+        ImportAsync(command, cancellationToken);
+
+    public async Task<ImportRecipientsResult> ImportAsync(ImportRecipientsCommand command, CancellationToken cancellationToken = default)
     {
         var userEmail = normalizer.Normalize(command.UserEmail);
         var mailing = mailings.GetForOwner(command.MailingId, userEmail);
@@ -23,27 +27,40 @@ public sealed class RecipientImportService(
             return ImportRecipientsResult.Failure("Рассылка не найдена.");
         }
 
-        if (!command.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        var format = DetectFormat(command.FileName);
+        if (format is null)
         {
             Log(command, userEmail, "recipients_import_failed", "format");
-            return ImportRecipientsResult.Failure("Загрузите CSV-файл с колонкой email.");
+            return ImportRecipientsResult.Failure("Загрузите CSV или XLSX-файл с колонкой email.");
         }
 
         Log(command, userEmail, "recipients_import_started", "started");
 
-        using var reader = new StreamReader(command.Content);
-        var header = await reader.ReadLineAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(header))
+        IReadOnlyList<string[]> rows;
+        try
+        {
+            rows = format == ImportSourceFormat.Csv
+                ? await ReadCsvAsync(command.Content, cancellationToken)
+                : ReadXlsx(command.Content);
+        }
+        catch
+        {
+            Log(command, userEmail, "recipients_import_failed", "parse_error");
+            return ImportRecipientsResult.Failure("Не удалось прочитать файл. Проверьте формат и колонку email.");
+        }
+
+        if (rows.Count == 0)
         {
             Log(command, userEmail, "recipients_import_failed", "empty");
             return ImportRecipientsResult.Failure("Файл пустой.");
         }
 
-        var emailIndex = Array.FindIndex(Split(header), x => string.Equals(x.Trim('\uFEFF'), "email", StringComparison.OrdinalIgnoreCase));
+        var header = rows[0];
+        var emailIndex = Array.FindIndex(header, x => string.Equals(x.Trim('\uFEFF'), "email", StringComparison.OrdinalIgnoreCase));
         if (emailIndex < 0)
         {
             Log(command, userEmail, "recipients_import_failed", "no_email_column");
-            return ImportRecipientsResult.Failure("В CSV должна быть колонка email.");
+            return ImportRecipientsResult.Failure("В файле должна быть колонка email.");
         }
 
         var accepted = new List<Recipient>();
@@ -52,10 +69,13 @@ public sealed class RecipientImportService(
         var duplicates = 0;
         var invalid = 0;
         var optedOut = 0;
+        var issues = new List<RecipientImportIssue>();
 
-        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        foreach (var cells in rows.Skip(1))
         {
-            if (string.IsNullOrWhiteSpace(line))
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (cells.Length == 0 || cells.All(string.IsNullOrWhiteSpace))
             {
                 continue;
             }
@@ -67,21 +87,23 @@ public sealed class RecipientImportService(
                 return ImportRecipientsResult.Failure($"Файл содержит больше {MaxRows} строк.");
             }
 
-            var cells = Split(line);
             var rawEmail = emailIndex < cells.Length ? cells[emailIndex] : string.Empty;
             var email = normalizer.Normalize(rawEmail);
 
             if (!validator.IsValid(email))
             {
                 invalid++;
+                issues.Add(new RecipientImportIssue(total + 1, rawEmail, "Невалидный email"));
             }
             else if (!seen.Add(email))
             {
                 duplicates++;
+                issues.Add(new RecipientImportIssue(total + 1, email, "Дубль в файле"));
             }
             else if (optOuts.IsSuppressed(email))
             {
                 optedOut++;
+                issues.Add(new RecipientImportIssue(total + 1, email, "Глобальная отписка"));
             }
             else
             {
@@ -96,13 +118,66 @@ public sealed class RecipientImportService(
         }
 
         var stats = new ImportStats(total, accepted.Count, duplicates, invalid, optedOut);
-        var updated = mailing.WithImportResult(stats, accepted);
+        var batch = ImportBatch.Completed(mailing.Id, command.FileName, format.Value, stats, issues);
+        var recipients = accepted.Select(recipient => recipient with { ImportBatchId = batch.Id }).ToArray();
+        var updated = mailing.WithImportResult(batch, recipients);
         mailings.Update(updated);
-        Log(command, userEmail, "recipients_import_completed", "completed");
+        Log(command, userEmail, "recipients_import_completed", $"{{\"mailingId\":\"{mailing.Id}\",\"importBatchId\":\"{batch.Id}\",\"format\":\"{format.Value}\"}}");
         return ImportRecipientsResult.Success(updated, stats);
     }
 
-    private static string[] Split(string line) => line.Split(',').Select(x => x.Trim().Trim('"')).ToArray();
+    private static ImportSourceFormat? DetectFormat(string fileName)
+    {
+        if (fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            return ImportSourceFormat.Csv;
+        }
+
+        if (fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            return ImportSourceFormat.Xlsx;
+        }
+
+        return null;
+    }
+
+    private static async Task<IReadOnlyList<string[]>> ReadCsvAsync(Stream content, CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(content, leaveOpen: true);
+        var rows = new List<string[]>();
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            rows.Add(SplitCsv(line));
+        }
+
+        return rows;
+    }
+
+    private static IReadOnlyList<string[]> ReadXlsx(Stream content)
+    {
+        using var workbook = new XLWorkbook(content);
+        var worksheet = workbook.Worksheets.FirstOrDefault();
+        if (worksheet is null)
+        {
+            return Array.Empty<string[]>();
+        }
+
+        var rows = new List<string[]>();
+        foreach (var row in worksheet.RowsUsed())
+        {
+            var lastCell = row.LastCellUsed();
+            if (lastCell is null)
+            {
+                continue;
+            }
+
+            rows.Add(row.Cells(1, lastCell.Address.ColumnNumber).Select(cell => cell.GetString().Trim()).ToArray());
+        }
+
+        return rows;
+    }
+
+    private static string[] SplitCsv(string line) => line.Split(',').Select(x => x.Trim().Trim('"')).ToArray();
 
     private void Log(ImportRecipientsCommand command, string userEmail, string eventType, string context) => audit.Write(new AuditRecord(
         DateTimeOffset.UtcNow,
