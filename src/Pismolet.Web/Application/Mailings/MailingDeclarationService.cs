@@ -19,7 +19,7 @@ public sealed record MailingDeclarationResult(bool Ok, string Error, Mailing? Ma
 {
     public static MailingDeclarationResult Success(Mailing mailing) => new(true, string.Empty, mailing);
 
-    public static MailingDeclarationResult Failure(string error) => new(false, error, null);
+    public static MailingDeclarationResult Failure(string error, Mailing? mailing = null) => new(false, error, mailing);
 }
 
 public interface IMailingDeclarationService
@@ -48,22 +48,22 @@ public sealed class MailingDeclarationService(
 
         if (mailing.LastImportStats.Accepted <= 0 || mailing.Recipients.All(x => x.Status != RecipientStatus.Accepted))
         {
-            return MailingDeclarationResult.Failure("Сначала загрузите адреса для рассылки.");
+            return MailingDeclarationResult.Failure("Сначала загрузите адреса для рассылки.", mailing);
         }
 
         if (command.BaseSource is null)
         {
-            return MailingDeclarationResult.Failure("Выберите источник базы.");
+            return MailingDeclarationResult.Failure("Выберите источник базы.", mailing);
         }
 
         if (!command.IsBaseLegalityConfirmed)
         {
-            return MailingDeclarationResult.Failure("Подтвердите правомерность использования базы.");
+            return MailingDeclarationResult.Failure("Подтвердите базу адресов.", mailing);
         }
 
         if (command.IntendedMessageType == MessageType.Advertising && !command.IsAdvertisingConsentConfirmed)
         {
-            return MailingDeclarationResult.Failure("Для рекламного письма подтвердите наличие рекламного согласия адресатов.");
+            return MailingDeclarationResult.Failure("Для рекламного письма отметьте дополнительное подтверждение.", mailing);
         }
 
         var declaration = new MailingDeclaration(
