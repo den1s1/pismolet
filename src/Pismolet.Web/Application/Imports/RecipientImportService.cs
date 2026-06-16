@@ -143,7 +143,7 @@ public sealed class RecipientImportService(
 
     private static async Task<IReadOnlyList<string[]>> ReadCsvAsync(Stream content, CancellationToken cancellationToken)
     {
-        using var reader = new StreamReader(content, leaveOpen: true);
+        using var reader = new StreamReader(content);
         var rows = new List<string[]>();
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
