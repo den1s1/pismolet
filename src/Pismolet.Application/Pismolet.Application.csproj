@@ -6,6 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ClosedXML" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Pismolet.Domain\Pismolet.Domain.csproj" />
   </ItemGroup>
 </Project>
