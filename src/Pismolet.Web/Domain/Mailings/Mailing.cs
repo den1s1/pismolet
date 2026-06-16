@@ -12,6 +12,12 @@ public sealed record Mailing(string Subject, string StatusRu)
 
     public List<Recipient> Recipients { get; init; } = [];
 
+    public MailingDeclaration? Declaration { get; init; }
+
+    public MailingMessageDraft? MessageDraft { get; init; }
+
+    public string PublicId { get; init; } = $"PL-{Guid.NewGuid():N}"[..11].ToUpperInvariant();
+
     public static Mailing Draft(string subject) => new(subject.Trim(), "Черновик");
 
     public static Mailing Draft(string ownerEmail, string subject) => Draft(subject) with
@@ -24,5 +30,17 @@ public sealed record Mailing(string Subject, string StatusRu)
         StatusRu = "Адреса загружены",
         LastImportStats = stats,
         Recipients = recipients.ToList()
+    };
+
+    public Mailing WithDeclaration(MailingDeclaration declaration) => this with
+    {
+        StatusRu = "База подтверждена",
+        Declaration = declaration
+    };
+
+    public Mailing WithMessageDraft(MailingMessageDraft draft) => this with
+    {
+        StatusRu = "Письмо подготовлено",
+        MessageDraft = draft
     };
 }
