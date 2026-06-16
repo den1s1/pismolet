@@ -131,6 +131,8 @@ public sealed record MailingDeclaration(
     string Ip,
     string UserAgent)
 {
+    public Guid? ImportBatchId { get; init; }
+
     public bool IsValidFor(MessageType messageType) => IsBaseLegalityConfirmed &&
         (messageType != MessageType.Advertising || IsAdvertisingConsentConfirmed);
 }
