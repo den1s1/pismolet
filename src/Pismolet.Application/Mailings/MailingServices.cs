@@ -137,6 +137,7 @@ public sealed class MailingDeclarationService(
             return MailingDeclarationResult.Failure("Для рекламного письма отметьте дополнительное подтверждение.", mailing);
         }
 
+        var importBatchId = mailing.LastImportBatch?.Id;
         var declaration = new MailingDeclaration(
             mailing.Id,
             userEmail,
@@ -146,10 +147,17 @@ public sealed class MailingDeclarationService(
             BaseDeclarationText.CurrentVersion,
             DateTimeOffset.UtcNow,
             command.Request.Ip,
-            command.Request.UserAgent);
+            command.Request.UserAgent)
+        {
+            ImportBatchId = importBatchId
+        };
 
         var updated = mailing.WithDeclaration(declaration);
         mailings.Update(updated);
+
+        var importBatchJson = importBatchId is null ? "null" : $"\"{importBatchId.Value}\"";
+        var auditContext =
+            $"{{\"mailingId\":\"{mailing.Id}\",\"importBatchId\":{importBatchJson},\"declarationVersion\":\"{declaration.DeclarationVersion}\",\"baseSource\":\"{declaration.BaseSource}\",\"intendedMessageType\":\"{command.IntendedMessageType}\"}}";
 
         auditLogger.Write(new AuditRecord(
             DateTimeOffset.UtcNow,
@@ -157,7 +165,7 @@ public sealed class MailingDeclarationService(
             "mailing_declaration_confirmed",
             command.Request.Ip,
             command.Request.UserAgent,
-            $"{{\"mailingId\":\"{mailing.Id}\",\"declarationVersion\":\"{declaration.DeclarationVersion}\"}}"));
+            auditContext));
 
         return MailingDeclarationResult.Success(updated);
     }
