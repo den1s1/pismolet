@@ -80,6 +80,7 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.ToTable("mailing_declarations");
             entity.HasKey(x => x.MailingId);
             entity.HasIndex(x => x.UserEmail);
+            entity.HasIndex(x => x.ImportBatchId);
             entity.Property(x => x.UserEmail).HasMaxLength(254).IsRequired();
             entity.Property(x => x.BaseSource).HasMaxLength(60).IsRequired();
             entity.Property(x => x.DeclarationVersion).HasMaxLength(40).IsRequired();
@@ -184,6 +185,7 @@ public sealed class ImportIssueEntity
 public sealed class MailingDeclarationEntity
 {
     public Guid MailingId { get; set; }
+    public Guid? ImportBatchId { get; set; }
     public string UserEmail { get; set; } = string.Empty;
     public string BaseSource { get; set; } = string.Empty;
     public bool IsBaseLegalityConfirmed { get; set; }
