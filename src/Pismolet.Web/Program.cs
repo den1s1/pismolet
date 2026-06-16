@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Pismolet.Web.Endpoints;
 using Pismolet.Web.Infrastructure.DependencyInjection;
-using Pismolet.Web.Infrastructure.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,13 +18,14 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddPismoletWebServices();
+builder.Services.AddPismoletWebServices(builder.Configuration);
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.Services.GetRequiredService<DevSeedDataInitializer>().Seed();
+    app.Services.MigratePismoletDatabase();
+    app.Services.SeedPismoletDevData();
 }
 
 app.UseStaticFiles();
