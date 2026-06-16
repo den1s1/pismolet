@@ -103,7 +103,6 @@ public partial class InitialCreate : Migration
             columns: table => new
             {
                 MailingId = table.Column<Guid>(type: "uuid", nullable: false),
-                ImportBatchId = table.Column<Guid>(type: "uuid", nullable: true),
                 UserEmail = table.Column<string>(type: "character varying(254)", maxLength: 254, nullable: false),
                 BaseSource = table.Column<string>(type: "character varying(60)", maxLength: 60, nullable: false),
                 IsBaseLegalityConfirmed = table.Column<bool>(type: "boolean", nullable: false),
@@ -179,7 +178,6 @@ public partial class InitialCreate : Migration
         migrationBuilder.CreateIndex("IX_recipients_ImportBatchId", "recipients", "ImportBatchId");
         migrationBuilder.CreateIndex("IX_recipients_MailingId", "recipients", "MailingId");
         migrationBuilder.CreateIndex("IX_recipients_NormalizedEmail", "recipients", "NormalizedEmail");
-        migrationBuilder.CreateIndex("IX_mailing_declarations_ImportBatchId", "mailing_declarations", "ImportBatchId");
         migrationBuilder.CreateIndex("IX_mailing_declarations_UserEmail", "mailing_declarations", "UserEmail");
     }
 
