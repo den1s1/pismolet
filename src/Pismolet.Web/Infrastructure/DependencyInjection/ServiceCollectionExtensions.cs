@@ -7,6 +7,7 @@ using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Infrastructure.Audit;
 using Pismolet.Web.Infrastructure.Mail;
 using Pismolet.Web.Infrastructure.Persistence;
+using Pismolet.Web.Infrastructure.Seed;
 
 namespace Pismolet.Web.Infrastructure.DependencyInjection;
 
@@ -14,7 +15,6 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddPismoletWebServices(this IServiceCollection services)
     {
-        // Временные регистрации Sprint 0-3 для локальной разработки.
         services.AddSingleton<IUserRepository, InMemoryUserRepository>();
         services.AddSingleton<IMailingRepository, InMemoryMailingRepository>();
         services.AddSingleton<IGlobalSuppressionRepository, InMemoryGlobalSuppressionRepository>();
@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMailingMessageService, MailingMessageService>();
         services.AddSingleton<IUnsubscribeTokenService, DevUnsubscribeTokenService>();
         services.AddSingleton<IMessageRenderingService, MessageRenderingService>();
+        services.AddSingleton<DevSeedDataInitializer>();
 
         return services;
     }
