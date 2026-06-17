@@ -24,18 +24,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IEmailSyntaxValidator, EmailSyntaxValidator>();
         services.AddSingleton<IUnsubscribeTokenService, DevUnsubscribeTokenService>();
         services.AddSingleton<IMessageRenderingService, MessageRenderingService>();
+        services.AddSingleton<IPaymentRepository, InMemoryPaymentRepository>();
+        services.AddSingleton<IPriceSettingsRepository, InMemoryPriceSettingsRepository>();
 
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<IMailingService, MailingService>();
         services.AddScoped<IRecipientImportService, RecipientImportService>();
         services.AddScoped<IMailingDeclarationService, MailingDeclarationService>();
         services.AddScoped<IMailingMessageService, MailingMessageService>();
+        services.AddScoped<IMailingPricingService, MailingPricingService>();
+        services.AddScoped<IMailingPaymentService, MailingPaymentService>();
+        services.AddScoped<IPaymentProvider, FakePaymentProvider>();
         services.AddScoped<DevSeedDataInitializer>();
 
-        var provider = configuration["Persistence:Provider"]
-            ?? configuration["Pismolet:Persistence"]
-            ?? "Postgres";
-
+        var provider = configuration["Persistence:Provider"] ?? configuration["Pismolet:Persistence"] ?? "Postgres";
         if (provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton<IUserRepository, InMemoryUserRepository>();
@@ -45,28 +47,14 @@ public static class ServiceCollectionExtensions
             return services;
         }
 
-        if (!provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase)
-            && !provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"Неизвестный Persistence:Provider '{provider}'. Используйте Postgres или InMemory.");
-        }
-
-        var connectionString = configuration.GetConnectionString("PismoletDb")
-            ?? configuration.GetConnectionString("Pismolet")
-            ?? configuration["PISMOLET_CONNECTION_STRING"]
-            ?? Environment.GetEnvironmentVariable("PISMOLET_CONNECTION_STRING");
-
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("Для Persistence:Provider=Postgres задайте ConnectionStrings:PismoletDb или PISMOLET_CONNECTION_STRING.");
-        }
+        var connectionString = configuration.GetConnectionString("PismoletDb") ?? configuration.GetConnectionString("Pismolet") ?? configuration["PISMOLET_CONNECTION_STRING"] ?? Environment.GetEnvironmentVariable("PISMOLET_CONNECTION_STRING");
+        if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("Для Postgres задайте строку подключения PismoletDb.");
 
         services.AddDbContext<PismoletDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IMailingRepository, EfMailingRepository>();
         services.AddScoped<IGlobalSuppressionRepository, EfGlobalSuppressionRepository>();
         services.AddScoped<IAuditLogger, EfAuditLogger>();
-
         return services;
     }
 
