@@ -70,12 +70,13 @@ public static class AdminEndpoints
         var mailing = result.Mailing;
         var risk = result.RiskResult;
         var preview = mailing is null ? null : renderer.RenderPreview(mailing);
+        var resolvedAt = review.ResolvedAt?.ToString("yyyy-MM-dd HH:mm") ?? "не указано";
         var rules = risk is null || risk.TriggeredRules.Count == 0
             ? "<li>Формальная проверка не указала дополнительные причины.</li>"
             : string.Join(string.Empty, risk.TriggeredRules.Select(rule => $"<li>{H(rule.PublicReason)} — {rule.Score} баллов</li>"));
         var actions = review.Status == ModerationReviewStatus.Open
             ? $"<form method='post' action='/admin/moderation/{review.Id}/approve'><label>Комментарий модератора<input name='comment'></label><button class='button'>Одобрить</button></form><form method='post' action='/admin/moderation/{review.Id}/reject'><label>Комментарий модератора<input name='comment'></label><button class='button danger'>Отклонить</button></form>"
-            : $"<p><span class='badge'>{review.Status.ToRu()}</span></p><p class='muted'>Решение: {H(review.ResolvedBy)} · {review.ResolvedAt:yyyy-MM-dd HH:mm}</p>";
+            : $"<p><span class='badge'>{review.Status.ToRu()}</span></p><p class='muted'>Решение: {H(review.ResolvedBy)} · {H(resolvedAt)}</p>";
         var logs = result.Logs.Count == 0
             ? "<li>Действий пока нет.</li>"
             : string.Join(string.Empty, result.Logs.Select(log => $"<li>{log.CreatedAt:yyyy-MM-dd HH:mm}: {H(log.ActorEmail)} — {H(log.Action)} ({H(log.PreviousState)} → {H(log.NewState)})</li>"));
