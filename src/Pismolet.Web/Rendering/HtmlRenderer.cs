@@ -20,8 +20,9 @@ public static class HtmlRenderer
     {
         var rows = string.Join(string.Empty, user.Mailings.Select(m =>
         {
-            var actionUrl = m.MessageDraft is null ? $"/mailings/{m.Id}" : $"/mailings/{m.Id}/payment";
-            var actionText = m.MessageDraft is null ? "Открыть" : "Проверка и оплата";
+            var hasReviewStatus = m.StatusRu is "Оплачено" or "Проверяем перед отправкой" or "На ручной проверке" or "Одобрено" or "Отклонено";
+            var actionUrl = m.MessageDraft is null ? $"/mailings/{m.Id}" : hasReviewStatus ? $"/mailings/{m.Id}/checks" : $"/mailings/{m.Id}/payment";
+            var actionText = m.MessageDraft is null ? "Открыть" : hasReviewStatus ? "Проверка перед отправкой" : "Проверка и оплата";
             return $"<tr><td>{m.Subject}</td><td><span class='badge'>{m.StatusRu}</span></td><td><a href='{actionUrl}'>{actionText}</a></td></tr>";
         }));
         return $"<section class='card'><div class='topline'><div><p class='eyebrow'>Личный кабинет</p><h1>Ваши рассылки</h1></div><form method='post' action='/account/logout'><button>Выйти</button></form></div><p class='muted'>Статус клиента: {user.Profile.Status}. Дневной лимит: {user.Profile.DailySendLimit}; общий лимит: {user.Profile.TotalSendLimit}; премодерация: {(user.Profile.PremoderationRequired ? "обязательна" : "нет")}.</p><a class='create-card' href='/mailings/new'>+ Создать рассылку</a><table><thead><tr><th>Рассылка</th><th>Статус</th><th>Действие</th></tr></thead><tbody>{rows}</tbody></table></section>";
