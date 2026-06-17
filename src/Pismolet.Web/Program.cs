@@ -35,6 +35,7 @@ app.UseAuthorization();
 app.MapHomeEndpoints();
 app.MapAccountEndpoints();
 app.MapDashboardEndpoints();
+app.MapPaymentEndpoints();
 app.MapAdminEndpoints();
 
 if (app.Environment.IsDevelopment())
