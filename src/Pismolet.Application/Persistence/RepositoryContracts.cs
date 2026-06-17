@@ -35,3 +35,19 @@ public interface IGlobalSuppressionRepository
 
     void Add(string normalizedEmail);
 }
+
+public interface IPaymentRepository
+{
+    Payment? GetByMailingId(Guid mailingId);
+
+    Payment? GetByProviderOperationId(string providerOperationId);
+
+    void Save(Payment payment);
+}
+
+public interface IPriceSettingsRepository
+{
+    PriceSettings GetActive();
+
+    void Save(PriceSettings settings);
+}
