@@ -26,6 +26,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMessageRenderingService, MessageRenderingService>();
         services.AddSingleton<IPaymentRepository, InMemoryPaymentRepository>();
         services.AddSingleton<IPriceSettingsRepository, InMemoryPriceSettingsRepository>();
+        services.AddSingleton<IRiskCheckRepository, InMemoryRiskCheckRepository>();
+        services.AddSingleton<IModerationReviewRepository, InMemoryModerationReviewRepository>();
+        services.AddSingleton<IModerationActionLogRepository, InMemoryModerationActionLogRepository>();
 
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<IMailingService, MailingService>();
@@ -35,6 +38,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMailingPricingService, MailingPricingService>();
         services.AddScoped<IMailingPaymentService, MailingPaymentService>();
         services.AddScoped<IPaymentProvider, FakePaymentProvider>();
+        services.AddScoped<IRiskCheckService, RiskCheckService>();
+        services.AddScoped<IMailingReviewService, MailingReviewService>();
+        services.AddScoped<IModerationAdminService, ModerationAdminService>();
         services.AddScoped<DevSeedDataInitializer>();
 
         var provider = configuration["Persistence:Provider"] ?? configuration["Pismolet:Persistence"] ?? "Postgres";
