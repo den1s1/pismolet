@@ -241,7 +241,7 @@ public static class DashboardEndpoints
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error'>{H(error)}</p>";
         var transactionalSelected = draft?.MessageType == MessageType.Advertising ? string.Empty : " selected";
         var advertisingSelected = draft?.MessageType == MessageType.Advertising ? " selected" : string.Empty;
-        var prepared = draft is null ? string.Empty : $"<section class='card'><h2>Preview служебных блоков</h2><pre>{H(preview.PlainText)}</pre><p><span class='badge'>Проверка и оплата — заглушка Sprint 4</span></p></section>";
+        var prepared = draft is null ? string.Empty : $"<section class='card'><h2>Preview служебных блоков</h2><pre>{H(preview.PlainText)}</pre><p><a class='button' href='/mailings/{mailing.Id}/payment'>Перейти к проверке и оплате</a></p></section>";
         return $"<section class='card form-card'><h1>Редактор письма</h1><p class='muted'>{H(mailing.Subject)}</p>{alert}<form method='post' action='/mailings/{mailing.Id}/message'><label>Имя отправителя<input name='senderName' maxlength='80' required value='{H(draft?.SenderName ?? string.Empty)}'></label><label>Тема письма<input name='subject' maxlength='160' required value='{H(draft?.Subject ?? mailing.Subject)}'></label><label>Тип письма<select name='messageType'><option value='Transactional'{transactionalSelected}>Информационное</option><option value='Advertising'{advertisingSelected}>Рекламное</option></select></label><label>Текст письма<textarea name='body' rows='10' required>{H(draft?.Body ?? string.Empty)}</textarea></label><button class='button'>Сохранить письмо</button></form><p><a href='/mailings/{mailing.Id}/declaration'>Назад к подтверждению базы</a></p></section>{prepared}";
     }
 
@@ -262,7 +262,12 @@ public static class DashboardEndpoints
             return $"<a class='button' href='/mailings/{mailing.Id}/message'>Написать письмо</a>";
         }
 
-        return "<span class='badge'>Перейти к проверке и оплате — заглушка Sprint 4</span>";
+        if (mailing.StatusRu is "Оплачено" or "Проверяем перед отправкой" or "На ручной проверке" or "Одобрено" or "Отклонено")
+        {
+            return $"<a class='button' href='/mailings/{mailing.Id}/checks'>Открыть проверку перед отправкой</a>";
+        }
+
+        return $"<a class='button' href='/mailings/{mailing.Id}/payment'>Перейти к проверке и оплате</a>";
     }
 
     private static BaseSource? TryParseBaseSource(string value) => Enum.TryParse<BaseSource>(value, out var source) ? source : null;
