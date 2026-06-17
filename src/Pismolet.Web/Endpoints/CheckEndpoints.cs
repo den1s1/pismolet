@@ -54,14 +54,21 @@ public static class CheckEndpoints
             return $"<section class='card'><h1>Проверка перед отправкой</h1><p class='muted'>{H(mailing.Subject)}</p><p><span class='badge'>{H(mailing.StatusRu)}</span></p><p>Перед отправкой нужно пройти формальную проверку письма.</p><form method='post' action='/mailings/{mailing.Id}/checks/start'><button class='button'>Проверить перед отправкой</button></form><p><a href='/mailings/{mailing.Id}/payment'>Вернуться к оплате</a></p></section>";
         }
 
-        var message = risk.Decision switch
+        var effectiveDecision = mailing.StatusRu switch
+        {
+            "Одобрено" => RiskDecision.Approved,
+            "Отклонено" => RiskDecision.Rejected,
+            _ => risk.Decision
+        };
+
+        var message = effectiveDecision switch
         {
             RiskDecision.Approved => "Рассылка одобрена. Отправка будет доступна в следующем шаге MVP.",
             RiskDecision.Rejected => string.IsNullOrWhiteSpace(risk.PublicExplanation) ? "Рассылка отклонена. Проверьте содержание письма и основания для отправки." : risk.PublicExplanation,
             _ => "Рассылка отправлена на ручную проверку. Мы покажем результат здесь."
         };
 
-        var next = risk.Decision == RiskDecision.Approved
+        var next = effectiveDecision == RiskDecision.Approved
             ? "<p><span class='badge'>Отправка — Sprint 6</span></p>"
             : string.Empty;
 
