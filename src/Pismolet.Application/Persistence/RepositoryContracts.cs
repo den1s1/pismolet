@@ -51,3 +51,28 @@ public interface IPriceSettingsRepository
 
     void Save(PriceSettings settings);
 }
+
+public interface IRiskCheckRepository
+{
+    RiskCheckResult? GetByMailingId(Guid mailingId);
+
+    void Save(RiskCheckResult result);
+}
+
+public interface IModerationReviewRepository
+{
+    ModerationReview? Get(Guid id);
+
+    ModerationReview? GetOpenByMailingId(Guid mailingId);
+
+    IReadOnlyCollection<ModerationReview> ListOpen();
+
+    void Save(ModerationReview review);
+}
+
+public interface IModerationActionLogRepository
+{
+    void Add(ModerationActionLog log);
+
+    IReadOnlyCollection<ModerationActionLog> ListForReview(Guid reviewId);
+}
