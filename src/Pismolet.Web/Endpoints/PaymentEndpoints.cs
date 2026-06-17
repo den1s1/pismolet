@@ -54,7 +54,7 @@ public static class PaymentEndpoints
         var payment = review.Payment;
         var paid = payment?.Status == Pismolet.Web.Domain.Mailings.PaymentStatus.Paid;
         var button = paid
-            ? $"<p><span class='badge'>Оплачено</span></p><p><span class='badge'>Проверка перед отправкой — Sprint 5</span></p>"
+            ? $"<p><span class='badge'>Оплачено</span></p><form method='post' action='/mailings/{review.Mailing.Id}/checks/start'><button class='button'>Проверить перед отправкой</button></form><p><a href='/mailings/{review.Mailing.Id}/checks'>Открыть статус проверки</a></p>"
             : $"<form method='post' action='/mailings/{review.Mailing.Id}/payment/fake-start'><button class='button'>Оплатить тестово</button></form>";
 
         return $"<section class='card'><h1>Проверка и оплата</h1><p class='muted'>{H(review.Mailing.Subject)}</p><p><span class='badge'>{H(review.Mailing.StatusRu)}</span></p><ul><li>Принято к оплате: {review.AcceptedRecipientsCount}</li><li>Исключено всего: {review.ExcludedRecipientsCount}</li><li>Дубли: {review.DuplicateRecipientsCount}</li><li>Невалидные: {review.InvalidRecipientsCount}</li><li>Глобально отписанные: {review.GloballySuppressedRecipientsCount}</li><li>Цена за адрес: {review.PricePerRecipient:0.##} {H(review.Currency)}</li><li>Итого: {review.TotalAmount:0.##} {H(review.Currency)}</li></ul><p class='muted'>Это тестовая оплата для MVP, реальные деньги не списываются.</p>{button}<p><a href='/mailings/{review.Mailing.Id}'>Вернуться к рассылке</a></p></section>";
