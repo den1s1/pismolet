@@ -102,11 +102,13 @@ public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentR
                 var attempt = provider.Start(payment);
                 payment = payment.WithAttempt(attempt);
                 payments.Save(payment);
-                mailings.Update(mailing with { StatusRu = "Ожидает оплаты" });
+                mailing = mailing.WithStatus(MailingStatus.PaymentPending);
+                mailings.Update(mailing);
                 auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "payment_attempt_created", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
             }
 
-            return BuildReview(mailing with { StatusRu = payment.Status == PaymentStatus.Paid ? "Оплачено" : "Ожидает оплаты" }, payment);
+            var status = payment.Status == PaymentStatus.Paid ? MailingStatus.Paid : MailingStatus.PaymentPending;
+            return BuildReview(mailing.WithStatus(status), payment);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
         {
@@ -126,12 +128,12 @@ public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentR
             var attempt = provider.ConfirmSuccess(payment, providerOperationId);
             payment = payment.MarkPaid(attempt);
             payments.Save(payment);
-            mailing = mailing with { StatusRu = "Оплачено" };
+            mailing = mailing.WithStatus(MailingStatus.Paid);
             mailings.Update(mailing);
             auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "fake_payment_succeeded", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
         }
 
-        return BuildReview(mailing with { StatusRu = "Оплачено" }, payment);
+        return BuildReview(mailing.WithStatus(MailingStatus.Paid), payment);
     }
 
     private MailingPaymentResult BuildReview(Mailing mailing, Payment? payment)
