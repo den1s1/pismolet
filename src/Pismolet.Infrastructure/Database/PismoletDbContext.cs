@@ -13,6 +13,7 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
     public DbSet<MailingMessageDraftEntity> MailingMessageDrafts => Set<MailingMessageDraftEntity>();
     public DbSet<AuditRecordEntity> AuditRecords => Set<AuditRecordEntity>();
     public DbSet<GlobalSuppressionEntity> GlobalSuppressions => Set<GlobalSuppressionEntity>();
+    public DbSet<SendEventEntity> SendEvents => Set<SendEventEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -118,6 +119,25 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.HasKey(x => x.NormalizedEmail);
             entity.Property(x => x.NormalizedEmail).HasMaxLength(254).IsRequired();
         });
+
+        modelBuilder.Entity<SendEventEntity>(entity =>
+        {
+            entity.ToTable("send_events");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.MailingId);
+            entity.HasIndex(x => new { x.MailingId, x.RecipientEmail }).IsUnique();
+            entity.HasIndex(x => new { x.MailingId, x.Status, x.CreatedAt });
+            entity.HasIndex(x => new { x.OwnerEmail, x.UpdatedAt });
+            entity.Property(x => x.OwnerEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.RecipientEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Reason).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Provider).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.ProviderMessageId).HasMaxLength(240);
+            entity.Property(x => x.ErrorCode).HasMaxLength(120);
+            entity.Property(x => x.ErrorMessage).HasMaxLength(1000);
+            entity.HasOne<MailingEntity>().WithMany().HasForeignKey(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }
 
@@ -221,4 +241,21 @@ public sealed class GlobalSuppressionEntity
 {
     public string NormalizedEmail { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class SendEventEntity
+{
+    public Guid Id { get; set; }
+    public Guid MailingId { get; set; }
+    public string OwnerEmail { get; set; } = string.Empty;
+    public string RecipientEmail { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty;
+    public string? ProviderMessageId { get; set; }
+    public int Attempt { get; set; }
+    public string? ErrorCode { get; set; }
+    public string? ErrorMessage { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
