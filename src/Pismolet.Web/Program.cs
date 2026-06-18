@@ -37,6 +37,7 @@ app.MapAccountEndpoints();
 app.MapDashboardEndpoints();
 app.MapPaymentEndpoints();
 app.MapCheckEndpoints();
+app.MapSendEndpoints();
 app.MapAdminEndpoints();
 
 if (app.Environment.IsDevelopment())
