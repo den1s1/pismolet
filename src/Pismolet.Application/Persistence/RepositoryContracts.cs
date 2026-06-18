@@ -76,3 +76,18 @@ public interface IModerationActionLogRepository
 
     IReadOnlyCollection<ModerationActionLog> ListForReview(Guid reviewId);
 }
+
+public interface ISendEventRepository
+{
+    SendEvent? Get(Guid mailingId, string recipientEmail);
+
+    IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId);
+
+    IReadOnlyCollection<SendEvent> GetPendingBatch(Guid mailingId, int batchSize);
+
+    int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate);
+
+    void Save(SendEvent sendEvent);
+
+    MailingSendSummary GetSummary(Guid mailingId, int totalAcceptedRecipients);
+}
