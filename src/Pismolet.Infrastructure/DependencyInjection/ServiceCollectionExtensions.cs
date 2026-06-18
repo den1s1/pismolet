@@ -29,6 +29,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IRiskCheckRepository, InMemoryRiskCheckRepository>();
         services.AddSingleton<IModerationReviewRepository, InMemoryModerationReviewRepository>();
         services.AddSingleton<IModerationActionLogRepository, InMemoryModerationActionLogRepository>();
+        services.AddSingleton<ISendEventRepository, InMemorySendEventRepository>();
+        services.AddSingleton<IBackgroundMailingSendQueue, InlineMailingSendQueue>();
+        services.AddSingleton(new MailingSendOptions(ReadBatchSize(configuration)));
 
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<IMailingService, MailingService>();
@@ -41,6 +44,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRiskCheckService, RiskCheckService>();
         services.AddScoped<IMailingReviewService, MailingReviewService>();
         services.AddScoped<IModerationAdminService, ModerationAdminService>();
+        services.AddScoped<IEmailProviderAdapter, FakeEmailProviderAdapter>();
+        services.AddScoped<IMailingSendService, MailingSendService>();
+        services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
         services.AddScoped<DevSeedDataInitializer>();
 
         var provider = configuration["Persistence:Provider"] ?? configuration["Pismolet:Persistence"] ?? "Postgres";
@@ -75,5 +81,11 @@ public static class ServiceCollectionExtensions
     {
         using var scope = services.CreateScope();
         scope.ServiceProvider.GetRequiredService<DevSeedDataInitializer>().Seed();
+    }
+
+    private static int ReadBatchSize(IConfiguration configuration)
+    {
+        var raw = configuration["Sending:BatchSize"];
+        return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 1000) : 100;
     }
 }
