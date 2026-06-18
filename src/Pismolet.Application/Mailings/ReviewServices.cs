@@ -197,7 +197,7 @@ public sealed class MailingReviewService(
             return BuildState(mailing);
         }
 
-        mailing = mailing with { StatusRu = "Проверяем перед отправкой" };
+        mailing = mailing.WithStatus(MailingStatus.PendingChecks);
         mailings.Update(mailing);
         auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_checks_started", request.Ip, request.UserAgent, $"mailingId={mailing.Id}"));
 
@@ -209,17 +209,17 @@ public sealed class MailingReviewService(
         switch (riskResult.Decision)
         {
             case RiskDecision.Approved:
-                mailing = mailing with { StatusRu = "Одобрено" };
+                mailing = mailing.WithStatus(MailingStatus.Approved);
                 auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "risk_check_approved", request.Ip, request.UserAgent, $"mailingId={mailing.Id};score={riskResult.Score}"));
                 break;
             case RiskDecision.Rejected:
-                mailing = mailing with { StatusRu = "Отклонено" };
+                mailing = mailing.WithStatus(MailingStatus.Rejected);
                 auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "risk_check_rejected", request.Ip, request.UserAgent, $"mailingId={mailing.Id};score={riskResult.Score}"));
                 break;
             default:
                 review = reviews.GetOpenByMailingId(mailing.Id) ?? ModerationReview.Create(mailing.Id, BuildReviewReason(riskResult));
                 reviews.Save(review);
-                mailing = mailing with { StatusRu = "На ручной проверке" };
+                mailing = mailing.WithStatus(MailingStatus.ReviewRequired);
                 auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "moderation_review_created", request.Ip, request.UserAgent, $"mailingId={mailing.Id};reviewId={review.Id};score={riskResult.Score}"));
                 break;
         }
@@ -307,7 +307,7 @@ public sealed class ModerationAdminService(
             review = approve ? review.Approve(normalizedModerator, comment) : review.Reject(normalizedModerator, comment);
             reviews.Save(review);
 
-            mailing = mailing with { StatusRu = approve ? "Одобрено" : "Отклонено" };
+            mailing = mailing.WithStatus(approve ? MailingStatus.Approved : MailingStatus.Rejected);
             mailings.Update(mailing);
 
             var action = approve ? "moderation_approved" : "moderation_rejected";
