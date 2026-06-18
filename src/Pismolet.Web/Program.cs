@@ -19,6 +19,7 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddPismoletWebServices(builder.Configuration);
+builder.Services.AddPismoletEfSendingStorage(builder.Configuration);
 
 var app = builder.Build();
 
