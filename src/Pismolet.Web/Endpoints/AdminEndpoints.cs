@@ -11,11 +11,13 @@ public static class AdminEndpoints
 {
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin", () => HtmlRenderer.Html(HtmlRenderer.Page("Админ-зона", "<section class='card'><h1>Админ-зона</h1><p>Внутренние инструменты MVP.</p><p><a class='button' href='/admin/moderation'>Очередь модерации</a></p><p class='muted'>TODO: подключить роли администратора после появления RBAC-модели.</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>"))).RequireAuthorization();
+        app.MapGet("/admin", () => HtmlRenderer.Html(HtmlRenderer.Page("Админ-зона", "<section class='card'><h1>Админ-зона</h1><p>Внутренние инструменты MVP.</p><p><a class='button' href='/admin/moderation'>Очередь модерации</a></p><p><a class='button' href='/admin/limits'>Дневные лимиты клиентов</a></p><p class='muted'>TODO: подключить роли администратора после появления RBAC-модели.</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>"))).RequireAuthorization();
         app.MapGet("/admin/moderation", ShowQueue).RequireAuthorization();
         app.MapGet("/admin/moderation/{reviewId:guid}", ShowReview).RequireAuthorization();
         app.MapPost("/admin/moderation/{reviewId:guid}/approve", Approve).RequireAuthorization();
         app.MapPost("/admin/moderation/{reviewId:guid}/reject", Reject).RequireAuthorization();
+        app.MapGet("/admin/limits", ShowLimits).RequireAuthorization();
+        app.MapPost("/admin/limits", UpdateLimit).RequireAuthorization();
         return app;
     }
 
@@ -59,6 +61,27 @@ public static class AdminEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Карточка модерации", ReviewPage(result, renderer)));
     }
 
+    private static IResult ShowLimits() => HtmlRenderer.Html(HtmlRenderer.Page("Дневные лимиты", LimitPage(null, null, null)));
+
+    private static async Task<IResult> UpdateLimit(HttpContext http, IClientSendLimitAdminService limits)
+    {
+        var adminEmail = CurrentEmail(http);
+        if (adminEmail is null) return Results.Redirect("/account/login");
+        var form = await http.Request.ReadFormAsync();
+        var clientEmail = form["clientEmail"].ToString();
+        var rawLimit = form["dailyLimit"].ToString();
+        if (!int.TryParse(rawLimit, out var dailyLimit))
+        {
+            return HtmlRenderer.Html(HtmlRenderer.Page("Дневные лимиты", LimitPage("Укажите лимит числом.", clientEmail, rawLimit)));
+        }
+
+        var result = limits.UpdateDailyLimit(clientEmail, dailyLimit, adminEmail, ToRequestMetadata(http));
+        var message = result.Ok && result.User is not null
+            ? $"Лимит клиента {result.User.Email} изменён на {result.User.Profile.DailySendLimit}."
+            : result.Error;
+        return HtmlRenderer.Html(HtmlRenderer.Page("Дневные лимиты", LimitPage(message, clientEmail, dailyLimit.ToString())));
+    }
+
     private static string ReviewPage(AdminModerationResult result, IMessageRenderingService renderer)
     {
         if (!result.Ok || result.Review is null)
@@ -82,6 +105,12 @@ public static class AdminEndpoints
             : string.Join(string.Empty, result.Logs.Select(log => $"<li>{log.CreatedAt:yyyy-MM-dd HH:mm}: {H(log.ActorEmail)} — {H(log.Action)} ({H(log.PreviousState)} → {H(log.NewState)})</li>"));
 
         return $"<section class='card'><h1>Карточка модерации</h1><p><span class='badge'>{review.Status.ToRu()}</span></p><p><strong>Рассылка:</strong> {H(mailing?.Subject ?? "не найдена")}</p><p><strong>Клиент:</strong> {H(mailing?.OwnerEmail ?? "неизвестно")}</p><p><strong>Причина ручной проверки:</strong> {H(review.Reason)}</p><h2>Письмо</h2><p><strong>Отправитель:</strong> {H(mailing?.MessageDraft?.SenderName)}</p><p><strong>Тема:</strong> {H(mailing?.MessageDraft?.Subject)}</p><pre>{H(mailing?.MessageDraft?.Body)}</pre><h2>Служебные блоки</h2><p>{H(preview?.ReasonBlock)}</p><p>{H(preview?.UnsubscribeUrl)}</p><p>{H(preview?.ServiceIdentifier)}</p><h2>Формальные причины</h2><ul>{rules}</ul><h2>Решение</h2>{actions}<h2>Лог действий</h2><ul>{logs}</ul><p><a href='/admin/moderation'>Вернуться к очереди</a></p></section>";
+    }
+
+    private static string LimitPage(string? message, string? clientEmail, string? dailyLimit)
+    {
+        var alert = string.IsNullOrWhiteSpace(message) ? string.Empty : $"<p class='muted'>{H(message)}</p>";
+        return $"<section class='card form-card'><h1>Дневные лимиты клиентов</h1><p class='muted'>Dev/admin форма Sprint 6. Изменение влияет на новые запуски и resume, но не переписывает уже созданные события отправки.</p>{alert}<form method='post' action='/admin/limits'><label>Email клиента<input type='email' name='clientEmail' required value='{H(clientEmail)}'></label><label>Новый дневной лимит<input type='number' min='0' max='100000' name='dailyLimit' required value='{H(dailyLimit)}'></label><button class='button'>Сохранить лимит</button></form><p><a href='/admin'>Вернуться в админ-зону</a></p></section>";
     }
 
     private static string SafeReasons(RiskCheckResult? risk) => risk is null || risk.TriggeredRules.Count == 0
