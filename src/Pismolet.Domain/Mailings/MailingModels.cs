@@ -193,6 +193,89 @@ public sealed record MailingMessageDraft(
     }
 }
 
+public enum MailingStatus
+{
+    Draft,
+    RecipientsImported,
+    DeclarationConfirmed,
+    MessagePrepared,
+    Priced,
+    PaymentPending,
+    Paid,
+    PendingChecks,
+    ReviewRequired,
+    Approved,
+    Rejected,
+    Sending,
+    Sent,
+    Failed,
+    Paused
+}
+
+public static class MailingStatusLabels
+{
+    public static string ToCode(this MailingStatus status) => status switch
+    {
+        MailingStatus.RecipientsImported => "recipients_imported",
+        MailingStatus.DeclarationConfirmed => "declaration_confirmed",
+        MailingStatus.MessagePrepared => "message_prepared",
+        MailingStatus.PaymentPending => "payment_pending",
+        MailingStatus.PendingChecks => "pending_checks",
+        MailingStatus.ReviewRequired => "review_required",
+        MailingStatus.Approved => "approved",
+        MailingStatus.Rejected => "rejected",
+        MailingStatus.Sending => "sending",
+        MailingStatus.Sent => "sent",
+        MailingStatus.Failed => "failed",
+        MailingStatus.Paused => "paused",
+        MailingStatus.Priced => "priced",
+        MailingStatus.Paid => "paid",
+        _ => "draft"
+    };
+
+    public static string ToRu(this MailingStatus status) => status switch
+    {
+        MailingStatus.RecipientsImported => "Адреса загружены",
+        MailingStatus.DeclarationConfirmed => "База подтверждена",
+        MailingStatus.MessagePrepared => "Письмо подготовлено",
+        MailingStatus.Priced => "Стоимость рассчитана",
+        MailingStatus.PaymentPending => "Ожидает оплаты",
+        MailingStatus.Paid => "Оплачено",
+        MailingStatus.PendingChecks => "Проверяем перед отправкой",
+        MailingStatus.ReviewRequired => "На ручной проверке",
+        MailingStatus.Approved => "Одобрено",
+        MailingStatus.Rejected => "Отклонено",
+        MailingStatus.Sending => "Отправляется",
+        MailingStatus.Sent => "Отправлено",
+        MailingStatus.Failed => "Ошибка отправки",
+        MailingStatus.Paused => "Приостановлено",
+        _ => "Черновик"
+    };
+
+    public static MailingStatus FromRu(string statusRu) => statusRu switch
+    {
+        "Адреса загружены" => MailingStatus.RecipientsImported,
+        "База подтверждена" => MailingStatus.DeclarationConfirmed,
+        "Письмо подготовлено" => MailingStatus.MessagePrepared,
+        "Стоимость рассчитана" => MailingStatus.Priced,
+        "Ожидает оплаты" => MailingStatus.PaymentPending,
+        "Оплачено" => MailingStatus.Paid,
+        "Проверяем перед отправкой" => MailingStatus.PendingChecks,
+        "На ручной проверке" => MailingStatus.ReviewRequired,
+        "Одобрено" => MailingStatus.Approved,
+        "Отклонено" => MailingStatus.Rejected,
+        "Отправляется" => MailingStatus.Sending,
+        "Отправлено" => MailingStatus.Sent,
+        "Ошибка отправки" => MailingStatus.Failed,
+        "Приостановлено" => MailingStatus.Paused,
+        _ => MailingStatus.Draft
+    };
+
+    public static bool CanStartSending(this MailingStatus status) => status == MailingStatus.Approved;
+
+    public static bool CanResumeSending(this MailingStatus status) => status == MailingStatus.Paused;
+}
+
 public sealed record Mailing(string Subject, string StatusRu)
 {
     public Guid Id { get; init; } = Guid.NewGuid();
@@ -200,6 +283,8 @@ public sealed record Mailing(string Subject, string StatusRu)
     public string OwnerEmail { get; init; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+
+    public MailingStatus Status { get; init; } = MailingStatusLabels.FromRu(StatusRu);
 
     public ImportStats LastImportStats { get; init; } = ImportStats.Empty;
 
@@ -215,11 +300,20 @@ public sealed record Mailing(string Subject, string StatusRu)
 
     public string PublicId { get; init; } = $"PL-{Guid.NewGuid():N}"[..11].ToUpperInvariant();
 
-    public static Mailing Draft(string subject) => new(subject.Trim(), "Черновик");
+    public static Mailing Draft(string subject) => new(subject.Trim(), MailingStatus.Draft.ToRu())
+    {
+        Status = MailingStatus.Draft
+    };
 
     public static Mailing Draft(string ownerEmail, string subject) => Draft(subject) with
     {
         OwnerEmail = ownerEmail.Trim().ToLowerInvariant()
+    };
+
+    public Mailing WithStatus(MailingStatus status) => this with
+    {
+        Status = status,
+        StatusRu = status.ToRu()
     };
 
     public Mailing WithImportResult(ImportStats stats, IReadOnlyCollection<Recipient> recipients)
@@ -236,7 +330,8 @@ public sealed record Mailing(string Subject, string StatusRu)
 
         return this with
         {
-            StatusRu = "Адреса загружены",
+            Status = MailingStatus.RecipientsImported,
+            StatusRu = MailingStatus.RecipientsImported.ToRu(),
             LastImportStats = normalizedBatch.ToStats(),
             LastImportBatch = normalizedBatch,
             ImportBatches = batches,
@@ -246,13 +341,15 @@ public sealed record Mailing(string Subject, string StatusRu)
 
     public Mailing WithDeclaration(MailingDeclaration declaration) => this with
     {
-        StatusRu = "База подтверждена",
+        Status = MailingStatus.DeclarationConfirmed,
+        StatusRu = MailingStatus.DeclarationConfirmed.ToRu(),
         Declaration = declaration
     };
 
     public Mailing WithMessageDraft(MailingMessageDraft draft) => this with
     {
-        StatusRu = "Письмо подготовлено",
+        Status = MailingStatus.MessagePrepared,
+        StatusRu = MailingStatus.MessagePrepared.ToRu(),
         MessageDraft = draft
     };
 }
