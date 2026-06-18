@@ -54,22 +54,22 @@ public static class CheckEndpoints
             return $"<section class='card'><h1>Проверка перед отправкой</h1><p class='muted'>{H(mailing.Subject)}</p><p><span class='badge'>{H(mailing.StatusRu)}</span></p><p>Перед отправкой нужно пройти формальную проверку письма.</p><form method='post' action='/mailings/{mailing.Id}/checks/start'><button class='button'>Проверить перед отправкой</button></form><p><a href='/mailings/{mailing.Id}/payment'>Вернуться к оплате</a></p></section>";
         }
 
-        var effectiveDecision = mailing.StatusRu switch
+        var effectiveDecision = mailing.Status switch
         {
-            "Одобрено" => RiskDecision.Approved,
-            "Отклонено" => RiskDecision.Rejected,
+            MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Sent or MailingStatus.Failed or MailingStatus.Paused => RiskDecision.Approved,
+            MailingStatus.Rejected => RiskDecision.Rejected,
             _ => risk.Decision
         };
 
         var message = effectiveDecision switch
         {
-            RiskDecision.Approved => "Рассылка одобрена. Отправка будет доступна в следующем шаге MVP.",
+            RiskDecision.Approved => "Рассылка одобрена. Можно перейти к запуску отправки.",
             RiskDecision.Rejected => string.IsNullOrWhiteSpace(risk.PublicExplanation) ? "Рассылка отклонена. Проверьте содержание письма и основания для отправки." : risk.PublicExplanation,
             _ => "Рассылка отправлена на ручную проверку. Мы покажем результат здесь."
         };
 
         var next = effectiveDecision == RiskDecision.Approved
-            ? "<p><span class='badge'>Отправка — Sprint 6</span></p>"
+            ? $"<p><a class='button' href='/mailings/{mailing.Id}/send'>Перейти к отправке</a></p>"
             : string.Empty;
 
         return $"<section class='card'><h1>Проверка перед отправкой</h1><p class='muted'>{H(mailing.Subject)}</p><p><span class='badge'>{H(mailing.StatusRu)}</span></p><p>{H(message)}</p>{next}<p><a href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></p></section>";
