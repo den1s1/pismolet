@@ -13,9 +13,48 @@ public enum SendSkipReason
 {
     None,
     GlobalSuppression,
+    ClientSuppression,
     DailyLimit,
     AlreadySent,
     NoMessage
+}
+
+public enum DeliveryStatus
+{
+    NotReported,
+    Accepted,
+    Delivered,
+    SoftBounce,
+    HardBounce,
+    Complaint,
+    Rejected,
+    Unknown
+}
+
+public enum ProviderWebhookEventType
+{
+    Accepted,
+    Delivered,
+    SoftBounce,
+    HardBounce,
+    Complaint,
+    Rejected,
+    Unknown
+}
+
+public enum ProviderWebhookProcessingStatus
+{
+    Processed,
+    IgnoredDuplicate,
+    IgnoredUnknown,
+    Unmatched,
+    Failed
+}
+
+public enum ClientSuppressionReason
+{
+    HardBounce,
+    ManualBlock
 }
 
 public static class SendEventStatusLabels
@@ -27,6 +66,33 @@ public static class SendEventStatusLabels
         SendEventStatus.Skipped => "Исключено",
         SendEventStatus.Paused => "Приостановлено",
         _ => "Ожидает отправки"
+    };
+}
+
+public static class DeliveryStatusLabels
+{
+    public static string ToRu(this DeliveryStatus status) => status switch
+    {
+        DeliveryStatus.Accepted => "Принято провайдером",
+        DeliveryStatus.Delivered => "Доставлено",
+        DeliveryStatus.SoftBounce => "Временная ошибка",
+        DeliveryStatus.HardBounce => "Постоянная ошибка",
+        DeliveryStatus.Complaint => "Жалоба",
+        DeliveryStatus.Rejected => "Отклонено",
+        DeliveryStatus.Unknown => "Неизвестное событие",
+        _ => "Ожидаем статус доставки"
+    };
+
+    public static DeliveryStatus FromEventType(ProviderWebhookEventType eventType) => eventType switch
+    {
+        ProviderWebhookEventType.Accepted => DeliveryStatus.Accepted,
+        ProviderWebhookEventType.Delivered => DeliveryStatus.Delivered,
+        ProviderWebhookEventType.SoftBounce => DeliveryStatus.SoftBounce,
+        ProviderWebhookEventType.HardBounce => DeliveryStatus.HardBounce,
+        ProviderWebhookEventType.Complaint => DeliveryStatus.Complaint,
+        ProviderWebhookEventType.Rejected => DeliveryStatus.Rejected,
+        ProviderWebhookEventType.Unknown => DeliveryStatus.Unknown,
+        _ => DeliveryStatus.Unknown
     };
 }
 
@@ -43,7 +109,10 @@ public sealed record SendEvent(
     string? ErrorCode,
     string? ErrorMessage,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    DeliveryStatus DeliveryStatus = DeliveryStatus.NotReported,
+    DateTimeOffset? LastDeliveryEventAt = null,
+    string? LastDeliverySummary = null)
 {
     public const string FakeProvider = "FakeEmail";
 
@@ -97,9 +166,91 @@ public sealed record SendEvent(
         UpdatedAt = DateTimeOffset.UtcNow
     };
 
+    public SendEvent ApplyDeliveryStatus(DeliveryStatus nextStatus, DateTimeOffset occurredAt, string? summary)
+    {
+        if (nextStatus == DeliveryStatus.Unknown)
+        {
+            return this;
+        }
+
+        if (Priority(nextStatus) < Priority(DeliveryStatus))
+        {
+            return this;
+        }
+
+        return this with
+        {
+            DeliveryStatus = nextStatus,
+            LastDeliveryEventAt = occurredAt,
+            LastDeliverySummary = summary,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
     public SendEvent ResetForResume() => Status == SendEventStatus.Paused && Reason == SendSkipReason.DailyLimit
         ? this with { Status = SendEventStatus.Pending, Reason = SendSkipReason.None, UpdatedAt = DateTimeOffset.UtcNow }
         : this;
+
+    private static int Priority(DeliveryStatus status) => status switch
+    {
+        DeliveryStatus.Complaint => 70,
+        DeliveryStatus.HardBounce => 60,
+        DeliveryStatus.Rejected => 55,
+        DeliveryStatus.Delivered => 50,
+        DeliveryStatus.SoftBounce => 40,
+        DeliveryStatus.Accepted => 30,
+        DeliveryStatus.Unknown => 10,
+        _ => 0
+    };
+}
+
+public sealed record ProviderWebhookEvent(
+    Guid Id,
+    string Provider,
+    string ProviderEventId,
+    string? ProviderMessageId,
+    Guid? MailingId,
+    string? ClientId,
+    string? RecipientEmailNormalized,
+    ProviderWebhookEventType EventType,
+    DateTimeOffset OccurredAt,
+    DateTimeOffset ReceivedAt,
+    string RawPayloadHash,
+    string? RawPayloadStored,
+    string? ReasonCode,
+    string? ReasonMessage,
+    ProviderWebhookProcessingStatus ProcessingStatus,
+    Guid CorrelationId)
+{
+    public ProviderWebhookEvent WithProcessingStatus(ProviderWebhookProcessingStatus status) => this with { ProcessingStatus = status };
+}
+
+public sealed record ClientSuppression(
+    Guid Id,
+    string ClientId,
+    string EmailNormalized,
+    ClientSuppressionReason Reason,
+    Guid? SourceMailingId,
+    string? SourceProviderMessageId,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset LastSeenAt)
+{
+    public static ClientSuppression FromHardBounce(string clientId, string emailNormalized, Guid? sourceMailingId, string? providerMessageId) => new(
+        Guid.NewGuid(),
+        clientId.Trim().ToLowerInvariant(),
+        emailNormalized.Trim().ToLowerInvariant(),
+        ClientSuppressionReason.HardBounce,
+        sourceMailingId,
+        providerMessageId,
+        DateTimeOffset.UtcNow,
+        DateTimeOffset.UtcNow);
+
+    public ClientSuppression Touch(Guid? sourceMailingId, string? providerMessageId) => this with
+    {
+        SourceMailingId = SourceMailingId ?? sourceMailingId,
+        SourceProviderMessageId = SourceProviderMessageId ?? providerMessageId,
+        LastSeenAt = DateTimeOffset.UtcNow
+    };
 }
 
 public sealed record MailingSendSummary(
@@ -108,10 +259,18 @@ public sealed record MailingSendSummary(
     int Sent,
     int Failed,
     int Suppressed,
+    int ClientSuppressed,
     int PausedByLimit,
     int SkippedOther,
     int Pending,
-    int TotalAcceptedRecipients)
+    int TotalAcceptedRecipients,
+    int ProviderAccepted = 0,
+    int Delivered = 0,
+    int SoftBounced = 0,
+    int HardBounced = 0,
+    int Complaints = 0,
+    int Rejected = 0,
+    int UnknownDelivery = 0)
 {
-    public static MailingSendSummary Empty(Guid mailingId, int totalAcceptedRecipients = 0) => new(mailingId, 0, 0, 0, 0, 0, 0, 0, totalAcceptedRecipients);
+    public static MailingSendSummary Empty(Guid mailingId, int totalAcceptedRecipients = 0) => new(mailingId, 0, 0, 0, 0, 0, 0, 0, 0, totalAcceptedRecipients);
 }
