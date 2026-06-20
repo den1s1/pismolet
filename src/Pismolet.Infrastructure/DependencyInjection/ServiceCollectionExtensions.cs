@@ -97,7 +97,17 @@ public static class ServiceCollectionExtensions
     {
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetService<PismoletDbContext>();
-        db?.Database.Migrate();
+        if (db is null) return;
+
+        var migrations = db.Database.GetMigrations().ToArray();
+        if (migrations.Length == 0)
+        {
+            db.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS \"__EFMigrationsHistory\";");
+            db.Database.EnsureCreated();
+            return;
+        }
+
+        db.Database.Migrate();
     }
 
     public static void SeedPismoletDevData(this IServiceProvider services)
