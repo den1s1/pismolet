@@ -26,6 +26,7 @@ public sealed class PublicUrlFakeEmailProviderAdapter : IEmailProviderAdapter
     {
         var unsubscribeUrl = ToAbsoluteUrl(message.UnsubscribeUrl);
         var plainTextBody = ReplaceRelativeUrl(message.PlainTextBody, message.UnsubscribeUrl, unsubscribeUrl);
+        plainTextBody = KeepSingleVisibleUnsubscribeLink(plainTextBody, unsubscribeUrl);
         var metadata = new Dictionary<string, string>(message.Metadata, StringComparer.OrdinalIgnoreCase)
         {
             ["listUnsubscribe"] = $"<{unsubscribeUrl}>",
@@ -76,5 +77,34 @@ public sealed class PublicUrlFakeEmailProviderAdapter : IEmailProviderAdapter
         }
 
         return body.Replace(relativeUrl, absoluteUrl, StringComparison.Ordinal);
+    }
+
+    private static string KeepSingleVisibleUnsubscribeLink(string body, string unsubscribeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(body) || string.IsNullOrWhiteSpace(unsubscribeUrl))
+        {
+            return body;
+        }
+
+        var lines = body.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+        var result = new List<string>(lines.Length);
+        var kept = false;
+
+        foreach (var line in lines)
+        {
+            if (line.Contains(unsubscribeUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                if (kept)
+                {
+                    continue;
+                }
+
+                kept = true;
+            }
+
+            result.Add(line);
+        }
+
+        return string.Join(Environment.NewLine, result).TrimEnd();
     }
 }
