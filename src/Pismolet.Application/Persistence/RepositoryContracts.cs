@@ -33,6 +33,12 @@ public interface IGlobalSuppressionRepository
 {
     bool IsSuppressed(string normalizedEmail);
 
+    IReadOnlySet<string> GetSuppressedSet(IEnumerable<string> normalizedEmails);
+
+    GlobalSuppression? GetByEmail(string normalizedEmail);
+
+    GlobalSuppression AddOrGet(GlobalSuppression suppression);
+
     void Add(string normalizedEmail);
 }
 
