@@ -7,6 +7,7 @@ using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
+using Pismolet.Web.Domain.Audit;
 using Pismolet.Web.Infrastructure.Audit;
 using Pismolet.Web.Infrastructure.Database;
 using Pismolet.Web.Infrastructure.Mail;
@@ -49,6 +50,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IBackgroundMailingSendQueue, InlineMailingSendQueue>();
         services.AddSingleton<IBackgroundReplyQueue, InlineMailingSendQueue>();
         services.AddSingleton(new MailingSendOptions(ReadBatchSize(configuration)));
+        AddEmailProvider(services, configuration);
 
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<IMailingService, MailingService>();
@@ -61,7 +63,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRiskCheckService, RiskCheckService>();
         services.AddScoped<IMailingReviewService, MailingReviewService>();
         services.AddScoped<IModerationAdminService, ModerationAdminService>();
-        services.AddScoped<IEmailProviderAdapter, PublicUrlFakeEmailProviderAdapter>();
         services.AddScoped<IMailingSendService, MailingSendService>();
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
@@ -115,6 +116,64 @@ public static class ServiceCollectionExtensions
     {
         using var scope = services.CreateScope();
         scope.ServiceProvider.GetRequiredService<DevSeedDataInitializer>().Seed();
+    }
+
+    private static void AddEmailProvider(IServiceCollection services, IConfiguration configuration)
+    {
+        var provider = configuration["MailProvider"]
+            ?? configuration["Mail:Provider"]
+            ?? configuration["Email:Provider"]
+            ?? configuration["Sending:MailProvider"]
+            ?? "FakeMailer";
+
+        if (provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton(ReadSmtpOptions(configuration));
+            services.AddScoped<IEmailProviderAdapter, SmtpEmailProviderAdapter>();
+            return;
+        }
+
+        services.AddScoped<IEmailProviderAdapter, PublicUrlFakeEmailProviderAdapter>();
+    }
+
+    private static SmtpEmailProviderOptions ReadSmtpOptions(IConfiguration configuration)
+    {
+        var host = Required(configuration, "Smtp:Host", "Smtp__Host");
+        var port = ReadInt(configuration, "Smtp:Port", 587, 1, 65535);
+        var username = configuration["Smtp:Username"] ?? string.Empty;
+        var password = configuration["Smtp:Password"] ?? string.Empty;
+        var fromEmail = configuration["Smtp:FromEmail"] ?? username;
+        var fromName = configuration["Smtp:FromName"] ?? "Письмолёт";
+        var secureSocketOptions = configuration["Smtp:SecureSocketOptions"]
+            ?? configuration["Smtp:Security"]
+            ?? (port == 465 ? "SslOnConnect" : "StartTlsWhenAvailable");
+        var timeoutSeconds = ReadInt(configuration, "Smtp:TimeoutSeconds", 30, 1, 300);
+
+        if (string.IsNullOrWhiteSpace(fromEmail))
+        {
+            throw new InvalidOperationException("Для SMTP задайте Smtp:FromEmail или Smtp:Username.");
+        }
+
+        return new SmtpEmailProviderOptions(
+            host.Trim(),
+            port,
+            username.Trim(),
+            password,
+            fromEmail.Trim(),
+            string.IsNullOrWhiteSpace(fromName) ? "Письмолёт" : fromName.Trim(),
+            secureSocketOptions.Trim(),
+            timeoutSeconds);
+    }
+
+    private static string Required(IConfiguration configuration, string key, string envName)
+    {
+        var value = configuration[key] ?? Environment.GetEnvironmentVariable(envName);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"Задайте настройку {key}.");
+        }
+
+        return value;
     }
 
     private static int ReadBatchSize(IConfiguration configuration)
