@@ -87,6 +87,8 @@ public interface ISendEventRepository
 {
     SendEvent? Get(Guid mailingId, string recipientEmail);
 
+    SendEvent? GetByProviderMessageId(string providerMessageId);
+
     IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId);
 
     IReadOnlyCollection<SendEvent> GetPendingBatch(Guid mailingId, int batchSize);
@@ -96,4 +98,22 @@ public interface ISendEventRepository
     void Save(SendEvent sendEvent);
 
     MailingSendSummary GetSummary(Guid mailingId, int totalAcceptedRecipients);
+}
+
+public interface IProviderWebhookEventRepository
+{
+    ProviderWebhookEvent? GetByProviderEventId(string provider, string providerEventId);
+
+    IReadOnlyCollection<ProviderWebhookEvent> ListByMailingId(Guid mailingId);
+
+    void Save(ProviderWebhookEvent webhookEvent);
+}
+
+public interface IClientSuppressionRepository
+{
+    bool IsSuppressed(string clientId, string normalizedEmail);
+
+    IReadOnlySet<string> GetSuppressedSet(string clientId, IEnumerable<string> normalizedEmails);
+
+    ClientSuppression AddOrUpdate(ClientSuppression suppression);
 }
