@@ -33,6 +33,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IModerationReviewRepository, InMemoryModerationReviewRepository>();
         services.AddSingleton<IModerationActionLogRepository, InMemoryModerationActionLogRepository>();
         services.AddSingleton<ISendEventRepository, InMemorySendEventRepository>();
+        services.AddSingleton<IProviderWebhookEventRepository, InMemoryProviderWebhookEventRepository>();
+        services.AddSingleton<IClientSuppressionRepository, InMemoryClientSuppressionRepository>();
         services.AddSingleton<IBackgroundMailingSendQueue, InlineMailingSendQueue>();
         services.AddSingleton(new MailingSendOptions(ReadBatchSize(configuration)));
 
@@ -51,6 +53,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMailingSendService, MailingSendService>();
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
+        services.AddScoped<IEmailWebhookProcessingService, EmailWebhookProcessingService>();
         services.AddScoped<DevSeedDataInitializer>();
 
         var provider = configuration["Persistence:Provider"] ?? configuration["Pismolet:Persistence"] ?? "Postgres";
@@ -70,6 +73,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IMailingRepository, EfMailingRepository>();
         services.AddScoped<IGlobalSuppressionRepository, EfGlobalSuppressionRepository>();
+        services.AddScoped<IProviderWebhookEventRepository, EfProviderWebhookEventRepository>();
+        services.AddScoped<IClientSuppressionRepository, EfClientSuppressionRepository>();
         services.AddScoped<IAuditLogger, EfAuditLogger>();
         return services;
     }
