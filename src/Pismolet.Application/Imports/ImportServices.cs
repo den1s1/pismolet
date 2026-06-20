@@ -72,6 +72,7 @@ public interface IRecipientImportService
 public sealed class RecipientImportService(
     IMailingRepository mailings,
     IGlobalSuppressionRepository optOuts,
+    IClientSuppressionRepository clientSuppressions,
     IEmailNormalizer normalizer,
     IEmailSyntaxValidator validator,
     IAuditLogger audit) : IRecipientImportService
@@ -157,15 +158,19 @@ public sealed class RecipientImportService(
             return ImportRecipientsResult.Failure("В файле нет строк с адресами.");
         }
 
-        var suppressedSet = optOuts.GetSuppressedSet(parsedRows
+        var validEmails = parsedRows
             .Where(x => x.SyntaxValid)
-            .Select(x => x.NormalizedEmail));
+            .Select(x => x.NormalizedEmail)
+            .ToArray();
+        var suppressedSet = optOuts.GetSuppressedSet(validEmails);
+        var clientSuppressedSet = clientSuppressions.GetSuppressedSet(userEmail, validEmails);
 
         var accepted = new List<Recipient>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var duplicates = 0;
         var invalid = 0;
         var optedOut = 0;
+        var clientSuppressed = 0;
         var issues = new List<RecipientImportIssue>();
 
         foreach (var row in parsedRows)
@@ -192,18 +197,30 @@ public sealed class RecipientImportService(
                     command.Request.UserAgent,
                     $"mailingId={mailing.Id};emailHash={Hash(row.NormalizedEmail)}"));
             }
+            else if (clientSuppressedSet.Contains(row.NormalizedEmail))
+            {
+                clientSuppressed++;
+                issues.Add(new RecipientImportIssue(row.RowNumber, row.NormalizedEmail, "Исключено из-за ошибки доставки"));
+                audit.Write(new AuditRecord(
+                    DateTimeOffset.UtcNow,
+                    userEmail,
+                    "client_suppressed_email_import_attempted",
+                    command.Request.Ip,
+                    command.Request.UserAgent,
+                    $"mailingId={mailing.Id};emailHash={Hash(row.NormalizedEmail)}"));
+            }
             else
             {
                 accepted.Add(Recipient.Accepted(row.RawEmail, row.NormalizedEmail));
             }
         }
 
-        var stats = new ImportStats(total, accepted.Count, duplicates, invalid, optedOut);
+        var stats = new ImportStats(total, accepted.Count, duplicates, invalid, optedOut, clientSuppressed);
         var batch = ImportBatch.Completed(mailing.Id, command.FileName, format.Value, stats, issues);
         var recipients = accepted.Select(recipient => recipient with { ImportBatchId = batch.Id }).ToArray();
         var updated = mailing.WithImportResult(batch, recipients);
         mailings.Update(updated);
-        Log(command, userEmail, "recipients_import_completed", $"{{\"mailingId\":\"{mailing.Id}\",\"importBatchId\":\"{batch.Id}\",\"format\":\"{format.Value}\"}}");
+        Log(command, userEmail, "recipients_import_completed", $"{{\"mailingId\":\"{mailing.Id}\",\"importBatchId\":\"{batch.Id}\",\"format\":\"{format.Value}\",\"clientSuppressed\":{clientSuppressed}}}");
         return ImportRecipientsResult.Success(updated, stats);
     }
 
