@@ -13,6 +13,7 @@ public static class SendingStorageServiceCollectionExtensions
         if (!provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
         {
             services.AddScoped<ISendEventRepository, EfSendEventRepository>();
+            services.AddScoped<IReplyEventRepository, EfReplyEventRepository>();
             services.AddPismoletHangfireSendingQueue(configuration);
         }
 
