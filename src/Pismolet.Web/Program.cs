@@ -40,6 +40,7 @@ app.MapPaymentEndpoints();
 app.MapCheckEndpoints();
 app.MapSendEndpoints();
 app.MapAdminEndpoints();
+app.MapUnsubscribeEndpoints();
 
 if (app.Environment.IsDevelopment())
 {
