@@ -16,6 +16,7 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
     public DbSet<SendEventEntity> SendEvents => Set<SendEventEntity>();
     public DbSet<ProviderWebhookEventEntity> ProviderWebhookEvents => Set<ProviderWebhookEventEntity>();
     public DbSet<ClientSuppressionEntity> ClientSuppressions => Set<ClientSuppressionEntity>();
+    public DbSet<ReplyEventEntity> ReplyEvents => Set<ReplyEventEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -185,6 +186,32 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.Property(x => x.Reason).HasMaxLength(40).IsRequired();
             entity.Property(x => x.SourceProviderMessageId).HasMaxLength(240);
         });
+
+        modelBuilder.Entity<ReplyEventEntity>(entity =>
+        {
+            entity.ToTable("reply_events");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Provider, x.ProviderInboundEventId }).IsUnique();
+            entity.HasIndex(x => new { x.MailingId, x.ReceivedAt });
+            entity.HasIndex(x => new { x.ClientId, x.ReceivedAt });
+            entity.HasIndex(x => new { x.ProcessingStatus, x.ReceivedAt });
+            entity.HasIndex(x => x.BodyExpiresAt);
+            entity.Property(x => x.Provider).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.ProviderInboundEventId).HasMaxLength(240).IsRequired();
+            entity.Property(x => x.ClientId).HasMaxLength(254);
+            entity.Property(x => x.RecipientEmailNormalized).HasMaxLength(254);
+            entity.Property(x => x.FromEmailNormalized).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.ToAddress).HasMaxLength(512).IsRequired();
+            entity.Property(x => x.ReplyTokenHash).HasMaxLength(64);
+            entity.Property(x => x.SubjectPreview).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.ForwardToEmailNormalized).HasMaxLength(254);
+            entity.Property(x => x.ProcessingStatus).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.BodyStorageStatus).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.BodyTextStored).HasMaxLength(16000);
+            entity.Property(x => x.RawPayloadHash).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.ErrorCode).HasMaxLength(120);
+            entity.Property(x => x.ErrorMessage).HasMaxLength(1000);
+        });
     }
 }
 
@@ -348,4 +375,31 @@ public sealed class ClientSuppressionEntity
     public string? SourceProviderMessageId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset LastSeenAt { get; set; }
+}
+
+public sealed class ReplyEventEntity
+{
+    public Guid Id { get; set; }
+    public string Provider { get; set; } = string.Empty;
+    public string ProviderInboundEventId { get; set; } = string.Empty;
+    public Guid? MailingId { get; set; }
+    public string? ClientId { get; set; }
+    public string? RecipientEmailNormalized { get; set; }
+    public string FromEmailNormalized { get; set; } = string.Empty;
+    public string ToAddress { get; set; } = string.Empty;
+    public string? ReplyTokenHash { get; set; }
+    public string SubjectPreview { get; set; } = string.Empty;
+    public DateTimeOffset ReceivedAt { get; set; }
+    public DateTimeOffset? ProcessedAt { get; set; }
+    public DateTimeOffset? ForwardQueuedAt { get; set; }
+    public DateTimeOffset? ForwardedAt { get; set; }
+    public string? ForwardToEmailNormalized { get; set; }
+    public string ProcessingStatus { get; set; } = string.Empty;
+    public int ForwardRetryCount { get; set; }
+    public string BodyStorageStatus { get; set; } = string.Empty;
+    public DateTimeOffset? BodyExpiresAt { get; set; }
+    public string? BodyTextStored { get; set; }
+    public string RawPayloadHash { get; set; } = string.Empty;
+    public string? ErrorCode { get; set; }
+    public string? ErrorMessage { get; set; }
 }
