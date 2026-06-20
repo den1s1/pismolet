@@ -64,7 +64,7 @@ public static class InboundReplyEndpoints
             .Take(50)
             .Select(x => $"<tr><td>{H(MaskEmail(x.To))}</td><td>{H(x.Subject)}</td><td>{H(x.ProviderMessageId)}</td><td>{H(x.ReplyToAddress)}</td><td><form method='post' action='/dev/replies/fake'><input name='providerMessageId' value='{H(x.ProviderMessageId)}'><input name='replyToken' value='{H(x.ReplyToken)}'><input name='to' value='{H(x.ReplyToAddress)}'><input name='from' value='recipient@example.test'><input name='subject' value='Re: {H(x.Subject)}'><textarea name='textBody'>Спасибо, получил письмо.</textarea><button class='button'>Ответить</button></form></td></tr>");
         var replyRows = replies.ListRecent(20)
-            .Select(x => $"<tr><td>{H(x.ReceivedAt.ToString("yyyy-MM-dd HH:mm"))}</td><td>{H(x.ProcessingStatus.ToRu())}</td><td>{H(x.SubjectPreview)}</td><td>{H(x.BodyStorageStatus.ToString())}</td><td>{H(x.ErrorCode ?? "")}</td></tr>");
+            .Select(x => $"<tr><td>{H(x.ReceivedAt.ToString("yyyy-MM-dd HH:mm"))}</td><td>{H(x.ProcessingStatus.ToString())}</td><td>{H(x.SubjectPreview)}</td><td>{H(x.BodyStorageStatus.ToString())}</td><td>{H(x.ErrorCode ?? "")}</td></tr>");
         var body = "<section class='card'><h1>Fake inbound replies</h1><p class='muted'>Dev-инструмент для проверки ответов получателей.</p>" +
             $"<h2>Fake-письма с reply identity</h2><table><tbody>{string.Join(string.Empty, sentRows.DefaultIfEmpty("<tr><td>Нет fake-писем.</td></tr>"))}</tbody></table>" +
             $"<h2>Последние ReplyEvent</h2><table><tbody>{string.Join(string.Empty, replyRows.DefaultIfEmpty("<tr><td>Ответов пока нет.</td></tr>"))}</tbody></table>" +
