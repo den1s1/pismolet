@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.RegularExpressions;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -133,7 +134,12 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
             mime.Headers.Replace("X-Pismolet-Recipient-Key", recipientKey);
         }
 
-        mime.Body = new TextPart("plain") { Text = message.PlainTextBody };
+        var body = new BodyBuilder
+        {
+            TextBody = message.PlainTextBody,
+            HtmlBody = BuildHtmlBody(message.PlainTextBody, message.UnsubscribeUrl)
+        };
+        mime.Body = body.ToMessageBody();
         return mime;
     }
 
@@ -248,4 +254,54 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
 
         return string.Join(Environment.NewLine, result).TrimEnd();
     }
+
+    private static string BuildHtmlBody(string plainTextBody, string unsubscribeUrl)
+    {
+        var lines = (plainTextBody ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n');
+
+        var htmlLines = new List<string>(lines.Length);
+        foreach (var line in lines)
+        {
+            if (IsVisibleUnsubscribeLine(line, unsubscribeUrl))
+            {
+                htmlLines.Add($"<p><a href=\"{HtmlAttributeEncode(unsubscribeUrl)}\">Отписаться</a> от всех рассылок через сервис Письмолёт.</p>");
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                htmlLines.Add("<br>");
+                continue;
+            }
+
+            htmlLines.Add($"<p>{WebUtility.HtmlEncode(line)}</p>");
+        }
+
+        return "<!doctype html>" +
+               "<html><head><meta charset=\"utf-8\"></head>" +
+               "<body style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;\">" +
+               string.Join(Environment.NewLine, htmlLines) +
+               "</body></html>";
+    }
+
+    private static bool IsVisibleUnsubscribeLine(string line, string unsubscribeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(unsubscribeUrl) && line.Contains(unsubscribeUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return line.Contains("/unsubscribe/", StringComparison.OrdinalIgnoreCase) &&
+               line.Contains("Отпис", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string HtmlAttributeEncode(string value) => WebUtility.HtmlEncode(value) ?? string.Empty;
 }
