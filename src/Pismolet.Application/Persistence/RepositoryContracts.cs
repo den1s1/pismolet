@@ -117,3 +117,36 @@ public interface IClientSuppressionRepository
 
     ClientSuppression AddOrUpdate(ClientSuppression suppression);
 }
+
+public interface IReplyEventRepository
+{
+    ReplyEvent AddIfNotExists(ReplyEvent replyEvent);
+
+    ReplyEvent? Get(Guid id);
+
+    ReplyEvent? GetByProviderEventId(string provider, string providerInboundEventId);
+
+    ReplySummary GetSummary(Guid mailingId);
+
+    int CountByMailing(Guid mailingId);
+
+    ReplyEvent? GetLastByMailing(Guid mailingId);
+
+    IReadOnlyCollection<ReplyEvent> ListRecentByMailing(Guid mailingId, int limit);
+
+    IReadOnlyCollection<ReplyEvent> ListRecent(int limit);
+
+    IReadOnlyCollection<ReplyEvent> FindPendingForward(DateTimeOffset now, int batchSize);
+
+    IReadOnlyCollection<ReplyEvent> FindExpiredBodies(DateTimeOffset now, int batchSize);
+
+    void Save(ReplyEvent replyEvent);
+
+    void MarkForwardQueued(Guid replyEventId);
+
+    void MarkForwarded(Guid replyEventId);
+
+    void MarkForwardFailed(Guid replyEventId, string errorCode, string errorMessage);
+
+    void MarkBodyDeleted(Guid replyEventId);
+}
