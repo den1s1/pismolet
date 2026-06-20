@@ -21,7 +21,10 @@ public sealed record EmailMessage(
     string Subject,
     string PlainTextBody,
     string UnsubscribeUrl,
-    string ServiceIdentifier);
+    string ServiceIdentifier,
+    string ReplyToAddress,
+    string ReplyToken,
+    IReadOnlyDictionary<string, string> Metadata);
 
 public sealed record EmailProviderSendResult(bool Accepted, string? ProviderMessageId, string? ErrorCode, string? ErrorMessage)
 {
@@ -47,6 +50,26 @@ public sealed record EmailProviderWebhookParseResult(bool Ok, string Error, Emai
     public static EmailProviderWebhookParseResult Success(EmailProviderWebhookEvent item) => new(true, string.Empty, item);
 
     public static EmailProviderWebhookParseResult Failure(string error) => new(false, error, null);
+}
+
+public sealed record EmailProviderInboundEvent(
+    string Provider,
+    string ProviderInboundEventId,
+    string FromEmail,
+    string ToAddress,
+    string? ReplyToken,
+    string Subject,
+    string? TextBody,
+    string? HtmlBody,
+    IReadOnlyDictionary<string, string> Headers,
+    DateTimeOffset ReceivedAt,
+    string RawPayload);
+
+public sealed record EmailProviderInboundParseResult(bool Ok, string Error, EmailProviderInboundEvent? Event)
+{
+    public static EmailProviderInboundParseResult Success(EmailProviderInboundEvent item) => new(true, string.Empty, item);
+
+    public static EmailProviderInboundParseResult Failure(string error) => new(false, error, null);
 }
 
 public sealed record MailingSendState(Mailing Mailing, MailingSendSummary Summary, IReadOnlyCollection<SendEvent> Events);
@@ -77,6 +100,10 @@ public interface IEmailProviderAdapter
     Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken);
 
     Task<EmailProviderWebhookParseResult> ParseWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken);
+
+    Task<EmailProviderInboundParseResult> ParseInboundWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken);
+
+    Task<EmailProviderSendResult> ForwardReplyToClientAsync(ReplyEvent replyEvent, CancellationToken cancellationToken);
 }
 
 public interface IBackgroundMailingSendQueue
@@ -117,8 +144,9 @@ public sealed class FakeEmailProviderAdapter(IFakeMailer fakeMailer) : IEmailPro
             return Task.FromResult(EmailProviderSendResult.Failure("fake_temporary", "Fake provider вернул временную тестовую ошибку."));
         }
 
-        fakeMailer.AddMailingMessage(email, message.Subject, message.UnsubscribeUrl);
-        return Task.FromResult(EmailProviderSendResult.Success(BuildProviderMessageId(message.MailingId, email)));
+        var providerMessageId = BuildProviderMessageId(message.MailingId, email);
+        fakeMailer.AddMailingMessage(email, message.Subject, message.UnsubscribeUrl, message.ReplyToAddress, message.ReplyToken, providerMessageId, message.PlainTextBody);
+        return Task.FromResult(EmailProviderSendResult.Success(providerMessageId));
     }
 
     public Task<EmailProviderWebhookParseResult> ParseWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken)
@@ -167,6 +195,66 @@ public sealed class FakeEmailProviderAdapter(IFakeMailer fakeMailer) : IEmailPro
         }
     }
 
+    public Task<EmailProviderInboundParseResult> ParseInboundWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(rawBody);
+            var root = document.RootElement;
+            var providerInboundEventId = ReadString(root, "providerInboundEventId");
+            var from = ReadString(root, "from");
+            var to = ReadString(root, "to");
+            if (string.IsNullOrWhiteSpace(providerInboundEventId) || string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+            {
+                return Task.FromResult(EmailProviderInboundParseResult.Failure("Некорректный fake inbound payload."));
+            }
+
+            var receivedAt = DateTimeOffset.UtcNow;
+            if (DateTimeOffset.TryParse(ReadString(root, "receivedAt"), out var parsedReceivedAt))
+            {
+                receivedAt = parsedReceivedAt.ToUniversalTime();
+            }
+
+            var item = new EmailProviderInboundEvent(
+                ProviderName,
+                providerInboundEventId.Trim(),
+                from.Trim().ToLowerInvariant(),
+                to.Trim().ToLowerInvariant(),
+                ReadString(root, "replyToken"),
+                ReadString(root, "subject") ?? "Ответ без темы",
+                ReadString(root, "textBody"),
+                ReadString(root, "htmlBody"),
+                ReadHeaders(root, headers),
+                receivedAt,
+                rawBody);
+
+            return Task.FromResult(EmailProviderInboundParseResult.Success(item));
+        }
+        catch (JsonException)
+        {
+            return Task.FromResult(EmailProviderInboundParseResult.Failure("Некорректный JSON inbound payload."));
+        }
+    }
+
+    public Task<EmailProviderSendResult> ForwardReplyToClientAsync(ReplyEvent replyEvent, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(replyEvent.ForwardToEmailNormalized))
+        {
+            return Task.FromResult(EmailProviderSendResult.Failure("missing_forward_to", "Не указан адрес пересылки клиента."));
+        }
+
+        var subject = $"Ответ на рассылку: {replyEvent.SubjectPreview}";
+        var body = string.Join("\n\n",
+            "Это пересланный ответ получателя через сервис Письмолёт.",
+            $"От: {replyEvent.FromEmailNormalized}",
+            $"Получен: {replyEvent.ReceivedAt:yyyy-MM-dd HH:mm} UTC",
+            "Текст ответа:",
+            string.IsNullOrWhiteSpace(replyEvent.BodyTextStored) ? "[Тело ответа уже удалено или не сохранялось]" : replyEvent.BodyTextStored);
+        var providerMessageId = $"fake-forward-{replyEvent.Id:N}";
+        fakeMailer.AddForwardedReply(replyEvent.ForwardToEmailNormalized, subject, replyEvent.FromEmailNormalized, body, providerMessageId);
+        return Task.FromResult(EmailProviderSendResult.Success(providerMessageId));
+    }
+
     public static string BuildProviderMessageId(Guid mailingId, string recipientEmail)
     {
         var raw = $"{mailingId:N}:{recipientEmail.Trim().ToLowerInvariant()}";
@@ -176,6 +264,9 @@ public sealed class FakeEmailProviderAdapter(IFakeMailer fakeMailer) : IEmailPro
 
     public static string BuildProviderEventId(string providerMessageId, ProviderWebhookEventType eventType) =>
         $"fake-event-{Hash($"{providerMessageId}:{eventType}")[..20]}";
+
+    public static string BuildProviderInboundEventId(string providerMessageId, string fromEmail) =>
+        $"fake-inbound-{Hash($"{providerMessageId}:{fromEmail}")[..20]}";
 
     private static ProviderWebhookEventType MapEventType(string value) => value.Trim().ToLowerInvariant() switch
     {
@@ -187,6 +278,20 @@ public sealed class FakeEmailProviderAdapter(IFakeMailer fakeMailer) : IEmailPro
         "rejected" => ProviderWebhookEventType.Rejected,
         _ => ProviderWebhookEventType.Unknown
     };
+
+    private static IReadOnlyDictionary<string, string> ReadHeaders(JsonElement root, IReadOnlyDictionary<string, string> requestHeaders)
+    {
+        var result = new Dictionary<string, string>(requestHeaders, StringComparer.OrdinalIgnoreCase);
+        if (root.TryGetProperty("headers", out var headersElement) && headersElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var item in headersElement.EnumerateObject())
+            {
+                result[item.Name] = item.Value.ToString();
+            }
+        }
+
+        return result;
+    }
 
     private static string? ReadString(JsonElement root, string name)
     {
@@ -212,6 +317,7 @@ public sealed class MailingSendService(
     IEmailProviderAdapter provider,
     IEmailNormalizer emailNormalizer,
     IUnsubscribeTokenService tokens,
+    IInboundReplyTokenService replyTokens,
     IBackgroundMailingSendQueue queue,
     IAuditLogger auditLogger,
     MailingSendOptions options) : IMailingSendService
@@ -484,12 +590,29 @@ public sealed class MailingSendService(
     private EmailMessage BuildEmailMessage(Mailing mailing, MailingMessageDraft draft, string recipientEmail)
     {
         var token = tokens.Generate(mailing.Id, recipientEmail);
+        var replyToken = replyTokens.Generate(mailing.Id, mailing.OwnerEmail, recipientEmail);
         var unsubscribeUrl = $"/unsubscribe/{token}";
+        var replyToAddress = replyTokens.BuildReplyToAddress(replyToken);
         var source = mailing.Declaration?.BaseSource.ToRu() ?? "загруженной базы адресов";
         var reason = $"Почему вы получили это письмо: ваш адрес находится в базе «{source}», которую отправитель подтвердил перед рассылкой.";
         var serviceId = $"Служебный идентификатор рассылки: {mailing.PublicId}";
         var plain = string.Join("\n\n", draft.Body, reason, $"Отписаться от всех рассылок через сервис: {unsubscribeUrl}", "Отписка действует глобально для всех рассылок через Письмолёт.", serviceId);
-        return new EmailMessage(mailing.Id, new EmailRecipient(recipientEmail), draft.SenderName, draft.Subject, plain, unsubscribeUrl, serviceId);
+        return new EmailMessage(
+            mailing.Id,
+            new EmailRecipient(recipientEmail),
+            draft.SenderName,
+            draft.Subject,
+            plain,
+            unsubscribeUrl,
+            serviceId,
+            replyToAddress,
+            replyToken,
+            new Dictionary<string, string>
+            {
+                ["mailingId"] = mailing.Id.ToString("N"),
+                ["recipientKey"] = replyTokens.BuildRecipientKey(mailing.Id, recipientEmail),
+                ["replyPurpose"] = "inbound_reply"
+            });
     }
 
     private void AuditSuppressedSend(Mailing mailing, SendEvent sendEvent, string eventType, string ip, string userAgent) => auditLogger.Write(new AuditRecord(
