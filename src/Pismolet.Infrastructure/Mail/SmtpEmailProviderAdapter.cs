@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
@@ -82,6 +83,7 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
     {
         var unsubscribeUrl = ToAbsoluteUrl(message.UnsubscribeUrl);
         var plainTextBody = ReplaceRelativeUrl(message.PlainTextBody, message.UnsubscribeUrl, unsubscribeUrl);
+        plainTextBody = ReplaceVisibleRelativeUnsubscribeLinks(plainTextBody);
         plainTextBody = KeepSingleVisibleUnsubscribeLink(plainTextBody, unsubscribeUrl);
         var metadata = new Dictionary<string, string>(message.Metadata, StringComparer.OrdinalIgnoreCase)
         {
@@ -195,6 +197,27 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
         }
 
         return body.Replace(relativeUrl, absoluteUrl, StringComparison.Ordinal);
+    }
+
+    private string ReplaceVisibleRelativeUnsubscribeLinks(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return body;
+        }
+
+        var baseUrl = publicUrlOptions.PublicBaseUrl.Trim().TrimEnd('/');
+        var result = Regex.Replace(
+            body,
+            @"https?://localhost(?::\d+)?/unsubscribe/",
+            baseUrl + "/unsubscribe/",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        return Regex.Replace(
+            result,
+            @"(^|[\s:('""=])(/unsubscribe/)",
+            match => match.Groups[1].Value + baseUrl + "/unsubscribe/",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Multiline);
     }
 
     private static string KeepSingleVisibleUnsubscribeLink(string body, string unsubscribeUrl)
