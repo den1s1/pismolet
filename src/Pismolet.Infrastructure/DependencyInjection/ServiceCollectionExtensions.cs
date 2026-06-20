@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFakeMailer, InMemoryFakeMailer>();
         services.AddSingleton<IEmailNormalizer, EmailNormalizer>();
         services.AddSingleton<IEmailSyntaxValidator, EmailSyntaxValidator>();
+        services.AddSingleton(new PublicUrlOptions(ReadPublicBaseUrl(configuration)));
         services.AddSingleton(new UnsubscribeTokenOptions(
             configuration["Unsubscribe:Secret"] ?? configuration["PISMOLET_UNSUBSCRIBE_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_UNSUBSCRIBE_SECRET") ?? UnsubscribeTokenOptions.DevelopmentDefault.Secret,
             TimeSpan.FromDays(ReadTokenLifetimeDays(configuration))));
@@ -60,7 +61,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRiskCheckService, RiskCheckService>();
         services.AddScoped<IMailingReviewService, MailingReviewService>();
         services.AddScoped<IModerationAdminService, ModerationAdminService>();
-        services.AddScoped<IEmailProviderAdapter, FakeEmailProviderAdapter>();
+        services.AddScoped<IEmailProviderAdapter, PublicUrlFakeEmailProviderAdapter>();
         services.AddScoped<IMailingSendService, MailingSendService>();
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
@@ -120,6 +121,23 @@ public static class ServiceCollectionExtensions
     {
         var raw = configuration["Sending:BatchSize"];
         return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 1000) : 100;
+    }
+
+    private static string ReadPublicBaseUrl(IConfiguration configuration)
+    {
+        var raw = configuration["App:PublicBaseUrl"]
+            ?? configuration["Pismolet:PublicBaseUrl"]
+            ?? configuration["PISMOLET_PUBLIC_BASE_URL"]
+            ?? Environment.GetEnvironmentVariable("PISMOLET_PUBLIC_BASE_URL")
+            ?? PublicUrlOptions.DevelopmentDefault.PublicBaseUrl;
+
+        raw = raw.Trim().TrimEnd('/');
+        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Scheme) || string.IsNullOrWhiteSpace(uri.Host))
+        {
+            throw new InvalidOperationException("Задайте корректный публичный URL приложения в App:PublicBaseUrl.");
+        }
+
+        return raw;
     }
 
     private static int ReadTokenLifetimeDays(IConfiguration configuration)
