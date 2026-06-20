@@ -25,7 +25,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(new UnsubscribeTokenOptions(
             configuration["Unsubscribe:Secret"] ?? configuration["PISMOLET_UNSUBSCRIBE_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_UNSUBSCRIBE_SECRET") ?? UnsubscribeTokenOptions.DevelopmentDefault.Secret,
             TimeSpan.FromDays(ReadTokenLifetimeDays(configuration))));
+        services.AddSingleton(new InboundReplyTokenOptions(
+            configuration["InboundReplies:Secret"] ?? configuration["PISMOLET_INBOUND_REPLY_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_INBOUND_REPLY_SECRET") ?? InboundReplyTokenOptions.DevelopmentDefault.Secret,
+            configuration["InboundReplies:Domain"] ?? InboundReplyTokenOptions.DevelopmentDefault.InboundDomain,
+            TimeSpan.FromDays(ReadInboundTokenLifetimeDays(configuration))));
+        services.AddSingleton(new InboundReplyOptions(
+            ReadInt(configuration, "InboundReplies:BodyRetentionDays", 14, 1, 60),
+            ReadInt(configuration, "InboundReplies:MaxStoredBodyChars", 12000, 0, 16000),
+            ReadInt(configuration, "InboundReplies:ForwardBatchSize", 50, 1, 500)));
         services.AddSingleton<IUnsubscribeTokenService, SignedUnsubscribeTokenService>();
+        services.AddSingleton<IInboundReplyTokenService, SignedInboundReplyTokenService>();
         services.AddSingleton<IMessageRenderingService, MessageRenderingService>();
         services.AddSingleton<IPaymentRepository, InMemoryPaymentRepository>();
         services.AddSingleton<IPriceSettingsRepository, InMemoryPriceSettingsRepository>();
@@ -35,7 +44,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISendEventRepository, InMemorySendEventRepository>();
         services.AddSingleton<IProviderWebhookEventRepository, InMemoryProviderWebhookEventRepository>();
         services.AddSingleton<IClientSuppressionRepository, InMemoryClientSuppressionRepository>();
+        services.AddSingleton<IReplyEventRepository, InMemoryReplyEventRepository>();
         services.AddSingleton<IBackgroundMailingSendQueue, InlineMailingSendQueue>();
+        services.AddSingleton<IBackgroundReplyQueue, InlineMailingSendQueue>();
         services.AddSingleton(new MailingSendOptions(ReadBatchSize(configuration)));
 
         services.AddScoped<IUserAccountService, UserAccountService>();
@@ -54,6 +65,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
         services.AddScoped<IEmailWebhookProcessingService, EmailWebhookProcessingService>();
+        services.AddScoped<IInboundReplyMatchingService, InboundReplyMatchingService>();
+        services.AddScoped<IInboundReplyProcessingService, InboundReplyProcessingService>();
         services.AddScoped<DevSeedDataInitializer>();
 
         var provider = configuration["Persistence:Provider"] ?? configuration["Pismolet:Persistence"] ?? "Postgres";
@@ -75,6 +88,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IGlobalSuppressionRepository, EfGlobalSuppressionRepository>();
         services.AddScoped<IProviderWebhookEventRepository, EfProviderWebhookEventRepository>();
         services.AddScoped<IClientSuppressionRepository, EfClientSuppressionRepository>();
+        services.AddScoped<IReplyEventRepository, EfReplyEventRepository>();
         services.AddScoped<IAuditLogger, EfAuditLogger>();
         return services;
     }
@@ -102,5 +116,17 @@ public static class ServiceCollectionExtensions
     {
         var raw = configuration["Unsubscribe:TokenLifetimeDays"];
         return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 365) : 90;
+    }
+
+    private static int ReadInboundTokenLifetimeDays(IConfiguration configuration)
+    {
+        var raw = configuration["InboundReplies:TokenLifetimeDays"];
+        return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 365) : 180;
+    }
+
+    private static int ReadInt(IConfiguration configuration, string key, int fallback, int min, int max)
+    {
+        var raw = configuration[key];
+        return int.TryParse(raw, out var value) ? Math.Clamp(value, min, max) : fallback;
     }
 }
