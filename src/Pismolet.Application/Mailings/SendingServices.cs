@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
@@ -29,6 +30,25 @@ public sealed record EmailProviderSendResult(bool Accepted, string? ProviderMess
     public static EmailProviderSendResult Failure(string errorCode, string errorMessage) => new(false, null, errorCode, errorMessage);
 }
 
+public sealed record EmailProviderWebhookEvent(
+    string Provider,
+    string ProviderEventId,
+    string? ProviderMessageId,
+    Guid? MailingId,
+    string? RecipientEmail,
+    ProviderWebhookEventType EventType,
+    DateTimeOffset OccurredAt,
+    string? ReasonCode,
+    string? ReasonMessage,
+    string RawPayload);
+
+public sealed record EmailProviderWebhookParseResult(bool Ok, string Error, EmailProviderWebhookEvent? Event)
+{
+    public static EmailProviderWebhookParseResult Success(EmailProviderWebhookEvent item) => new(true, string.Empty, item);
+
+    public static EmailProviderWebhookParseResult Failure(string error) => new(false, error, null);
+}
+
 public sealed record MailingSendState(Mailing Mailing, MailingSendSummary Summary, IReadOnlyCollection<SendEvent> Events);
 
 public sealed record MailingSendResult(bool Ok, string Error, MailingSendState? State)
@@ -52,7 +72,11 @@ public sealed record MailingSendOptions(int BatchSize)
 
 public interface IEmailProviderAdapter
 {
+    string ProviderName { get; }
+
     Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken);
+
+    Task<EmailProviderWebhookParseResult> ParseWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken);
 }
 
 public interface IBackgroundMailingSendQueue
@@ -78,6 +102,8 @@ public interface IClientSendLimitAdminService
 
 public sealed class FakeEmailProviderAdapter(IFakeMailer fakeMailer) : IEmailProviderAdapter
 {
+    public string ProviderName => SendEvent.FakeProvider;
+
     public Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
         var email = message.Recipient.Email.Trim().ToLowerInvariant();
@@ -95,11 +121,84 @@ public sealed class FakeEmailProviderAdapter(IFakeMailer fakeMailer) : IEmailPro
         return Task.FromResult(EmailProviderSendResult.Success(BuildProviderMessageId(message.MailingId, email)));
     }
 
-    private static string BuildProviderMessageId(Guid mailingId, string recipientEmail)
+    public Task<EmailProviderWebhookParseResult> ParseWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(rawBody);
+            var root = document.RootElement;
+            var providerEventId = ReadString(root, "providerEventId");
+            var providerMessageId = ReadString(root, "providerMessageId");
+            var eventTypeRaw = ReadString(root, "eventType");
+            if (string.IsNullOrWhiteSpace(providerEventId) || string.IsNullOrWhiteSpace(eventTypeRaw))
+            {
+                return Task.FromResult(EmailProviderWebhookParseResult.Failure("Некорректный fake webhook payload."));
+            }
+
+            Guid? mailingId = null;
+            if (Guid.TryParse(ReadString(root, "mailingId"), out var parsedMailingId))
+            {
+                mailingId = parsedMailingId;
+            }
+
+            var occurredAt = DateTimeOffset.UtcNow;
+            if (DateTimeOffset.TryParse(ReadString(root, "occurredAt"), out var parsedOccurredAt))
+            {
+                occurredAt = parsedOccurredAt.ToUniversalTime();
+            }
+
+            var item = new EmailProviderWebhookEvent(
+                ProviderName,
+                providerEventId.Trim(),
+                providerMessageId,
+                mailingId,
+                ReadString(root, "recipientEmail"),
+                MapEventType(eventTypeRaw),
+                occurredAt,
+                ReadString(root, "reasonCode"),
+                ReadString(root, "reasonMessage"),
+                rawBody);
+
+            return Task.FromResult(EmailProviderWebhookParseResult.Success(item));
+        }
+        catch (JsonException)
+        {
+            return Task.FromResult(EmailProviderWebhookParseResult.Failure("Некорректный JSON webhook payload."));
+        }
+    }
+
+    public static string BuildProviderMessageId(Guid mailingId, string recipientEmail)
     {
         var raw = $"{mailingId:N}:{recipientEmail.Trim().ToLowerInvariant()}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return $"fake-{mailingId:N}-{Convert.ToHexString(hash)[..16].ToLowerInvariant()}";
+    }
+
+    public static string BuildProviderEventId(string providerMessageId, ProviderWebhookEventType eventType) =>
+        $"fake-event-{Hash($"{providerMessageId}:{eventType}")[..20]}";
+
+    private static ProviderWebhookEventType MapEventType(string value) => value.Trim().ToLowerInvariant() switch
+    {
+        "accepted" => ProviderWebhookEventType.Accepted,
+        "delivered" => ProviderWebhookEventType.Delivered,
+        "soft_bounce" or "soft-bounce" or "temporary_failure" => ProviderWebhookEventType.SoftBounce,
+        "hard_bounce" or "hard-bounce" or "permanent_failure" => ProviderWebhookEventType.HardBounce,
+        "complaint" => ProviderWebhookEventType.Complaint,
+        "rejected" => ProviderWebhookEventType.Rejected,
+        _ => ProviderWebhookEventType.Unknown
+    };
+
+    private static string? ReadString(JsonElement root, string name)
+    {
+        return root.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null
+            ? value.ToString()
+            : null;
+    }
+
+    private static string Hash(string value)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value.Trim().ToLowerInvariant()));
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }
 
@@ -108,6 +207,7 @@ public sealed class MailingSendService(
     IPaymentRepository payments,
     ISendEventRepository sendEvents,
     IGlobalSuppressionRepository suppressions,
+    IClientSuppressionRepository clientSuppressions,
     IUserRepository users,
     IEmailProviderAdapter provider,
     IEmailNormalizer emailNormalizer,
@@ -160,6 +260,7 @@ public sealed class MailingSendService(
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var suppressedSet = suppressions.GetSuppressedSet(acceptedRecipients);
+        var clientSuppressedSet = clientSuppressions.GetSuppressedSet(mailing.OwnerEmail, acceptedRecipients);
 
         foreach (var recipientEmail in acceptedRecipients)
         {
@@ -173,7 +274,14 @@ public sealed class MailingSendService(
             if (suppressedSet.Contains(recipientEmail))
             {
                 sendEvents.Save(sendEvent.MarkSkipped(SendSkipReason.GlobalSuppression));
-                AuditSuppressedSend(mailing, sendEvent, request.Ip, request.UserAgent);
+                AuditSuppressedSend(mailing, sendEvent, "suppressed_email_skipped_before_send", request.Ip, request.UserAgent);
+                continue;
+            }
+
+            if (clientSuppressedSet.Contains(recipientEmail))
+            {
+                sendEvents.Save(sendEvent.MarkSkipped(SendSkipReason.ClientSuppression));
+                AuditSuppressedSend(mailing, sendEvent, "client_suppressed_email_skipped_before_send", request.Ip, request.UserAgent);
                 continue;
             }
 
@@ -195,7 +303,7 @@ public sealed class MailingSendService(
                 : mailing.WithStatus(MailingStatus.Sent);
         mailings.Update(mailing);
 
-        auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_requested", request.Ip, request.UserAgent, $"mailingId={mailing.Id};accepted={summary.AcceptedForSending};pending={summary.Pending};paused={summary.PausedByLimit};suppressed={summary.Suppressed}"));
+        auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_requested", request.Ip, request.UserAgent, $"mailingId={mailing.Id};accepted={summary.AcceptedForSending};pending={summary.Pending};paused={summary.PausedByLimit};suppressed={summary.Suppressed};clientSuppressed={summary.ClientSuppressed}"));
 
         if (mailing.Status == MailingStatus.Sending)
         {
@@ -277,6 +385,7 @@ public sealed class MailingSendService(
 
         var batch = sendEvents.GetPendingBatch(mailing.Id, Math.Max(1, options.BatchSize));
         var suppressedSet = suppressions.GetSuppressedSet(batch.Select(x => x.RecipientEmail));
+        var clientSuppressedSet = clientSuppressions.GetSuppressedSet(mailing.OwnerEmail, batch.Select(x => x.RecipientEmail));
         foreach (var sendEvent in batch)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -287,7 +396,14 @@ public sealed class MailingSendService(
             if (suppressedSet.Contains(sendEvent.RecipientEmail))
             {
                 sendEvents.Save(sendEvent.MarkSkipped(SendSkipReason.GlobalSuppression));
-                AuditSuppressedSend(mailing, sendEvent, "background", "background");
+                AuditSuppressedSend(mailing, sendEvent, "suppressed_email_skipped_before_send", "background", "background");
+                continue;
+            }
+
+            if (clientSuppressedSet.Contains(sendEvent.RecipientEmail))
+            {
+                sendEvents.Save(sendEvent.MarkSkipped(SendSkipReason.ClientSuppression));
+                AuditSuppressedSend(mailing, sendEvent, "client_suppressed_email_skipped_before_send", "background", "background");
                 continue;
             }
 
@@ -328,7 +444,7 @@ public sealed class MailingSendService(
         }
 
         mailings.Update(mailing.WithStatus(MailingStatus.Sent));
-        auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_completed", "background", "background", $"mailingId={mailing.Id};sent={summary.Sent};suppressed={summary.Suppressed}"));
+        auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_completed", "background", "background", $"mailingId={mailing.Id};sent={summary.Sent};suppressed={summary.Suppressed};clientSuppressed={summary.ClientSuppressed}"));
     }
 
     private MailingSendResult BuildState(Mailing mailing)
@@ -376,10 +492,10 @@ public sealed class MailingSendService(
         return new EmailMessage(mailing.Id, new EmailRecipient(recipientEmail), draft.SenderName, draft.Subject, plain, unsubscribeUrl, serviceId);
     }
 
-    private void AuditSuppressedSend(Mailing mailing, SendEvent sendEvent, string ip, string userAgent) => auditLogger.Write(new AuditRecord(
+    private void AuditSuppressedSend(Mailing mailing, SendEvent sendEvent, string eventType, string ip, string userAgent) => auditLogger.Write(new AuditRecord(
         DateTimeOffset.UtcNow,
         mailing.OwnerEmail,
-        "suppressed_email_skipped_before_send",
+        eventType,
         ip,
         userAgent,
         $"mailingId={mailing.Id};eventId={sendEvent.Id};emailHash={Hash(sendEvent.RecipientEmail)}"));
