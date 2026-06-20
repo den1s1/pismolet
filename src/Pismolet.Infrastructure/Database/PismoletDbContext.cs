@@ -14,6 +14,8 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
     public DbSet<AuditRecordEntity> AuditRecords => Set<AuditRecordEntity>();
     public DbSet<GlobalSuppressionEntity> GlobalSuppressions => Set<GlobalSuppressionEntity>();
     public DbSet<SendEventEntity> SendEvents => Set<SendEventEntity>();
+    public DbSet<ProviderWebhookEventEntity> ProviderWebhookEvents => Set<ProviderWebhookEventEntity>();
+    public DbSet<ClientSuppressionEntity> ClientSuppressions => Set<ClientSuppressionEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -134,7 +136,9 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.MailingId);
             entity.HasIndex(x => new { x.MailingId, x.RecipientEmail }).IsUnique();
+            entity.HasIndex(x => x.ProviderMessageId);
             entity.HasIndex(x => new { x.MailingId, x.Status, x.CreatedAt });
+            entity.HasIndex(x => new { x.MailingId, x.DeliveryStatus });
             entity.HasIndex(x => new { x.OwnerEmail, x.UpdatedAt });
             entity.Property(x => x.OwnerEmail).HasMaxLength(254).IsRequired();
             entity.Property(x => x.RecipientEmail).HasMaxLength(254).IsRequired();
@@ -144,7 +148,42 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.Property(x => x.ProviderMessageId).HasMaxLength(240);
             entity.Property(x => x.ErrorCode).HasMaxLength(120);
             entity.Property(x => x.ErrorMessage).HasMaxLength(1000);
+            entity.Property(x => x.DeliveryStatus).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.LastDeliverySummary).HasMaxLength(1000);
             entity.HasOne<MailingEntity>().WithMany().HasForeignKey(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProviderWebhookEventEntity>(entity =>
+        {
+            entity.ToTable("provider_webhook_events");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Provider, x.ProviderEventId }).IsUnique();
+            entity.HasIndex(x => x.ProviderMessageId);
+            entity.HasIndex(x => x.MailingId);
+            entity.HasIndex(x => new { x.MailingId, x.EventType });
+            entity.Property(x => x.Provider).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.ProviderEventId).HasMaxLength(240).IsRequired();
+            entity.Property(x => x.ProviderMessageId).HasMaxLength(240);
+            entity.Property(x => x.ClientId).HasMaxLength(254);
+            entity.Property(x => x.RecipientEmailNormalized).HasMaxLength(254);
+            entity.Property(x => x.EventType).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.RawPayloadHash).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.RawPayloadStored).HasMaxLength(4096);
+            entity.Property(x => x.ReasonCode).HasMaxLength(120);
+            entity.Property(x => x.ReasonMessage).HasMaxLength(1000);
+            entity.Property(x => x.ProcessingStatus).HasMaxLength(40).IsRequired();
+        });
+
+        modelBuilder.Entity<ClientSuppressionEntity>(entity =>
+        {
+            entity.ToTable("client_suppressions");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.ClientId, x.EmailNormalized }).IsUnique();
+            entity.HasIndex(x => x.EmailNormalized);
+            entity.Property(x => x.ClientId).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.EmailNormalized).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.Reason).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.SourceProviderMessageId).HasMaxLength(240);
         });
     }
 }
@@ -187,6 +226,7 @@ public sealed class ImportBatchEntity
     public int Duplicates { get; set; }
     public int Invalid { get; set; }
     public int GloballySuppressed { get; set; }
+    public int ClientSuppressed { get; set; }
     public string Status { get; set; } = string.Empty;
 }
 
@@ -271,6 +311,41 @@ public sealed class SendEventEntity
     public int Attempt { get; set; }
     public string? ErrorCode { get; set; }
     public string? ErrorMessage { get; set; }
+    public string DeliveryStatus { get; set; } = "NotReported";
+    public DateTimeOffset? LastDeliveryEventAt { get; set; }
+    public string? LastDeliverySummary { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class ProviderWebhookEventEntity
+{
+    public Guid Id { get; set; }
+    public string Provider { get; set; } = string.Empty;
+    public string ProviderEventId { get; set; } = string.Empty;
+    public string? ProviderMessageId { get; set; }
+    public Guid? MailingId { get; set; }
+    public string? ClientId { get; set; }
+    public string? RecipientEmailNormalized { get; set; }
+    public string EventType { get; set; } = string.Empty;
+    public DateTimeOffset OccurredAt { get; set; }
+    public DateTimeOffset ReceivedAt { get; set; }
+    public string RawPayloadHash { get; set; } = string.Empty;
+    public string? RawPayloadStored { get; set; }
+    public string? ReasonCode { get; set; }
+    public string? ReasonMessage { get; set; }
+    public string ProcessingStatus { get; set; } = string.Empty;
+    public Guid CorrelationId { get; set; }
+}
+
+public sealed class ClientSuppressionEntity
+{
+    public Guid Id { get; set; }
+    public string ClientId { get; set; } = string.Empty;
+    public string EmailNormalized { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public Guid? SourceMailingId { get; set; }
+    public string? SourceProviderMessageId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset LastSeenAt { get; set; }
 }
