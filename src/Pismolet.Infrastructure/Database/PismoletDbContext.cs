@@ -116,8 +116,16 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
         modelBuilder.Entity<GlobalSuppressionEntity>(entity =>
         {
             entity.ToTable("global_suppressions");
-            entity.HasKey(x => x.NormalizedEmail);
-            entity.Property(x => x.NormalizedEmail).HasMaxLength(254).IsRequired();
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.EmailNormalized).IsUnique();
+            entity.HasIndex(x => x.EmailHash);
+            entity.HasIndex(x => x.SourceMailingId);
+            entity.Property(x => x.EmailNormalized).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.EmailHash).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Source).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.SourceRecipientKey).HasMaxLength(120);
+            entity.Property(x => x.CreatedIpHash).HasMaxLength(64);
+            entity.Property(x => x.UserAgentHash).HasMaxLength(64);
         });
 
         modelBuilder.Entity<SendEventEntity>(entity =>
@@ -239,8 +247,15 @@ public sealed class AuditRecordEntity
 
 public sealed class GlobalSuppressionEntity
 {
-    public string NormalizedEmail { get; set; } = string.Empty;
+    public Guid Id { get; set; }
+    public string EmailNormalized { get; set; } = string.Empty;
+    public string EmailHash { get; set; } = string.Empty;
+    public string Source { get; set; } = string.Empty;
+    public Guid? SourceMailingId { get; set; }
+    public string? SourceRecipientKey { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public string? CreatedIpHash { get; set; }
+    public string? UserAgentHash { get; set; }
 }
 
 public sealed class SendEventEntity
