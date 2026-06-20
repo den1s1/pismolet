@@ -1,6 +1,7 @@
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
+using MimeKit.Utils;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Domain.Mailings;
 
