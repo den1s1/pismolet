@@ -22,7 +22,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFakeMailer, InMemoryFakeMailer>();
         services.AddSingleton<IEmailNormalizer, EmailNormalizer>();
         services.AddSingleton<IEmailSyntaxValidator, EmailSyntaxValidator>();
-        services.AddSingleton<IUnsubscribeTokenService, DevUnsubscribeTokenService>();
+        services.AddSingleton(new UnsubscribeTokenOptions(
+            configuration["Unsubscribe:Secret"] ?? configuration["PISMOLET_UNSUBSCRIBE_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_UNSUBSCRIBE_SECRET") ?? UnsubscribeTokenOptions.DevelopmentDefault.Secret,
+            TimeSpan.FromDays(ReadTokenLifetimeDays(configuration))));
+        services.AddSingleton<IUnsubscribeTokenService, SignedUnsubscribeTokenService>();
         services.AddSingleton<IMessageRenderingService, MessageRenderingService>();
         services.AddSingleton<IPaymentRepository, InMemoryPaymentRepository>();
         services.AddSingleton<IPriceSettingsRepository, InMemoryPriceSettingsRepository>();
@@ -47,6 +50,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailProviderAdapter, FakeEmailProviderAdapter>();
         services.AddScoped<IMailingSendService, MailingSendService>();
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
+        services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
         services.AddScoped<DevSeedDataInitializer>();
 
         var provider = configuration["Persistence:Provider"] ?? configuration["Pismolet:Persistence"] ?? "Postgres";
@@ -87,5 +91,11 @@ public static class ServiceCollectionExtensions
     {
         var raw = configuration["Sending:BatchSize"];
         return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 1000) : 100;
+    }
+
+    private static int ReadTokenLifetimeDays(IConfiguration configuration)
+    {
+        var raw = configuration["Unsubscribe:TokenLifetimeDays"];
+        return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 365) : 90;
     }
 }
