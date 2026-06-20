@@ -14,11 +14,32 @@ public sealed class InMemoryFakeMailer : IFakeMailer
         Link: link,
         CreatedAt: DateTimeOffset.UtcNow));
 
-    public void AddMailingMessage(string to, string subject, string link) => _outbox.Enqueue(new FakeMail(
+    public void AddMailingMessage(
+        string to,
+        string subject,
+        string link,
+        string? replyToAddress = null,
+        string? replyToken = null,
+        string? providerMessageId = null,
+        string? textBody = null) => _outbox.Enqueue(new FakeMail(
+            To: to,
+            Subject: subject,
+            Link: link,
+            CreatedAt: DateTimeOffset.UtcNow,
+            ReplyToAddress: replyToAddress,
+            ReplyToken: replyToken,
+            ProviderMessageId: providerMessageId,
+            TextBody: textBody));
+
+    public void AddForwardedReply(string to, string subject, string fromEmail, string textBody, string providerMessageId) => _outbox.Enqueue(new FakeMail(
         To: to,
         Subject: subject,
-        Link: link,
-        CreatedAt: DateTimeOffset.UtcNow));
+        Link: string.Empty,
+        CreatedAt: DateTimeOffset.UtcNow,
+        ProviderMessageId: providerMessageId,
+        TextBody: textBody,
+        FromEmail: fromEmail,
+        IsForwardedReply: true));
 
     public IReadOnlyCollection<FakeMail> GetOutbox() => _outbox.Reverse().ToArray();
 }
