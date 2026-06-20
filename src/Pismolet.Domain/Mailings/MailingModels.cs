@@ -5,9 +5,10 @@ public sealed record ImportStats(
     int Accepted,
     int Duplicates,
     int Invalid,
-    int GloballySuppressed)
+    int GloballySuppressed,
+    int ClientSuppressed = 0)
 {
-    public static ImportStats Empty { get; } = new(0, 0, 0, 0, 0);
+    public static ImportStats Empty { get; } = new(0, 0, 0, 0, 0, 0);
 }
 
 public sealed record RecipientImportIssue(int RowNumber, string Email, string Message);
@@ -17,7 +18,8 @@ public enum RecipientStatus
     Accepted,
     Duplicate,
     Invalid,
-    GloballySuppressed
+    GloballySuppressed,
+    ClientSuppressed
 }
 
 public sealed record Recipient(
@@ -66,9 +68,10 @@ public sealed record ImportBatch(
     int Invalid,
     int GloballySuppressed,
     ImportBatchStatus Status,
-    IReadOnlyCollection<RecipientImportIssue> Issues)
+    IReadOnlyCollection<RecipientImportIssue> Issues,
+    int ClientSuppressed = 0)
 {
-    public ImportStats ToStats() => new(TotalRows, Accepted, Duplicates, Invalid, GloballySuppressed);
+    public ImportStats ToStats() => new(TotalRows, Accepted, Duplicates, Invalid, GloballySuppressed, ClientSuppressed);
 
     public static ImportBatch Completed(
         Guid mailingId,
@@ -87,7 +90,8 @@ public sealed record ImportBatch(
             stats.Invalid,
             stats.GloballySuppressed,
             ImportBatchStatus.Completed,
-            issues ?? Array.Empty<RecipientImportIssue>());
+            issues ?? Array.Empty<RecipientImportIssue>(),
+            stats.ClientSuppressed);
 }
 
 public enum BaseSource
