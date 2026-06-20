@@ -90,23 +90,106 @@ public sealed class EfUserRepository(PismoletDbContext db) : IUserRepository
 
 public sealed class EfGlobalSuppressionRepository(PismoletDbContext db) : IGlobalSuppressionRepository
 {
-    public bool IsSuppressed(string normalizedEmail) => db.GlobalSuppressions.Any(x => x.NormalizedEmail == Normalize(normalizedEmail));
+    public bool IsSuppressed(string normalizedEmail) => db.GlobalSuppressions.Any(x => x.EmailNormalized == Normalize(normalizedEmail));
+
+    public IReadOnlySet<string> GetSuppressedSet(IEnumerable<string> normalizedEmails)
+    {
+        var emails = normalizedEmails
+            .Select(Normalize)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (emails.Length == 0)
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return db.GlobalSuppressions
+            .AsNoTracking()
+            .Where(x => emails.Contains(x.EmailNormalized))
+            .Select(x => x.EmailNormalized)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public GlobalSuppression? GetByEmail(string normalizedEmail) => db.GlobalSuppressions
+        .AsNoTracking()
+        .FirstOrDefault(x => x.EmailNormalized == Normalize(normalizedEmail)) is { } entity
+            ? ToDomain(entity)
+            : null;
+
+    public GlobalSuppression AddOrGet(GlobalSuppression suppression)
+    {
+        var normalized = Normalize(suppression.EmailNormalized);
+        var existing = db.GlobalSuppressions.AsNoTracking().FirstOrDefault(x => x.EmailNormalized == normalized);
+        if (existing is not null)
+        {
+            return ToDomain(existing);
+        }
+
+        var entity = ToEntity(suppression with { EmailNormalized = normalized });
+        db.GlobalSuppressions.Add(entity);
+        try
+        {
+            db.SaveChanges();
+            return ToDomain(entity);
+        }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            var current = db.GlobalSuppressions.AsNoTracking().FirstOrDefault(x => x.EmailNormalized == normalized);
+            if (current is not null)
+            {
+                return ToDomain(current);
+            }
+
+            throw;
+        }
+    }
 
     public void Add(string normalizedEmail)
     {
         var email = Normalize(normalizedEmail);
-        if (db.GlobalSuppressions.Any(x => x.NormalizedEmail == email))
+        if (string.IsNullOrWhiteSpace(email))
         {
             return;
         }
 
-        db.GlobalSuppressions.Add(new GlobalSuppressionEntity
-        {
-            NormalizedEmail = email,
-            CreatedAt = DateTimeOffset.UtcNow
-        });
-        db.SaveChanges();
+        AddOrGet(new GlobalSuppression(
+            Guid.NewGuid(),
+            email,
+            string.Empty,
+            GlobalSuppressionSource.Admin,
+            null,
+            null,
+            DateTimeOffset.UtcNow,
+            null,
+            null));
     }
+
+    private static GlobalSuppressionEntity ToEntity(GlobalSuppression suppression) => new()
+    {
+        Id = suppression.Id == Guid.Empty ? Guid.NewGuid() : suppression.Id,
+        EmailNormalized = Normalize(suppression.EmailNormalized),
+        EmailHash = suppression.EmailHash,
+        Source = suppression.Source.ToString(),
+        SourceMailingId = suppression.SourceMailingId,
+        SourceRecipientKey = suppression.SourceRecipientKey,
+        CreatedAt = suppression.CreatedAt.ToUniversalTime(),
+        CreatedIpHash = suppression.CreatedIpHash,
+        UserAgentHash = suppression.UserAgentHash
+    };
+
+    private static GlobalSuppression ToDomain(GlobalSuppressionEntity entity) => new(
+        entity.Id,
+        entity.EmailNormalized,
+        entity.EmailHash,
+        Enum.Parse<GlobalSuppressionSource>(entity.Source),
+        entity.SourceMailingId,
+        entity.SourceRecipientKey,
+        entity.CreatedAt,
+        entity.CreatedIpHash,
+        entity.UserAgentHash);
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }
