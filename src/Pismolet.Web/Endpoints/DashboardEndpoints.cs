@@ -4,6 +4,7 @@ using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Rendering;
 
@@ -65,7 +66,7 @@ public static class DashboardEndpoints
         return Results.Redirect($"/mailings/{result.Mailing.Id}/recipients");
     }
 
-    private static IResult ShowMailing(Guid id, HttpContext http, IMailingService mailings)
+    private static IResult ShowMailing(Guid id, HttpContext http, IMailingService mailings, IReplyEventRepository replies)
     {
         var mailing = GetMailing(id, http, mailings);
         if (mailing is null)
@@ -78,7 +79,11 @@ public static class DashboardEndpoints
         var importInfo = mailing.LastImportBatch is null
             ? string.Empty
             : $"<p class='muted'>Последний импорт: {H(mailing.LastImportBatch.FileName)} ({mailing.LastImportBatch.SourceFormat})</p>";
-        var body = $"<section class='card'><h1>{H(mailing.Subject)}</h1><p><span class='badge'>{mailing.StatusRu}</span></p>{importInfo}<p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
+        var replySummary = replies.GetSummary(mailing.Id);
+        var replyInfo = replySummary.TotalReplies == 0
+            ? "Ответов пока нет."
+            : $"Ответы: {replySummary.TotalReplies}; последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC; статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}.";
+        var body = $"<section class='card'><h1>{H(mailing.Subject)}</h1><p><span class='badge'>{mailing.StatusRu}</span></p>{importInfo}<p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}.</p><h2>Ответы получателей</h2><p>{replyInfo}</p><p class='muted'>Ответы пересылаются клиенту на email отправителя; здесь показывается только счётчик и безопасный статус.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
         return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка", body));
     }
 
