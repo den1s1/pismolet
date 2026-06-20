@@ -16,7 +16,10 @@ public static class SendingQueueServiceCollectionExtensions
             return services;
         }
 
-        var connectionString = configuration.GetConnectionString("PismoletDb") ?? configuration.GetConnectionString("Pismolet");
+        var connectionString = configuration.GetConnectionString("PismoletDb")
+            ?? configuration.GetConnectionString("Pismolet")
+            ?? configuration["PISMOLET_CONNECTION_STRING"]
+            ?? Environment.GetEnvironmentVariable("PISMOLET_CONNECTION_STRING");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException("Для Hangfire задайте ConnectionStrings:PismoletDb.");

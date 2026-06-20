@@ -34,7 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IModerationActionLogRepository, InMemoryModerationActionLogRepository>();
         services.AddSingleton<ISendEventRepository, InMemorySendEventRepository>();
         services.AddSingleton<IBackgroundMailingSendQueue, InlineMailingSendQueue>();
-        services.AddSingleton(new MailingSendOptions(ReadBatchSize(configuration)));
+        services.AddSingleton(new MailingSendOptions(ReadBatchSize(configuration), ReadPublicBaseUrl(configuration)));
 
         services.AddScoped<IUserAccountService, UserAccountService>();
         services.AddScoped<IMailingService, MailingService>();
@@ -47,7 +47,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRiskCheckService, RiskCheckService>();
         services.AddScoped<IMailingReviewService, MailingReviewService>();
         services.AddScoped<IModerationAdminService, ModerationAdminService>();
-        services.AddScoped<IEmailProviderAdapter, FakeEmailProviderAdapter>();
+        if (UseSmtpEmailProvider(configuration))
+        {
+            services.AddSingleton(SmtpEmailProviderOptions.FromConfiguration(configuration));
+            services.AddScoped<IEmailProviderAdapter, SmtpEmailProviderAdapter>();
+        }
+        else
+        {
+            services.AddScoped<IEmailProviderAdapter, FakeEmailProviderAdapter>();
+        }
         services.AddScoped<IMailingSendService, MailingSendService>();
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
@@ -97,5 +105,31 @@ public static class ServiceCollectionExtensions
     {
         var raw = configuration["Unsubscribe:TokenLifetimeDays"];
         return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 365) : 90;
+    }
+
+    private static string ReadPublicBaseUrl(IConfiguration configuration)
+    {
+        var raw = Environment.GetEnvironmentVariable("PISMOLET_PUBLIC_BASE_URL")
+            ?? configuration["Public:BaseUrl"]
+            ?? configuration["Pismolet:PublicBaseUrl"]
+            ?? "http://localhost:5080";
+        var value = raw.Trim().TrimEnd('/');
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+        {
+            throw new InvalidOperationException("Для публичных ссылок задайте Public:BaseUrl или PISMOLET_PUBLIC_BASE_URL как абсолютный http/https URL.");
+        }
+
+        return value;
+    }
+
+    private static bool UseSmtpEmailProvider(IConfiguration configuration)
+    {
+        var provider = Environment.GetEnvironmentVariable("PISMOLET_SENDING_PROVIDER")
+            ?? configuration["Sending:Provider"]
+            ?? configuration["Email:Provider"]
+            ?? configuration["Pismolet:MailProvider"]
+            ?? "Fake";
+
+        return provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase);
     }
 }

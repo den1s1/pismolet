@@ -45,9 +45,9 @@ public sealed record ClientLimitUpdateResult(bool Ok, string Error, UserAccount?
     public static ClientLimitUpdateResult Failure(string error) => new(false, error, null);
 }
 
-public sealed record MailingSendOptions(int BatchSize)
+public sealed record MailingSendOptions(int BatchSize, string PublicBaseUrl = "http://localhost:5080")
 {
-    public static MailingSendOptions Default { get; } = new(100);
+    public static MailingSendOptions Default { get; } = new(100, "http://localhost:5080");
 }
 
 public interface IEmailProviderAdapter
@@ -368,12 +368,19 @@ public sealed class MailingSendService(
     private EmailMessage BuildEmailMessage(Mailing mailing, MailingMessageDraft draft, string recipientEmail)
     {
         var token = tokens.Generate(mailing.Id, recipientEmail);
-        var unsubscribeUrl = $"/unsubscribe/{token}";
+        var unsubscribeUrl = BuildPublicUrl($"/unsubscribe/{token}");
         var source = mailing.Declaration?.BaseSource.ToRu() ?? "загруженной базы адресов";
         var reason = $"Почему вы получили это письмо: ваш адрес находится в базе «{source}», которую отправитель подтвердил перед рассылкой.";
         var serviceId = $"Служебный идентификатор рассылки: {mailing.PublicId}";
         var plain = string.Join("\n\n", draft.Body, reason, $"Отписаться от всех рассылок через сервис: {unsubscribeUrl}", "Отписка действует глобально для всех рассылок через Письмолёт.", serviceId);
         return new EmailMessage(mailing.Id, new EmailRecipient(recipientEmail), draft.SenderName, draft.Subject, plain, unsubscribeUrl, serviceId);
+    }
+
+    private string BuildPublicUrl(string path)
+    {
+        var baseUrl = options.PublicBaseUrl.Trim().TrimEnd('/');
+        var normalizedPath = path.StartsWith('/') ? path : "/" + path;
+        return baseUrl + normalizedPath;
     }
 
     private void AuditSuppressedSend(Mailing mailing, SendEvent sendEvent, string ip, string userAgent) => auditLogger.Write(new AuditRecord(

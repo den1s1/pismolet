@@ -1,10 +1,14 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Pismolet.Web.Infrastructure.Database;
 
 #nullable disable
 
 namespace Pismolet.Web.Infrastructure.Migrations;
 
+[Migration("20260616190000_InitialCreate")]
+[DbContext(typeof(PismoletDbContext))]
 public partial class InitialCreate : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

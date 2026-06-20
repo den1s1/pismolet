@@ -170,7 +170,7 @@ public sealed class Sprint3ServiceTests
     [Fact]
     public void Unsubscribe_token_is_generated_for_recipient()
     {
-        var service = new DevUnsubscribeTokenService();
+        var service = CreateUnsubscribeTokenService();
 
         var first = service.Generate(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), "USER@example.com");
         var second = service.Generate(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), "user@example.com");
@@ -178,6 +178,8 @@ public sealed class Sprint3ServiceTests
         Assert.Equal(first, second);
         Assert.False(string.IsNullOrWhiteSpace(first));
     }
+
+    private static SignedUnsubscribeTokenService CreateUnsubscribeTokenService() => new(new EmailNormalizer(), new UnsubscribeTokenOptions("test-secret", TimeSpan.FromDays(1)));
 
     private static (InMemoryMailingRepository Repository, MailingDeclarationService Service, Mailing Mailing) CreateDeclarationServiceWithImportedMailing()
     {
@@ -207,6 +209,6 @@ public sealed class Sprint3ServiceTests
                 "unit-test"))
             .WithMessageDraft(MailingMessageDraft.Create("Письмолёт", "Новости", "Текст письма", MessageType.Transactional, DateTimeOffset.UtcNow));
 
-        return new MessageRenderingService(new DevUnsubscribeTokenService()).RenderPreview(mailing);
+        return new MessageRenderingService().RenderPreview(mailing);
     }
 }

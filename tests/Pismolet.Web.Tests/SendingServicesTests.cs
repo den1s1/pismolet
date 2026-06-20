@@ -1,3 +1,4 @@
+using Xunit;
 using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Domain.Mail;
