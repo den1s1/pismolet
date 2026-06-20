@@ -62,11 +62,15 @@ public static class SendEndpoints
             _ => "<p class='muted'>Отправка будет доступна после оплаты и одобрения рассылки.</p>"
         };
 
-        var devRows = state.Events.Count == 0
-            ? "<tr><td colspan='4'>Событий отправки пока нет.</td></tr>"
-            : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.Reason == SendSkipReason.None ? "" : x.Reason.ToString())}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
+        var deliveryNote = summary.ProviderAccepted + summary.Delivered + summary.SoftBounced + summary.HardBounced + summary.Complaints + summary.Rejected == 0
+            ? "<p class='muted'>Ожидаем статус доставки от провайдера.</p>"
+            : string.Empty;
 
-        return $"<section class='card'><h1>Отправка рассылки</h1><p class='muted'>{H(mailing.Subject)}</p><p><span class='badge'>{H(mailing.StatusRu)}</span></p>{alert}<table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Принято к отправке</td><td>{summary.AcceptedForSending}</td></tr><tr><td>Отправлено</td><td>{summary.Sent}</td></tr><tr><td>Ошибки</td><td>{summary.Failed}</td></tr><tr><td>Отписано / исключено</td><td>{summary.Suppressed}</td></tr><tr><td>Приостановлено по лимиту</td><td>{summary.PausedByLimit}</td></tr><tr><td>Ожидает отправки</td><td>{summary.Pending}</td></tr><tr><td>Всего принятых адресов</td><td>{summary.TotalAcceptedRecipients}</td></tr></tbody></table>{action}<details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Причина</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details><p><a href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></p></section>";
+        var devRows = state.Events.Count == 0
+            ? "<tr><td colspan='5'>Событий отправки пока нет.</td></tr>"
+            : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{H(x.Reason == SendSkipReason.None ? "" : x.Reason.ToString())}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
+
+        return $"<section class='card'><h1>Отправка рассылки</h1><p class='muted'>{H(mailing.Subject)}</p><p><span class='badge'>{H(mailing.StatusRu)}</span></p>{alert}<table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Принято к отправке</td><td>{summary.AcceptedForSending}</td></tr><tr><td>Отправлено провайдеру</td><td>{summary.Sent}</td></tr><tr><td>Ошибки отправки</td><td>{summary.Failed}</td></tr><tr><td>Глобально отписано / исключено</td><td>{summary.Suppressed}</td></tr><tr><td>Исключено из-за ошибки доставки у клиента</td><td>{summary.ClientSuppressed}</td></tr><tr><td>Приостановлено по лимиту</td><td>{summary.PausedByLimit}</td></tr><tr><td>Ожидает отправки</td><td>{summary.Pending}</td></tr><tr><td>Всего принятых адресов</td><td>{summary.TotalAcceptedRecipients}</td></tr></tbody></table><h2>Доставка</h2>{deliveryNote}<table><thead><tr><th>Статус доставки</th><th>Значение</th></tr></thead><tbody><tr><td>Принято провайдером</td><td>{summary.ProviderAccepted}</td></tr><tr><td>Доставлено</td><td>{summary.Delivered}</td></tr><tr><td>Временная ошибка</td><td>{summary.SoftBounced}</td></tr><tr><td>Постоянная ошибка</td><td>{summary.HardBounced}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr><tr><td>Отклонено</td><td>{summary.Rejected}</td></tr></tbody></table>{action}<details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Причина</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details><p><a href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></p></section>";
     }
 
     private static string MaskEmail(string email)
