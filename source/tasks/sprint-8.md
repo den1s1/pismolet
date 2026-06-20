@@ -10,15 +10,17 @@
 По состоянию ветки `Development` перед Sprint 8:
 
 - Sprint 6 должен дать отправку через очередь и fake email provider;
-- Sprint 6 должен ввести `IEmailProviderAdapter`, `SendEvent`, `providerMessageId`, статусы отправки, progress и summary отправки;
+- Sprint 6 должен ввести `IEmailProviderAdapter`, `SendEvent`, `ProviderMessageId`, технический `MailingStatus`, статусы отправки, progress и summary отправки;
 - Sprint 7 должен дать `GlobalSuppression`, защищённые unsubscribe tokens, публичный unsubscribe flow и исключение отписанных адресов при импорте/отправке;
+- текущий `SendEvent` описывает факт попытки/результата отправки конкретному получателю, а не историю последующих событий провайдера;
+- webhook endpoints для email provider ещё не являются частью базового flow и должны быть явно подключены в `Program.cs`;
 - Sprint 8 продолжает flow после факта отправки: он не отправляет письма заново, а принимает события провайдера и обновляет состояние доставки;
 - обработка реальных SMTP/API-провайдеров всё ещё не входит в MVP: в Sprint 8 используется fake provider/fake webhook sender, но архитектура должна быть готова к реальному провайдеру;
 - webhooks должны быть идемпотентными, потому что реальные email-провайдеры могут присылать одно и то же событие повторно;
 - complaint должен использовать тот же механизм глобальной отписки, что и Sprint 7;
-- hard bounce должен блокировать будущие отправки этому адресу в рамках конкретного клиента, а не обязательно глобально для всего сервиса.
+- hard bounce должен блокировать будущие отправки этому адресу в рамках конкретного клиента, а не глобально для всего сервиса.
 
-Sprint 8 должен продолжать существующий MVP-flow, а не создавать отдельный модуль аналитики.
+Sprint 8 должен продолжать существующий MVP-flow и не превращаться в отдельный модуль маркетинговой аналитики.
 
 ## 2. Цель Sprint 8
 
@@ -27,14 +29,16 @@ Sprint 8 должен продолжать существующий MVP-flow, а
 Рабочий сценарий Sprint 8:
 
 ```text
-создать рассылку → отправить через fake provider → получить providerMessageId → отправить fake webhook accepted/delivered/bounce/complaint → система идемпотентно обновляет SendEvent/статистику → пользователь видит доставлено/ошибка/жалоба → complaint добавляет GlobalSuppression → hard bounce блокирует будущие отправки этому адресу у клиента
+создать рассылку → отправить через fake provider → получить ProviderMessageId → отправить fake webhook accepted/delivered/bounce/complaint → система идемпотентно сохраняет provider event → обновляет delivery status/summary → пользователь видит доставлено/ошибка/жалоба → complaint добавляет GlobalSuppression → hard bounce блокирует будущие отправки этому адресу у конкретного клиента
 ```
 
 ## 3. Обязательные рамки Sprint 8
 
 - Webhook endpoints в MVP работают с fake provider, но их контракт должен быть провайдер-независимым.
-- Нельзя обновлять статистику только на уровне HTML/UI: состояние событий должно храниться устойчиво.
+- Нельзя обновлять статистику только на уровне HTML/UI: состояние provider events и delivery summary должно храниться устойчиво.
 - Входные webhook-события должны проходить через `IEmailProviderAdapter` или отдельный provider parser, а не парситься прямо в endpoint.
+- История provider events обязательна: не заменять её только одним полем статуса в `SendEvent`.
+- Локальный статус отправки (`SendEventStatus`) и статус доставки провайдера (`DeliveryStatus`) должны быть разделены.
 - Повторный webhook не должен создавать дубли, повторно увеличивать счётчики или повторно добавлять suppression/blocklist.
 - Неизвестное событие нужно безопасно логировать и не ломать flow.
 - Hard bounce блокирует будущие отправки этому адресу в рамках клиента.
@@ -42,21 +46,35 @@ Sprint 8 должен продолжать существующий MVP-flow, а
 - Soft bounce не должен сразу глобально или клиентски блокировать email, но должен отображаться как временная ошибка доставки.
 - Webhook endpoints не должны раскрывать внутренние данные пользователю.
 - Dev/fake webhook sender разрешён только для локальной проверки и не должен выглядеть как пользовательская функция клиента.
+- Обычный `.RequireAuthorization()` недостаточен для dev/admin webhook sender; нужен environment guard, config flag, admin policy или allowlist.
 - Пользовательский язык интерфейса — русский.
 
 ## 4. Задачи реализации
 
-### T8-01. Уточнить доменную модель событий доставки
+### T8-01. Добавить доменную модель provider events и delivery status
 
 **Цель:** отделить факт отправки письма от последующих событий провайдера.
 
 Задачи:
 
 - Проверить текущую модель `SendEvent` после Sprint 6.
-- Выбрать один из вариантов:
-  - расширить `SendEvent` историей provider events;
-  - добавить отдельную сущность `DeliveryEvent` / `ProviderWebhookEvent`.
-- Минимальные поля события провайдера:
+- Добавить отдельную сущность `ProviderWebhookEvent` / `DeliveryEvent`.
+- Не ограничиваться расширением `SendEvent` историей в JSON/строке: история provider events должна быть queryable и пригодной для идемпотентности, аудита и статистики.
+- `SendEvent` должен хранить:
+  - локальный статус отправки (`Pending`, `Accepted`, `Failed`, `Skipped`, `Paused` или текущий эквивалент);
+  - `ProviderMessageId`;
+  - агрегированный текущий `DeliveryStatus`;
+  - последний значимый delivery event timestamp/summary, если нужно для UI.
+- Добавить отдельный `DeliveryStatus` / value object:
+  - `NotReported`;
+  - `Accepted`;
+  - `Delivered`;
+  - `SoftBounce`;
+  - `HardBounce`;
+  - `Complaint`;
+  - `Rejected`;
+  - `Unknown`.
+- Минимальные поля `ProviderWebhookEvent`:
   - `Id`;
   - `Provider`;
   - `ProviderEventId`;
@@ -71,7 +89,7 @@ Sprint 8 должен продолжать существующий MVP-flow, а
   - `RawPayloadStored` / безопасный raw snapshot, если нужен для dev/admin диагностики;
   - `ReasonCode`;
   - `ReasonMessage`;
-  - `ProcessingStatus` (`processed`, `ignored_duplicate`, `ignored_unknown`, `failed`).
+  - `ProcessingStatus` (`processed`, `ignored_duplicate`, `ignored_unknown`, `unmatched`, `failed`).
 - Добавить уникальность по `Provider + ProviderEventId`.
 - Если у fake provider нет натурального `ProviderEventId`, генерировать стабильный id в fake webhook sender.
 - Не использовать email в открытом виде в технических логах там, где достаточно normalized/hash.
@@ -82,6 +100,7 @@ Acceptance criteria:
 - Можно восстановить историю доставки конкретного письма.
 - Можно построить агрегированную статистику рассылки без парсинга HTML.
 - Модель не зависит от конкретного реального провайдера.
+- `SendEventStatus` и `DeliveryStatus` не смешаны в один enum.
 
 ### T8-02. Расширить `IEmailProviderAdapter` парсингом webhook-событий
 
@@ -119,7 +138,8 @@ Acceptance criteria:
 
 Задачи:
 
-- Добавить `MapWebhookEndpoints()` или `MapProviderWebhookEndpoints()` в `Program.cs`.
+- Добавить `MapWebhookEndpoints()` или `MapProviderWebhookEndpoints()`.
+- Явно подключить эти endpoints в `Program.cs`.
 - Минимальные endpoints:
   - `POST /webhooks/email/fake` для MVP;
   - опционально `POST /webhooks/email/{provider}` для provider-agnostic маршрута.
@@ -133,13 +153,14 @@ Acceptance criteria:
 - Для fake provider допустим dev-secret в конфигурации, например `Webhooks:FakeProviderSecret`.
 - Добавить защиту от случайного публичного использования dev endpoint:
   - secret header;
-  - или environment check;
-  - или явное включение через конфигурацию.
+  - и/или environment check;
+  - и/или явное включение через конфигурацию.
 - Не отдавать пользователю raw payload или stack trace при ошибке.
 
 Acceptance criteria:
 
-- `POST` валидного fake webhook приводит к сохранению события.
+- `Program.cs` подключает webhook endpoints.
+- `POST` валидного fake webhook приводит к сохранению `ProviderWebhookEvent`.
 - `POST` без dev-secret/подписи отклоняется, если защита включена.
 - Invalid payload возвращает безопасный 400/202 в зависимости от выбранной политики.
 - Повторный webhook возвращает успех/нейтральный ответ, но не меняет статистику повторно.
@@ -155,7 +176,7 @@ Acceptance criteria:
   - найти `SendEvent` по `ProviderMessageId` и/или `MailingId + recipient key`;
   - проверить, что событие относится к известной отправке;
   - сохранить `ProviderWebhookEvent`;
-  - обновить delivery-status конкретного recipient/send event;
+  - обновить `DeliveryStatus` конкретного `SendEvent`;
   - пересчитать или инвалидировать summary;
   - обработать специальные последствия hard bounce и complaint;
   - безопасно залогировать unknown/unmatched событие.
@@ -169,15 +190,15 @@ Acceptance criteria:
   - `hard_bounce` сильнее `accepted`;
   - `delivered` сильнее `accepted`;
   - `rejected`/`hard_bounce` сильнее `soft_bounce`, если событие финальное;
-  - unknown не меняет итоговый delivery-status.
+  - unknown не меняет итоговый `DeliveryStatus`.
 - Если событие невозможно сопоставить с отправкой, сохранить его как unmatched/ignored для аудита, но не создавать рассылку или получателя из webhook.
 
 Acceptance criteria:
 
 - Сервис идемпотентен по `Provider + ProviderEventId`.
-- Сопоставленное событие обновляет delivery-status.
-- Несопоставленное событие безопасно логируется.
-- Финальный статус не ухудшается случайным старым/повторным accepted webhook.
+- Сопоставленное событие обновляет `DeliveryStatus`.
+- Несопоставленное событие безопасно логируется и сохраняется как unmatched/ignored.
+- Финальный статус не ухудшается случайным старым/повторным `accepted` webhook.
 
 ### T8-05. Обновить статистику рассылки
 
@@ -194,12 +215,14 @@ Acceptance criteria:
   - жалоба (`complaint`);
   - отклонено (`rejected`);
   - неизвестные/необработанные события для admin/dev.
+- Summary строить из устойчивых данных (`SendEvent` + `ProviderWebhookEvent`), а не из HTML.
 - В пользовательском UI показывать простые русские подписи:
   - «Принято провайдером»;
   - «Доставлено»;
   - «Временная ошибка»;
   - «Постоянная ошибка»;
-  - «Жалоба».
+  - «Жалоба»;
+  - «Отклонено».
 - Не показывать клиенту raw payload, provider event id и технические stack traces.
 - Для admin/dev страницы можно показать provider event id и raw snapshot/hash.
 - Статистика должна быть устойчивой после рестарта приложения.
@@ -210,8 +233,9 @@ Acceptance criteria:
 - После hard bounce счётчик «Постоянная ошибка» увеличивается один раз.
 - После complaint счётчик «Жалоба» увеличивается один раз.
 - Повторный webhook не меняет счётчики повторно.
+- После рестарта dev-приложения статистика доставки сохраняется.
 
-### T8-06. Реализовать client-level блокировку hard bounce
+### T8-06. Реализовать client-level suppression после hard bounce
 
 **Цель:** не отправлять письма адресу, который получил постоянную ошибку у конкретного клиента.
 
@@ -230,7 +254,12 @@ Acceptance criteria:
 - Уникальность: `ClientId + EmailNormalized + Reason` или `ClientId + EmailNormalized`, если блокировка единая.
 - Hard bounce должен добавлять/обновлять `ClientSuppression` идемпотентно.
 - Импорт и отправка должны учитывать client-level suppression отдельно от `GlobalSuppression`.
-- Клиенту можно показывать агрегированный счётчик «исключено из-за ошибки доставки», но не раскрывать лишние технические детали.
+- Расширить текущие модели результата импорта/исключений:
+  - добавить `ClientSuppressed` / `HardBounceSuppressed` в `ImportStats` или эквивалентную summary-модель;
+  - добавить `RecipientStatus.ClientSuppressed` или отдельный exclusion reason;
+  - добавить `SendSkipReason.ClientSuppression` / `HardBounce`, если отправка пропускает адрес из-за client-level suppression.
+- В UI показывать агрегированный счётчик «исключено из-за ошибки доставки» отдельно от глобальной отписки.
+- Клиенту не раскрывать лишние технические детали provider event.
 
 Acceptance criteria:
 
@@ -238,6 +267,7 @@ Acceptance criteria:
 - Другой клиент не блокируется из-за hard bounce первого клиента.
 - Повторный hard bounce не создаёт дубль в client suppression.
 - Импорт/отправка различают global unsubscribe и client hard bounce.
+- В статистике импорта/отправки client suppression не смешивается с global suppression.
 
 ### T8-07. Обрабатывать complaint через `GlobalSuppression`
 
@@ -276,7 +306,7 @@ Acceptance criteria:
 - Не писать сырой email в обычные application logs, если достаточно hash/masked value.
 - Raw payload хранить только если это явно нужно для dev/admin диагностики и безопасно ограничено.
 - Добавить correlation id для webhook processing.
-- Для duplicate webhook логировать duplicate ignored, но не считать это ошибкой.
+- Для duplicate webhook логировать `duplicate ignored`, но не считать это ошибкой.
 
 Acceptance criteria:
 
@@ -293,7 +323,7 @@ Acceptance criteria:
 - Добавить dev/admin страницу или endpoint для генерации fake webhook events.
 - Источник данных:
   - выбрать рассылку;
-  - выбрать отправленное fake provider сообщение / `providerMessageId`;
+  - выбрать отправленное fake provider сообщение / `ProviderMessageId`;
   - выбрать event type;
   - отправить webhook в тот же processing pipeline, что и внешний endpoint.
 - Поддержать события:
@@ -306,6 +336,11 @@ Acceptance criteria:
   - unknown.
 - Fake sender должен генерировать стабильный `ProviderEventId` для проверки идемпотентности или позволять повторить тот же event id.
 - Dev-инструмент должен быть недоступен как обычная клиентская функция.
+- Минимальная защита dev-инструмента:
+  - доступ только в `Development` environment;
+  - или отдельный config flag;
+  - или admin policy/allowlist.
+- Не считать обычный `.RequireAuthorization()` достаточной защитой для fake webhook sender.
 
 Acceptance criteria:
 
@@ -313,6 +348,7 @@ Acceptance criteria:
 - Можно повторить тот же webhook и увидеть, что статистика не удвоилась.
 - Можно отправить hard bounce и проверить client suppression.
 - Можно отправить complaint и проверить global suppression.
+- Обычный клиент не видит и не использует dev webhook sender.
 
 ### T8-10. Обновить UI статуса рассылки после provider events
 
@@ -328,10 +364,11 @@ Acceptance criteria:
   - временные ошибки;
   - постоянные ошибки;
   - жалобы;
-  - отклонено.
+  - отклонено;
+  - исключено из-за ошибки доставки у клиента.
 - Для pending/ещё не пришедших событий показывать нейтральный текст, например «Ожидаем статус доставки».
 - Для fake provider можно добавить dev-подсказку, где сгенерировать событие, но не смешивать её с обычным клиентским интерфейсом.
-- Не показывать клиенту внутренний `providerMessageId` на обычной странице.
+- Не показывать клиенту внутренний `ProviderMessageId` на обычной странице.
 
 Acceptance criteria:
 
@@ -347,12 +384,15 @@ Acceptance criteria:
 
 - Парсинг fake provider webhook.
 - Маппинг event type provider → domain.
-- Hard bounce меняет delivery-status и создаёт client suppression.
+- Разделение `SendEventStatus` и `DeliveryStatus`.
+- Сохранение `ProviderWebhookEvent`.
+- Hard bounce меняет `DeliveryStatus` и создаёт client suppression.
 - Complaint создаёт `GlobalSuppression`.
-- Unknown event безопасно логируется и не меняет delivery-status.
+- Unknown event безопасно логируется и не меняет `DeliveryStatus`.
 - Повторный webhook с тем же `ProviderEventId` не меняет статистику повторно.
 - Запоздалый `accepted` не перетирает финальный `delivered`/`hard_bounce`/`complaint`.
 - Несопоставленный webhook сохраняется/логируется как unmatched и не создаёт получателя.
+- `SendSkipReason.ClientSuppression` / эквивалент используется при пропуске адреса из client-level suppression.
 
 Acceptance criteria:
 
@@ -365,6 +405,7 @@ Acceptance criteria:
 
 Минимальные интеграционные тесты:
 
+- `Program.cs` подключает webhook endpoints, и тест проходит через реальный HTTP `POST /webhooks/email/fake`.
 - Отправка → fake provider accepted webhook.
 - Отправка → delivered webhook → статистика обновилась.
 - Отправка → hard bounce webhook → client suppression создан.
@@ -372,6 +413,8 @@ Acceptance criteria:
 - Повторный webhook не удваивает события и счётчики.
 - Следующая рассылка учитывает client suppression после hard bounce.
 - Следующая рассылка любого клиента учитывает global suppression после complaint.
+- После рестарта dev-приложения provider events и delivery summary сохраняются.
+- Fake webhook sender недоступен обычному клиенту.
 
 Ручные тесты:
 
@@ -388,15 +431,19 @@ Acceptance criteria:
 
 Sprint 8 считается завершённым, если:
 
-- webhook endpoint для fake provider реализован и подключён;
+- webhook endpoint для fake provider реализован и подключён в `Program.cs`;
+- интеграционный тест проходит через реальный HTTP `POST /webhooks/email/fake`;
 - provider webhook payload парсится через adapter/parser, а не прямо в endpoint;
 - события `accepted`, `delivered`, `soft_bounce`, `hard_bounce`, `complaint`, `rejected` поддержаны;
+- добавлена отдельная сущность `ProviderWebhookEvent` / `DeliveryEvent`;
+- `SendEventStatus` и `DeliveryStatus` разделены;
 - provider events сохраняются устойчиво и идемпотентно;
 - `hard_bounce` создаёт client-level suppression;
+- client-level suppression учитывается при импорте и перед отправкой отдельно от `GlobalSuppression`;
 - `complaint` создаёт/подтверждает `GlobalSuppression`;
-- статистика рассылки обновляется после webhooks;
+- статистика рассылки обновляется после webhooks и сохраняется после рестарта;
 - пользователь видит понятные статусы доставки, ошибок и жалоб;
-- fake webhook sender/dev-инструмент позволяет проверить все события;
+- fake webhook sender/dev-инструмент позволяет проверить все события и защищён от обычного клиентского доступа;
 - повторные webhooks не дублируют события, suppression и счётчики;
 - unit, integration и manual тесты из этого файла пройдены или явно отмечены как deferred с причиной.
 
@@ -416,6 +463,6 @@ Sprint 8 считается завершённым, если:
 После реализации Sprint 8 потребуется синхронизировать:
 
 - `docs/sprints.md` — отметить фактический результат Sprint 8, если задача будет закрыта;
-- `docs/platform_tz.md` — разделы про email provider adapter, webhooks, delivery/bounce/complaint, suppression/blocklist и audit log;
+- `docs/platform_tz.md` — разделы про email provider adapter, webhooks, delivery/bounce/complaint, provider event history, delivery status, suppression/blocklist и audit log;
 - `docs/specification.md`, раздел C «Юридические аспекты» — если complaint flow будет трактоваться как отдельное основание для глобальной отписки/блокировки;
 - `source/tasks/sprint-9.md` — при планировании ответов получателей нужно учитывать уже существующие provider webhooks и delivery events.
