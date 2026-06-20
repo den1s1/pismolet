@@ -13,7 +13,7 @@ public sealed class UnsubscribeFlowIntegrationTests
     [Fact]
     public async Task Get_unsubscribe_page_with_valid_token_works_without_login()
     {
-        await using var factory = CreateFactory();
+        using var factory = CreateFactory();
         var token = GenerateToken(factory, "User@Example.Test");
         using var client = factory.CreateClient();
 
@@ -27,7 +27,7 @@ public sealed class UnsubscribeFlowIntegrationTests
     [Fact]
     public async Task Post_unsubscribe_adds_global_suppression_without_login()
     {
-        await using var factory = CreateFactory();
+        using var factory = CreateFactory();
         var token = GenerateToken(factory, "User@Example.Test");
         using var client = factory.CreateClient();
 
@@ -45,7 +45,7 @@ public sealed class UnsubscribeFlowIntegrationTests
     [Fact]
     public async Task Repeated_post_unsubscribe_is_idempotent()
     {
-        await using var factory = CreateFactory();
+        using var factory = CreateFactory();
         var token = GenerateToken(factory, "repeat@example.test");
         using var client = factory.CreateClient();
 
@@ -63,7 +63,7 @@ public sealed class UnsubscribeFlowIntegrationTests
     [Fact]
     public async Task Invalid_token_does_not_disclose_email_or_mailing()
     {
-        await using var factory = CreateFactory();
+        using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
         var response = await client.PostAsync("/unsubscribe/not-a-valid-token", new FormUrlEncodedContent(new Dictionary<string, string>()));
