@@ -78,6 +78,8 @@ public sealed class RecipientImportService(
 {
     public const int MaxRows = 1000;
 
+    private sealed record ParsedRecipientRow(int RowNumber, string RawEmail, string NormalizedEmail, bool SyntaxValid);
+
     public Task<ImportRecipientsResult> ImportCsvAsync(ImportRecipientsCommand command, CancellationToken cancellationToken = default) =>
         ImportAsync(command, cancellationToken);
 
@@ -126,14 +128,8 @@ public sealed class RecipientImportService(
             return ImportRecipientsResult.Failure("В файле должна быть колонка email.");
         }
 
-        var accepted = new List<Recipient>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var parsedRows = new List<ParsedRecipientRow>();
         var total = 0;
-        var duplicates = 0;
-        var invalid = 0;
-        var optedOut = 0;
-        var issues = new List<RecipientImportIssue>();
-
         foreach (var cells in rows.Skip(1))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -152,32 +148,54 @@ public sealed class RecipientImportService(
 
             var rawEmail = emailIndex < cells.Length ? cells[emailIndex] : string.Empty;
             var email = normalizer.Normalize(rawEmail);
-
-            if (!validator.IsValid(email))
-            {
-                invalid++;
-                issues.Add(new RecipientImportIssue(total + 1, rawEmail, "Невалидный email"));
-            }
-            else if (!seen.Add(email))
-            {
-                duplicates++;
-                issues.Add(new RecipientImportIssue(total + 1, email, "Дубль в файле"));
-            }
-            else if (optOuts.IsSuppressed(email))
-            {
-                optedOut++;
-                issues.Add(new RecipientImportIssue(total + 1, email, "Глобальная отписка"));
-            }
-            else
-            {
-                accepted.Add(Recipient.Accepted(rawEmail, email));
-            }
+            parsedRows.Add(new ParsedRecipientRow(total + 1, rawEmail, email, validator.IsValid(email)));
         }
 
         if (total == 0)
         {
             Log(command, userEmail, "recipients_import_failed", "empty_data");
             return ImportRecipientsResult.Failure("В файле нет строк с адресами.");
+        }
+
+        var suppressedSet = optOuts.GetSuppressedSet(parsedRows
+            .Where(x => x.SyntaxValid)
+            .Select(x => x.NormalizedEmail));
+
+        var accepted = new List<Recipient>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var duplicates = 0;
+        var invalid = 0;
+        var optedOut = 0;
+        var issues = new List<RecipientImportIssue>();
+
+        foreach (var row in parsedRows)
+        {
+            if (!row.SyntaxValid)
+            {
+                invalid++;
+                issues.Add(new RecipientImportIssue(row.RowNumber, row.RawEmail, "Невалидный email"));
+            }
+            else if (!seen.Add(row.NormalizedEmail))
+            {
+                duplicates++;
+                issues.Add(new RecipientImportIssue(row.RowNumber, row.NormalizedEmail, "Дубль в файле"));
+            }
+            else if (suppressedSet.Contains(row.NormalizedEmail))
+            {
+                optedOut++;
+                issues.Add(new RecipientImportIssue(row.RowNumber, row.NormalizedEmail, "Глобальная отписка"));
+                audit.Write(new AuditRecord(
+                    DateTimeOffset.UtcNow,
+                    userEmail,
+                    "suppressed_email_import_attempted",
+                    command.Request.Ip,
+                    command.Request.UserAgent,
+                    $"mailingId={mailing.Id};emailHash={Hash(row.NormalizedEmail)}"));
+            }
+            else
+            {
+                accepted.Add(Recipient.Accepted(row.RawEmail, row.NormalizedEmail));
+            }
         }
 
         var stats = new ImportStats(total, accepted.Count, duplicates, invalid, optedOut);
@@ -249,4 +267,10 @@ public sealed class RecipientImportService(
         command.Request.Ip,
         command.Request.UserAgent,
         context));
+
+    private static string Hash(string value)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value.Trim().ToLowerInvariant()));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
 }
