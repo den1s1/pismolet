@@ -24,7 +24,10 @@ public static class SendingQueueServiceCollectionExtensions
 
         services.AddPismoletHangfireQueue(configuration, connectionString);
         services.AddScoped<MailingSendJob>();
+        services.AddScoped<ReplyForwardJob>();
+        services.AddScoped<ReplyCleanupJob>();
         services.AddSingleton<IBackgroundMailingSendQueue, HangfireMailingSendQueue>();
+        services.AddSingleton<IBackgroundReplyQueue, HangfireMailingSendQueue>();
         return services;
     }
 }
