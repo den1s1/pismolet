@@ -226,7 +226,8 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
             .AsNoTracking()
             .Where(x => x.OwnerEmail == normalized)
             .OrderByDescending(x => x.CreatedAt)
-            .Select(x => ToDomain(x))
+            .ToArray()
+            .Select(ToDomain)
             .ToArray();
     }
 
@@ -353,7 +354,8 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
             .AsNoTracking()
             .Where(x => x.MailingId == entity.Id)
             .OrderBy(x => x.CreatedAt)
-            .Select(x => ToDomainBatch(x))
+            .ToArray()
+            .Select(ToDomainBatch)
             .ToList();
 
         var recipients = db.Recipients
