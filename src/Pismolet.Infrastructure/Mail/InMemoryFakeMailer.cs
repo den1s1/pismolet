@@ -14,5 +14,11 @@ public sealed class InMemoryFakeMailer : IFakeMailer
         Link: link,
         CreatedAt: DateTimeOffset.UtcNow));
 
+    public void AddMailingMessage(string to, string subject, string link) => _outbox.Enqueue(new FakeMail(
+        To: to,
+        Subject: subject,
+        Link: link,
+        CreatedAt: DateTimeOffset.UtcNow));
+
     public IReadOnlyCollection<FakeMail> GetOutbox() => _outbox.Reverse().ToArray();
 }
