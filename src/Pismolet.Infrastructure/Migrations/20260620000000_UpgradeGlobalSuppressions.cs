@@ -68,8 +68,6 @@ public partial class UpgradeGlobalSuppressions : Migration
             maxLength: 64,
             nullable: true);
 
-        migrationBuilder.Sql("UPDATE global_suppressions SET \"EmailHash\" = encode(sha256(convert_to(\"EmailNormalized\", 'UTF8')), 'hex') WHERE \"EmailHash\" = '';");
-
         migrationBuilder.AddPrimaryKey(
             name: "PK_global_suppressions",
             table: "global_suppressions",
