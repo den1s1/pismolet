@@ -13,7 +13,7 @@ public sealed record EmailWebhookProcessingResult(bool Ok, bool Duplicate, strin
 {
     public static EmailWebhookProcessingResult Processed(Guid correlationId, ProviderWebhookProcessingStatus status) => new(true, false, "processed", correlationId, status);
 
-    public static EmailWebhookProcessingResult Duplicate(Guid correlationId) => new(true, true, "duplicate_ignored", correlationId, ProviderWebhookProcessingStatus.IgnoredDuplicate);
+    public static EmailWebhookProcessingResult DuplicateIgnored(Guid correlationId) => new(true, true, "duplicate_ignored", correlationId, ProviderWebhookProcessingStatus.IgnoredDuplicate);
 
     public static EmailWebhookProcessingResult Failed(Guid correlationId, string status) => new(false, false, status, correlationId, ProviderWebhookProcessingStatus.Failed);
 }
@@ -40,7 +40,7 @@ public sealed class EmailWebhookProcessingService(
         if (existing is not null)
         {
             auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, "system", "webhook_duplicate_ignored", request.Ip, request.UserAgent, $"correlationId={correlationId};provider={provider};providerEventId={providerEventId};eventType={providerEvent.EventType}"));
-            return EmailWebhookProcessingResult.Duplicate(correlationId);
+            return EmailWebhookProcessingResult.DuplicateIgnored(correlationId);
         }
 
         var receivedAt = DateTimeOffset.UtcNow;
