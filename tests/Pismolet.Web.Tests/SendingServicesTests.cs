@@ -1,4 +1,6 @@
+using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Domain.Mail;
 using Pismolet.Web.Domain.Mailings;
 
 namespace Pismolet.Web.Tests;
@@ -17,7 +19,8 @@ public sealed class SendingServicesTests
     [Fact]
     public async Task Fake_provider_returns_stable_success_id()
     {
-        var provider = new FakeEmailProviderAdapter();
+        var fakeMailer = new TestFakeMailer();
+        var provider = new FakeEmailProviderAdapter(fakeMailer);
         var mailingId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var message = new EmailMessage(mailingId, new EmailRecipient("ok@example.test"), "Sender", "Subject", "Body", "/unsubscribe/test", "PL-TEST");
 
@@ -27,12 +30,13 @@ public sealed class SendingServicesTests
         Assert.True(first.Accepted);
         Assert.Equal(first.ProviderMessageId, second.ProviderMessageId);
         Assert.StartsWith("fake-", first.ProviderMessageId);
+        Assert.All(fakeMailer.GetOutbox(), item => Assert.Equal("/unsubscribe/test", item.Link));
     }
 
     [Fact]
     public async Task Fake_provider_returns_failure_for_fail_address()
     {
-        var provider = new FakeEmailProviderAdapter();
+        var provider = new FakeEmailProviderAdapter(new TestFakeMailer());
         var message = new EmailMessage(Guid.NewGuid(), new EmailRecipient("please-fail@example.test"), "Sender", "Subject", "Body", "/unsubscribe/test", "PL-TEST");
 
         var result = await provider.SendAsync(message, CancellationToken.None);
@@ -52,5 +56,16 @@ public sealed class SendingServicesTests
         Assert.Equal(SendEventStatus.Accepted, sent.Status);
         Assert.Equal(SendEventStatus.Skipped, suppressed.Status);
         Assert.Equal(SendEventStatus.Paused, paused.Status);
+    }
+
+    private sealed class TestFakeMailer : IFakeMailer
+    {
+        private readonly List<FakeMail> _items = new();
+
+        public void SendConfirmation(string to, string subject, string link) => _items.Add(new FakeMail(to, subject, link, DateTimeOffset.UtcNow));
+
+        public void AddMailingMessage(string to, string subject, string link) => _items.Add(new FakeMail(to, subject, link, DateTimeOffset.UtcNow));
+
+        public IReadOnlyCollection<FakeMail> GetOutbox() => _items;
     }
 }
