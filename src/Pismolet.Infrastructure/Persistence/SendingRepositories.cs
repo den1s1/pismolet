@@ -163,7 +163,8 @@ public sealed class InMemoryReplyEventRepository : IReplyEventRepository
         .ToArray();
 
     public IReadOnlyCollection<ReplyEvent> FindPendingForward(DateTimeOffset now, int batchSize) => _byId.Values
-        .Where(x => x.ProcessingStatus is ReplyProcessingStatus.QueuedForForward or ReplyProcessingStatus.Failed && x.ForwardRetryCount < 3)
+        .Where(x => x.ProcessingStatus == ReplyProcessingStatus.QueuedForForward ||
+            (x.ProcessingStatus == ReplyProcessingStatus.Failed && x.ForwardRetryCount < 3))
         .OrderBy(x => x.ForwardQueuedAt ?? x.ReceivedAt)
         .Take(Math.Max(1, batchSize))
         .ToArray();
