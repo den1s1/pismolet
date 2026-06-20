@@ -46,9 +46,52 @@ public sealed class InMemoryMailingRepository : IMailingRepository
 
 public sealed class InMemoryGlobalSuppressionRepository : IGlobalSuppressionRepository
 {
-    private readonly ConcurrentDictionary<string, byte> _emails = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, GlobalSuppression> _items = new(StringComparer.OrdinalIgnoreCase);
 
-    public bool IsSuppressed(string normalizedEmail) => _emails.ContainsKey(normalizedEmail);
+    public bool IsSuppressed(string normalizedEmail) => _items.ContainsKey(Normalize(normalizedEmail));
 
-    public void Add(string normalizedEmail) => _emails.TryAdd(normalizedEmail, 0);
+    public IReadOnlySet<string> GetSuppressedSet(IEnumerable<string> normalizedEmails)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var email in normalizedEmails.Select(Normalize).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (_items.ContainsKey(email))
+            {
+                result.Add(email);
+            }
+        }
+
+        return result;
+    }
+
+    public GlobalSuppression? GetByEmail(string normalizedEmail) => _items.GetValueOrDefault(Normalize(normalizedEmail));
+
+    public GlobalSuppression AddOrGet(GlobalSuppression suppression)
+    {
+        var normalized = Normalize(suppression.EmailNormalized);
+        var item = suppression with { EmailNormalized = normalized };
+        return _items.GetOrAdd(normalized, item);
+    }
+
+    public void Add(string normalizedEmail)
+    {
+        var normalized = Normalize(normalizedEmail);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        AddOrGet(new GlobalSuppression(
+            Guid.NewGuid(),
+            normalized,
+            string.Empty,
+            GlobalSuppressionSource.Admin,
+            null,
+            null,
+            DateTimeOffset.UtcNow,
+            null,
+            null));
+    }
+
+    private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }
