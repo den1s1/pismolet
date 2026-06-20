@@ -12,7 +12,7 @@ public sealed class InMemorySendEventRepository : ISendEventRepository
 
     public SendEvent? GetByProviderMessageId(string providerMessageId) => _items.Values.FirstOrDefault(x =>
         !string.IsNullOrWhiteSpace(x.ProviderMessageId) &&
-        string.Equals(x.ProviderMessageId, providerMessageId.Trim(), StringComparison.OrdinalIgnoreCase));
+        string.Equals(x.ProviderMessageId.Trim(), providerMessageId.Trim(), StringComparison.OrdinalIgnoreCase));
 
     public IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId) => _items.Values
         .Where(x => x.MailingId == mailingId)
@@ -118,4 +118,87 @@ public sealed class InMemoryClientSuppressionRepository : IClientSuppressionRepo
     private static string Key(string clientId, string email) => $"{Normalize(clientId)}:{Normalize(email)}";
 
     private static string Normalize(string value) => value.Trim().ToLowerInvariant();
+}
+
+public sealed class InMemoryReplyEventRepository : IReplyEventRepository
+{
+    private readonly ConcurrentDictionary<string, ReplyEvent> _byProviderEvent = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<Guid, ReplyEvent> _byId = new();
+
+    public ReplyEvent AddIfNotExists(ReplyEvent replyEvent)
+    {
+        var key = Key(replyEvent.Provider, replyEvent.ProviderInboundEventId);
+        var item = _byProviderEvent.GetOrAdd(key, replyEvent);
+        _byId[item.Id] = item;
+        return item;
+    }
+
+    public ReplyEvent? Get(Guid id) => _byId.GetValueOrDefault(id);
+
+    public ReplyEvent? GetByProviderEventId(string provider, string providerInboundEventId) => _byProviderEvent.GetValueOrDefault(Key(provider, providerInboundEventId));
+
+    public ReplySummary GetSummary(Guid mailingId)
+    {
+        var items = _byId.Values.Where(x => x.MailingId == mailingId).OrderByDescending(x => x.ReceivedAt).ToArray();
+        var last = items.FirstOrDefault();
+        return new ReplySummary(mailingId, items.Length, last?.ReceivedAt, last?.ProcessingStatus);
+    }
+
+    public int CountByMailing(Guid mailingId) => _byId.Values.Count(x => x.MailingId == mailingId);
+
+    public ReplyEvent? GetLastByMailing(Guid mailingId) => _byId.Values
+        .Where(x => x.MailingId == mailingId)
+        .OrderByDescending(x => x.ReceivedAt)
+        .FirstOrDefault();
+
+    public IReadOnlyCollection<ReplyEvent> ListRecentByMailing(Guid mailingId, int limit) => _byId.Values
+        .Where(x => x.MailingId == mailingId)
+        .OrderByDescending(x => x.ReceivedAt)
+        .Take(Math.Max(1, limit))
+        .ToArray();
+
+    public IReadOnlyCollection<ReplyEvent> ListRecent(int limit) => _byId.Values
+        .OrderByDescending(x => x.ReceivedAt)
+        .Take(Math.Max(1, limit))
+        .ToArray();
+
+    public IReadOnlyCollection<ReplyEvent> FindPendingForward(DateTimeOffset now, int batchSize) => _byId.Values
+        .Where(x => x.ProcessingStatus is ReplyProcessingStatus.QueuedForForward or ReplyProcessingStatus.Failed && x.ForwardRetryCount < 3)
+        .OrderBy(x => x.ForwardQueuedAt ?? x.ReceivedAt)
+        .Take(Math.Max(1, batchSize))
+        .ToArray();
+
+    public IReadOnlyCollection<ReplyEvent> FindExpiredBodies(DateTimeOffset now, int batchSize) => _byId.Values
+        .Where(x => x.BodyStorageStatus == ReplyBodyStorageStatus.StoredTemporarily && x.BodyExpiresAt is not null && x.BodyExpiresAt <= now)
+        .OrderBy(x => x.BodyExpiresAt)
+        .Take(Math.Max(1, batchSize))
+        .ToArray();
+
+    public void Save(ReplyEvent replyEvent)
+    {
+        _byId[replyEvent.Id] = replyEvent;
+        _byProviderEvent[Key(replyEvent.Provider, replyEvent.ProviderInboundEventId)] = replyEvent;
+    }
+
+    public void MarkForwardQueued(Guid replyEventId)
+    {
+        if (Get(replyEventId) is { } item) Save(item.MarkQueuedForForward());
+    }
+
+    public void MarkForwarded(Guid replyEventId)
+    {
+        if (Get(replyEventId) is { } item) Save(item.MarkForwarded());
+    }
+
+    public void MarkForwardFailed(Guid replyEventId, string errorCode, string errorMessage)
+    {
+        if (Get(replyEventId) is { } item) Save(item.MarkForwardFailed(errorCode, errorMessage));
+    }
+
+    public void MarkBodyDeleted(Guid replyEventId)
+    {
+        if (Get(replyEventId) is { } item) Save(item.MarkBodyDeleted());
+    }
+
+    private static string Key(string provider, string providerInboundEventId) => $"{provider.Trim().ToLowerInvariant()}:{providerInboundEventId.Trim().ToLowerInvariant()}";
 }
