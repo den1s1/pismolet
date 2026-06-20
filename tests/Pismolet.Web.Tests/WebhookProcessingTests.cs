@@ -2,6 +2,7 @@ using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Domain.Mail;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Infrastructure.Audit;
 using Pismolet.Web.Infrastructure.Persistence;
@@ -105,6 +106,6 @@ public sealed class WebhookProcessingTests
 
         public void AddMailingMessage(string to, string subject, string link) { }
 
-        public IReadOnlyCollection<Domain.Mail.FakeMail> GetOutbox() => Array.Empty<Domain.Mail.FakeMail>();
+        public IReadOnlyCollection<FakeMail> GetOutbox() => Array.Empty<FakeMail>();
     }
 }
