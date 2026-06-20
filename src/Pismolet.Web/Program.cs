@@ -41,10 +41,12 @@ app.MapCheckEndpoints();
 app.MapSendEndpoints();
 app.MapAdminEndpoints();
 app.MapUnsubscribeEndpoints();
+app.MapWebhookEndpoints();
 
 if (app.Environment.IsDevelopment())
 {
     app.MapDevEndpoints();
+    app.MapDevWebhookEndpoints();
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
