@@ -112,7 +112,7 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
 
         if (message.Metadata.TryGetValue("listUnsubscribe", out var listUnsubscribe) && !string.IsNullOrWhiteSpace(listUnsubscribe))
         {
-            mime.Headers.Replace(HeaderId.ListUnsubscribe, listUnsubscribe);
+            mime.Headers.Replace("List-Unsubscribe", listUnsubscribe);
         }
 
         if (message.Metadata.TryGetValue("listUnsubscribePost", out var listUnsubscribePost) && !string.IsNullOrWhiteSpace(listUnsubscribePost))
@@ -160,9 +160,10 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
 
     private string GetMessageIdDomain()
     {
-        if (MailboxAddress.TryParse(options.FromEmail, out var mailbox) && mailbox.Domain is { Length: > 0 })
+        var at = options.FromEmail.LastIndexOf('@');
+        if (at >= 0 && at < options.FromEmail.Length - 1)
         {
-            return mailbox.Domain;
+            return options.FromEmail[(at + 1)..].Trim();
         }
 
         return "pismolet.local";
