@@ -3,6 +3,7 @@ using System.Text;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
+using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Audit;
 using Pismolet.Web.Domain.Mailings;
@@ -75,7 +76,7 @@ public interface IClientSendLimitAdminService
     ClientLimitUpdateResult UpdateDailyLimit(string clientEmail, int newDailyLimit, string adminEmail, RequestMetadata request);
 }
 
-public sealed class FakeEmailProviderAdapter : IEmailProviderAdapter
+public sealed class FakeEmailProviderAdapter(IFakeMailer fakeMailer) : IEmailProviderAdapter
 {
     public Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
@@ -90,6 +91,7 @@ public sealed class FakeEmailProviderAdapter : IEmailProviderAdapter
             return Task.FromResult(EmailProviderSendResult.Failure("fake_temporary", "Fake provider вернул временную тестовую ошибку."));
         }
 
+        fakeMailer.AddMailingMessage(email, message.Subject, message.UnsubscribeUrl);
         return Task.FromResult(EmailProviderSendResult.Success(BuildProviderMessageId(message.MailingId, email)));
     }
 
@@ -157,6 +159,7 @@ public sealed class MailingSendService(
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        var suppressedSet = suppressions.GetSuppressedSet(acceptedRecipients);
 
         foreach (var recipientEmail in acceptedRecipients)
         {
@@ -167,9 +170,10 @@ public sealed class MailingSendService(
             }
 
             var sendEvent = SendEvent.Pending(mailing.Id, mailing.OwnerEmail, recipientEmail);
-            if (suppressions.IsSuppressed(recipientEmail))
+            if (suppressedSet.Contains(recipientEmail))
             {
                 sendEvents.Save(sendEvent.MarkSkipped(SendSkipReason.GlobalSuppression));
+                AuditSuppressedSend(mailing, sendEvent, request.Ip, request.UserAgent);
                 continue;
             }
 
@@ -191,7 +195,7 @@ public sealed class MailingSendService(
                 : mailing.WithStatus(MailingStatus.Sent);
         mailings.Update(mailing);
 
-        auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_requested", request.Ip, request.UserAgent, $"mailingId={mailing.Id};accepted={summary.AcceptedForSending};pending={summary.Pending};paused={summary.PausedByLimit}"));
+        auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_requested", request.Ip, request.UserAgent, $"mailingId={mailing.Id};accepted={summary.AcceptedForSending};pending={summary.Pending};paused={summary.PausedByLimit};suppressed={summary.Suppressed}"));
 
         if (mailing.Status == MailingStatus.Sending)
         {
@@ -272,6 +276,7 @@ public sealed class MailingSendService(
         }
 
         var batch = sendEvents.GetPendingBatch(mailing.Id, Math.Max(1, options.BatchSize));
+        var suppressedSet = suppressions.GetSuppressedSet(batch.Select(x => x.RecipientEmail));
         foreach (var sendEvent in batch)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -279,9 +284,10 @@ public sealed class MailingSendService(
                 return;
             }
 
-            if (suppressions.IsSuppressed(sendEvent.RecipientEmail))
+            if (suppressedSet.Contains(sendEvent.RecipientEmail))
             {
                 sendEvents.Save(sendEvent.MarkSkipped(SendSkipReason.GlobalSuppression));
+                AuditSuppressedSend(mailing, sendEvent, "background", "background");
                 continue;
             }
 
@@ -366,14 +372,28 @@ public sealed class MailingSendService(
         var source = mailing.Declaration?.BaseSource.ToRu() ?? "загруженной базы адресов";
         var reason = $"Почему вы получили это письмо: ваш адрес находится в базе «{source}», которую отправитель подтвердил перед рассылкой.";
         var serviceId = $"Служебный идентификатор рассылки: {mailing.PublicId}";
-        var plain = string.Join("\n\n", draft.Body, reason, $"Отписаться от всех рассылок через сервис: {unsubscribeUrl}", serviceId);
+        var plain = string.Join("\n\n", draft.Body, reason, $"Отписаться от всех рассылок через сервис: {unsubscribeUrl}", "Отписка действует глобально для всех рассылок через Письмолёт.", serviceId);
         return new EmailMessage(mailing.Id, new EmailRecipient(recipientEmail), draft.SenderName, draft.Subject, plain, unsubscribeUrl, serviceId);
     }
+
+    private void AuditSuppressedSend(Mailing mailing, SendEvent sendEvent, string ip, string userAgent) => auditLogger.Write(new AuditRecord(
+        DateTimeOffset.UtcNow,
+        mailing.OwnerEmail,
+        "suppressed_email_skipped_before_send",
+        ip,
+        userAgent,
+        $"mailingId={mailing.Id};eventId={sendEvent.Id};emailHash={Hash(sendEvent.RecipientEmail)}"));
 
     private Mailing? GetOwnedMailing(string userEmail, Guid mailingId)
     {
         var normalized = emailNormalizer.Normalize(userEmail);
         return string.IsNullOrWhiteSpace(normalized) ? null : mailings.GetForOwner(mailingId, normalized);
+    }
+
+    private static string Hash(string value)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value.Trim().ToLowerInvariant()));
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }
 
