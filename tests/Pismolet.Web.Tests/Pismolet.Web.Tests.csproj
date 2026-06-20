@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Pismolet.Domain/Pismolet.Domain.csproj" />
     <ProjectReference Include="../../src/Pismolet.Application/Pismolet.Application.csproj" />
+    <ProjectReference Include="../../src/Pismolet.Infrastructure/Pismolet.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Pismolet.Web/Pismolet.Web.csproj" />
   </ItemGroup>
 </Project>
