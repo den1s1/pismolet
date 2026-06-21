@@ -117,6 +117,7 @@ public sealed record SendEvent(
     DateTimeOffset? AcceptedAt = null)
 {
     public const string FakeProvider = "FakeEmail";
+    public const string ProviderEnvelopeSeparator = "::";
 
     public static SendEvent Pending(Guid mailingId, string ownerEmail, string recipientEmail) => new(
         Guid.NewGuid(),
@@ -150,11 +151,13 @@ public sealed record SendEvent(
     public SendEvent MarkAccepted(string providerMessageId)
     {
         var now = DateTimeOffset.UtcNow;
+        var resolved = ResolveProviderEnvelope(providerMessageId);
         return this with
         {
             Status = SendEventStatus.Accepted,
             Reason = SendSkipReason.None,
-            ProviderMessageId = string.IsNullOrWhiteSpace(ProviderMessageId) ? providerMessageId : ProviderMessageId,
+            Provider = resolved.Provider ?? Provider,
+            ProviderMessageId = string.IsNullOrWhiteSpace(ProviderMessageId) ? resolved.Payload : ProviderMessageId,
             Attempt = Attempt + 1,
             ErrorCode = null,
             ErrorMessage = null,
@@ -163,15 +166,20 @@ public sealed record SendEvent(
         };
     }
 
-    public SendEvent MarkFailed(string errorCode, string errorMessage) => this with
+    public SendEvent MarkFailed(string errorCode, string errorMessage)
     {
-        Status = SendEventStatus.Failed,
-        Reason = SendSkipReason.None,
-        Attempt = Attempt + 1,
-        ErrorCode = errorCode,
-        ErrorMessage = errorMessage,
-        UpdatedAt = DateTimeOffset.UtcNow
-    };
+        var resolved = ResolveProviderEnvelope(errorCode);
+        return this with
+        {
+            Status = SendEventStatus.Failed,
+            Reason = SendSkipReason.None,
+            Provider = resolved.Provider ?? Provider,
+            Attempt = Attempt + 1,
+            ErrorCode = resolved.Payload,
+            ErrorMessage = errorMessage,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+    }
 
     public SendEvent ApplyDeliveryStatus(DeliveryStatus nextStatus, DateTimeOffset occurredAt, string? summary)
     {
@@ -197,6 +205,22 @@ public sealed record SendEvent(
     public SendEvent ResetForResume() => Status == SendEventStatus.Paused && Reason is SendSkipReason.DailyLimit or SendSkipReason.WarmupLimit
         ? this with { Status = SendEventStatus.Pending, Reason = SendSkipReason.None, UpdatedAt = DateTimeOffset.UtcNow }
         : this;
+
+    private static (string? Provider, string Payload) ResolveProviderEnvelope(string payload)
+    {
+        var trimmed = payload.Trim();
+        var separatorIndex = trimmed.IndexOf(ProviderEnvelopeSeparator, StringComparison.Ordinal);
+        if (separatorIndex <= 0)
+        {
+            return (null, trimmed);
+        }
+
+        var provider = trimmed[..separatorIndex].Trim();
+        var innerPayload = trimmed[(separatorIndex + ProviderEnvelopeSeparator.Length)..].Trim();
+        return string.IsNullOrWhiteSpace(provider) || string.IsNullOrWhiteSpace(innerPayload)
+            ? (null, trimmed)
+            : (provider, innerPayload);
+    }
 
     private static int Priority(DeliveryStatus status) => status switch
     {
