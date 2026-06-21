@@ -215,7 +215,7 @@ public sealed class AdminEfRepositoryTests
         MailingId = mailingId,
         SourceEmail = sourceEmail,
         NormalizedEmail = normalizedEmail,
-        Status = nameof(status),
+        Status = status.ToString(),
         ExclusionReason = status == RecipientStatus.Accepted ? null : "Не принят"
     };
 }
