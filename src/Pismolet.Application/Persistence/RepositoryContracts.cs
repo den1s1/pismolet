@@ -26,8 +26,6 @@ public interface IMailingRepository
 
     Mailing? GetForOwner(Guid id, string ownerEmail);
 
-    IReadOnlyCollection<Mailing> ListAll();
-
     IReadOnlyCollection<Mailing> ListForOwner(string ownerEmail);
 
     IReadOnlyDictionary<string, int> CountByOwners(IEnumerable<string> ownerEmails);
@@ -42,8 +40,6 @@ public interface IGlobalSuppressionRepository
     IReadOnlySet<string> GetSuppressedSet(IEnumerable<string> normalizedEmails);
 
     GlobalSuppression? GetByEmail(string normalizedEmail);
-
-    IReadOnlyCollection<GlobalSuppression> ListAll();
 
     GlobalSuppression AddOrGet(GlobalSuppression suppression);
 
