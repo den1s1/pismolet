@@ -26,7 +26,7 @@ public sealed class PaymentWizardSmokeTests
         SeedUser(factory);
         var mailingId = SeedMailing(factory, "Payment smoke");
         using var client = CreateAuthenticatedClient(factory);
-        await Prepare(client, mailingId);
+        await Prepare(client, mailingId, MessageType.Transactional);
 
         var html = await client.GetStringAsync($"/mailings/{mailingId}/payment");
 
@@ -45,18 +45,14 @@ public sealed class PaymentWizardSmokeTests
         SeedUser(factory);
         var mailingId = SeedMailing(factory, "Payment start");
         using var client = CreateAuthenticatedClient(factory);
-        await Prepare(client, mailingId);
+        await Prepare(client, mailingId, MessageType.Transactional);
 
         var blocked = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", new FormUrlEncodedContent(new Dictionary<string, string>()));
         var blockedHtml = await blocked.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, blocked.StatusCode);
         Assert.Contains("Подтвердите", blockedHtml);
 
-        var ok = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["paymentBaseLegality"] = "on",
-            ["paymentBaseOwnership"] = "on"
-        }));
+        var ok = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", PaymentConfirmations());
         var okHtml = await ok.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
         Assert.Contains("Тестовая оплата", okHtml);
@@ -68,19 +64,43 @@ public sealed class PaymentWizardSmokeTests
         Assert.Equal(MailingStatus.PaymentPending, mailing.Status);
     }
 
-    private static async Task Prepare(HttpClient client, Guid mailingId)
+    [Fact]
+    public async Task Promo_message_requires_extra_confirmation_on_payment_step()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory, "Promo payment start");
+        using var client = CreateAuthenticatedClient(factory);
+        await Prepare(client, mailingId, MessageType.Advertising);
+
+        var blocked = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", PaymentConfirmations());
+        var html = await blocked.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, blocked.StatusCode);
+        Assert.Contains("Для промо-письма", html);
+    }
+
+    private static async Task Prepare(HttpClient client, Guid mailingId, MessageType messageType)
     {
         await client.PostAsync($"/mailings/{mailingId}/recipients", new MultipartFormDataContent { { new StringContent("first@example.test\nwrong\nFIRST@example.test"), "manualAddresses" } });
-        await client.PostAsync($"/mailings/{mailingId}/declaration", new FormUrlEncodedContent(new Dictionary<string, string> { ["baseSource"] = "Customers", ["baseLegality"] = "on", ["messageType"] = "Transactional" }));
+        var declarationFields = new Dictionary<string, string> { ["baseSource"] = "Customers", ["baseLegality"] = "on", ["messageType"] = messageType.ToString() };
+        if (messageType == MessageType.Advertising) declarationFields["advertisingConsent"] = "on";
+        await client.PostAsync($"/mailings/{mailingId}/declaration", new FormUrlEncodedContent(declarationFields));
         var message = await client.PostAsync($"/mailings/{mailingId}/message", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["senderName"] = "Sender",
             ["subject"] = "Subject",
             ["body"] = "Body",
-            ["messageType"] = "Transactional"
+            ["messageType"] = messageType.ToString()
         }));
         Assert.Equal(HttpStatusCode.OK, message.StatusCode);
     }
+
+    private static FormUrlEncodedContent PaymentConfirmations() => new(new Dictionary<string, string>
+    {
+        ["paymentBaseLegality"] = "on",
+        ["paymentBaseOwnership"] = "on"
+    });
 
     private static WebApplicationFactory<Program> CreateAuthorizedFactory() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
