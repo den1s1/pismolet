@@ -21,7 +21,7 @@ public static class CheckEndpoints
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = reviews.GetState(email, id);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Проверка перед отправкой", ChecksPage(result)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Проверка перед отправкой", ChecksPage(result), authenticated: true));
     }
 
     private static IResult StartChecks(Guid id, HttpContext http, IMailingReviewService reviews)
@@ -29,7 +29,7 @@ public static class CheckEndpoints
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = reviews.StartChecks(email, id, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Проверка перед отправкой", ChecksPage(result)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Проверка перед отправкой", ChecksPage(result), authenticated: true));
     }
 
     private static string ChecksPage(MailingReviewResult result)
