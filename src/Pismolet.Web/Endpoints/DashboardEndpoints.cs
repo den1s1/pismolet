@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using System.Text;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
@@ -33,8 +34,9 @@ public static class DashboardEndpoints
         }).RequireAuthorization();
 
         app.MapGet("/mailings/new", () => HtmlRenderer.Html(HtmlRenderer.Page(
-            "Создать рассылку",
-            "<section class='card form-card'><h1>Создать рассылку</h1><form method='post' action='/mailings'><label>Название рассылки<input name='subject' required maxlength='160'></label><button class='button'>Создать</button></form><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>", authenticated: true))).RequireAuthorization();
+            "Новая рассылка",
+            NewMailingWizard(),
+            authenticated: true))).RequireAuthorization();
 
         app.MapPost("/mailings", CreateMailing).RequireAuthorization();
         app.MapGet("/mailings/{id:guid}", ShowMailing).RequireAuthorization();
@@ -95,8 +97,7 @@ public static class DashboardEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена."), authenticated: true));
         }
 
-        var body = $"<section class='card form-card'><h1>Загрузка адресов</h1><p class='muted'>{H(mailing.Subject)}</p><form method='post' action='/mailings/{mailing.Id}/recipients' enctype='multipart/form-data'><label>CSV или XLSX-файл с колонкой email<input type='file' name='file' accept='.csv,.xlsx' required></label><button class='button'>Загрузить</button></form><p><a href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></p></section>";
-        return HtmlRenderer.Html(HtmlRenderer.Page("Загрузка адресов", body, authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", AddressStepWizard(mailing, null), authenticated: true));
     }
 
     private static async Task<IResult> ImportRecipients(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports)
@@ -107,33 +108,46 @@ public static class DashboardEndpoints
             return Results.Redirect("/account/login");
         }
 
-        if (mailings.GetForOwner(id, email) is null)
+        var mailing = mailings.GetForOwner(id, email);
+        if (mailing is null)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена."), authenticated: true));
         }
 
         var form = await http.Request.ReadFormAsync();
         var file = form.Files.GetFile("file");
-        if (file is null || file.Length == 0)
+        var manualAddresses = form["manualAddresses"].ToString();
+        var hasFile = file is { Length: > 0 };
+        var hasManualAddresses = !string.IsNullOrWhiteSpace(manualAddresses);
+
+        if (!hasFile && !hasManualAddresses)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Выберите CSV или XLSX-файл."), authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", AddressStepWizard(mailing, "Загрузите CSV/XLSX-файл или вставьте адреса вручную."), authenticated: true));
         }
 
-        if (file.Length > 1024 * 1024)
+        if (hasFile && file!.Length > 1024 * 1024)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Файл слишком большой для dev-среза."), authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", AddressStepWizard(mailing, "Файл слишком большой для dev-среза."), authenticated: true));
         }
 
-        await using var stream = file.OpenReadStream();
-        var result = await imports.ImportAsync(new ImportRecipientsCommand(email, id, file.FileName, stream, ToRequestMetadata(http)));
+        ImportRecipientsResult result;
+        if (hasFile)
+        {
+            await using var stream = file!.OpenReadStream();
+            result = await imports.ImportAsync(new ImportRecipientsCommand(email, id, file.FileName, stream, ToRequestMetadata(http)));
+        }
+        else
+        {
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(ToManualCsv(manualAddresses)));
+            result = await imports.ImportAsync(new ImportRecipientsCommand(email, id, "manual-addresses.csv", stream, ToRequestMetadata(http)));
+        }
+
         if (!result.Ok || result.Mailing is null)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error(result.Error), authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", AddressStepWizard(mailing, result.Error), authenticated: true));
         }
 
-        var s = result.Stats;
-        var body = $"<section class='card'><h1>Результат проверки</h1><p class='muted'>{H(result.Mailing.Subject)}</p><ul><li>Всего строк: {s.TotalRows}</li><li>Принято адресов: {s.Accepted}</li><li>Дублей: {s.Duplicates}</li><li>Невалидных email: {s.Invalid}</li><li>Исключены по глобальной отписке: {s.GloballySuppressed}</li></ul><p><a class='button' href='/mailings/{result.Mailing.Id}/declaration'>Подтвердить базу и написать письмо</a> <a href='/mailings/{result.Mailing.Id}/recipients'>Загрузить другой файл</a></p></section>";
-        return HtmlRenderer.Html(HtmlRenderer.Page("Результат проверки", body, authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Результат проверки", ImportResultWizard(result.Mailing), authenticated: true));
     }
 
     private static IResult ShowDeclaration(Guid id, HttpContext http, IMailingService mailings)
@@ -219,6 +233,123 @@ public static class DashboardEndpoints
         }
 
         return HtmlRenderer.Html(HtmlRenderer.Page("Письмо подготовлено", MessageForm(mailing, renderer, null), authenticated: true));
+    }
+
+    private static string NewMailingWizard() => @"
+<section class='wizard-shell'>
+  <div class='wizard-steps' aria-label='Шаги создания рассылки'>
+    <span class='wizard-step current'>Черновик</span>
+    <span class='wizard-step'>1. Адреса</span>
+    <span class='wizard-step'>2. Письмо</span>
+    <span class='wizard-step'>3. Проверка и оплата</span>
+  </div>
+  <section class='panel wizard-intro'>
+    <p class='eyebrow'>Новая рассылка</p>
+    <h1>Создайте черновик рассылки</h1>
+    <p class='muted'>Сначала задайте рабочее название. На следующем шаге добавите адреса через файл или ручную вставку.</p>
+    <form method='post' action='/mailings' class='form-grid'>
+      <label>Название рассылки<input name='subject' required maxlength='160' placeholder='Например: Новости школы за июнь'></label>
+      <div class='actions'>
+        <button class='button'>Создать черновик</button>
+        <a class='btn secondary' href='/dashboard'>Вернуться в ЛК</a>
+      </div>
+    </form>
+  </section>
+</section>";
+
+    private static string AddressStepWizard(Mailing mailing, string? error)
+    {
+        var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
+        return $@"
+<section class='wizard-shell'>
+  <div class='wizard-steps' aria-label='Шаги создания рассылки'>
+    <span class='wizard-step done'>Черновик</span>
+    <span class='wizard-step current'>1. Адреса</span>
+    <span class='wizard-step'>2. Письмо</span>
+    <span class='wizard-step'>3. Проверка и оплата</span>
+  </div>
+  <section class='panel'>
+    <div class='topline'>
+      <div>
+        <p class='eyebrow'>Шаг 1 из 3</p>
+        <h1>1. Добавьте список адресов</h1>
+        <p class='muted'>{H(mailing.Subject)}</p>
+      </div>
+      <span class='badge warn'>Проверка базы</span>
+    </div>
+    <div class='legal-warning'>Не используйте купленные или чужие базы. Добавляйте только адреса, по которым у вас есть законное основание для обращения.</div>
+    {alert}
+    <form method='post' action='/mailings/{mailing.Id}/recipients' enctype='multipart/form-data' class='wizard-grid'>
+      <label class='dropzone'>
+        <span>Загрузите Excel или CSV</span>
+        <small>Файл `.xlsx` или `.csv` с колонкой email. Максимум 1000 строк на MVP-этапе.</small>
+        <input type='file' name='file' accept='.csv,.xlsx'>
+      </label>
+      <label class='manual-addresses'>
+        <span>Или вставьте адреса вручную</span>
+        <small>Один адрес на строку. Дубликаты и отписавшиеся адреса будут исключены автоматически.</small>
+        <textarea name='manualAddresses' rows='12' placeholder='client@example.ru&#10;reader@example.com'></textarea>
+      </label>
+      <div class='actions wizard-actions'>
+        <button class='button'>Проверить адреса</button>
+        <a class='btn secondary' href='/mailings/{mailing.Id}'>Вернуться к рассылке</a>
+      </div>
+    </form>
+  </section>
+</section>";
+    }
+
+    private static string ImportResultWizard(Mailing mailing)
+    {
+        var stats = mailing.LastImportStats;
+        var issues = mailing.LastImportBatch?.Issues.Take(10).ToArray() ?? Array.Empty<RecipientImportIssue>();
+        var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
+        var issueRows = issues.Length == 0
+            ? "<p class='muted'>Ошибок в первых строках не найдено.</p>"
+            : string.Join("", issues.Select(issue => $"<li><b>Строка {issue.RowNumber}</b><span>{H(issue.Email)}</span><em>{H(issue.Message)}</em></li>"));
+        var issueBlock = issues.Length == 0
+            ? issueRows
+            : $"<ul class='issue-list'>{issueRows}</ul>";
+
+        return $@"
+<section class='wizard-shell'>
+  <div class='wizard-steps' aria-label='Шаги создания рассылки'>
+    <span class='wizard-step done'>Черновик</span>
+    <span class='wizard-step current'>1. Адреса</span>
+    <span class='wizard-step'>2. Письмо</span>
+    <span class='wizard-step'>3. Проверка и оплата</span>
+  </div>
+  <section class='panel'>
+    <p class='eyebrow'>Результат проверки</p>
+    <h1>Адреса проверены</h1>
+    <p class='muted'>{H(mailing.Subject)}</p>
+    <div class='stats import-summary'>
+      <div class='stat'><b>{stats.TotalRows}</b><span>Строк в файле</span></div>
+      <div class='stat'><b>{stats.Accepted}</b><span>Принято к отправке</span></div>
+      <div class='stat'><b>{stats.Duplicates + stats.Invalid}</b><span>Дублей и ошибок</span></div>
+      <div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div>
+      <div class='stat'><b>{stats.GloballySuppressed}</b><span>Ранее отписались</span></div>
+    </div>
+    <h2>Что исключено</h2>
+    {issueBlock}
+    <div class='actions'>
+      <a class='button' href='/mailings/{mailing.Id}/declaration'>Перейти к следующему шагу</a>
+      <a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Загрузить другой список</a>
+    </div>
+  </section>
+</section>";
+    }
+
+    private static string ToManualCsv(string value)
+    {
+        var lines = value
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => !string.IsNullOrWhiteSpace(line));
+
+        return "email\n" + string.Join('\n', lines);
     }
 
     private static string DeclarationForm(Mailing? mailing, string? error)
