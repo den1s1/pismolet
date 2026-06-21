@@ -264,4 +264,194 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
         AddOwnedGraph(mailing);
         db.SaveChanges();
     }
+
+    private void AddGraph(Mailing mailing)
+    {
+        db.Mailings.Add(new MailingEntity
+        {
+            Id = mailing.Id,
+            OwnerEmail = Normalize(mailing.OwnerEmail),
+            Subject = mailing.Subject,
+            StatusRu = mailing.StatusRu,
+            PublicId = mailing.PublicId,
+            CreatedAt = mailing.CreatedAt.ToUniversalTime()
+        });
+
+        AddOwnedGraph(mailing);
+    }
+
+    private void AddOwnedGraph(Mailing mailing)
+    {
+        foreach (var batch in mailing.ImportBatches)
+        {
+            var batchId = batch.Id == Guid.Empty ? Guid.NewGuid() : batch.Id;
+            db.ImportBatches.Add(new ImportBatchEntity
+            {
+                Id = batchId,
+                MailingId = mailing.Id,
+                FileName = batch.FileName,
+                SourceFormat = batch.SourceFormat.ToString(),
+                CreatedAt = batch.CreatedAt.ToUniversalTime(),
+                TotalRows = batch.TotalRows,
+                Accepted = batch.Accepted,
+                Duplicates = batch.Duplicates,
+                Invalid = batch.Invalid,
+                GloballySuppressed = batch.GloballySuppressed,
+                Status = batch.Status.ToString()
+            });
+
+            foreach (var issue in batch.Issues)
+            {
+                db.ImportIssues.Add(new ImportIssueEntity
+                {
+                    Id = Guid.NewGuid(),
+                    ImportBatchId = batchId,
+                    RowNumber = issue.RowNumber,
+                    Email = issue.Email,
+                    Message = issue.Message
+                });
+            }
+        }
+
+        db.Recipients.AddRange(mailing.Recipients.Select(recipient => new RecipientEntity
+        {
+            Id = Guid.NewGuid(),
+            MailingId = mailing.Id,
+            SourceEmail = recipient.SourceEmail,
+            NormalizedEmail = Normalize(recipient.Email),
+            Status = recipient.Status.ToString(),
+            ExclusionReason = recipient.ExclusionReason,
+            ImportBatchId = recipient.ImportBatchId
+        }));
+
+        if (mailing.Declaration is { } declaration)
+        {
+            db.MailingDeclarations.Add(new MailingDeclarationEntity
+            {
+                MailingId = mailing.Id,
+                ImportBatchId = declaration.ImportBatchId,
+                UserEmail = Normalize(declaration.UserEmail),
+                BaseSource = declaration.BaseSource.ToString(),
+                IsBaseLegalityConfirmed = declaration.IsBaseLegalityConfirmed,
+                IsAdvertisingConsentConfirmed = declaration.IsAdvertisingConsentConfirmed,
+                DeclarationVersion = declaration.DeclarationVersion,
+                CreatedAt = declaration.CreatedAt.ToUniversalTime(),
+                Ip = declaration.Ip,
+                UserAgent = declaration.UserAgent
+            });
+        }
+
+        if (mailing.MessageDraft is { } draft)
+        {
+            db.MailingMessageDrafts.Add(new MailingMessageDraftEntity
+            {
+                MailingId = mailing.Id,
+                SenderName = draft.SenderName,
+                Subject = draft.Subject,
+                Body = draft.Body,
+                MessageType = draft.MessageType.ToString(),
+                UpdatedAt = draft.UpdatedAt.ToUniversalTime()
+            });
+        }
+    }
+
+    private Mailing ToDomain(MailingEntity entity)
+    {
+        var batches = db.ImportBatches
+            .AsNoTracking()
+            .Where(x => x.MailingId == entity.Id)
+            .OrderBy(x => x.CreatedAt)
+            .ToArray()
+            .Select(ToDomainBatch)
+            .ToList();
+
+        var recipients = db.Recipients
+            .AsNoTracking()
+            .Where(x => x.MailingId == entity.Id)
+            .OrderBy(x => x.NormalizedEmail)
+            .Select(ToDomainRecipient)
+            .ToList();
+
+        var declaration = db.MailingDeclarations
+            .AsNoTracking()
+            .FirstOrDefault(x => x.MailingId == entity.Id) is { } declarationEntity
+                ? ToDomainDeclaration(declarationEntity)
+                : null;
+
+        var draft = db.MailingMessageDrafts
+            .AsNoTracking()
+            .FirstOrDefault(x => x.MailingId == entity.Id) is { } draftEntity
+                ? ToDomainDraft(draftEntity)
+                : null;
+
+        var lastBatch = batches.OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+
+        return new Mailing(entity.Subject, entity.StatusRu)
+        {
+            Id = entity.Id,
+            OwnerEmail = entity.OwnerEmail,
+            CreatedAt = entity.CreatedAt,
+            PublicId = entity.PublicId,
+            ImportBatches = batches,
+            LastImportBatch = lastBatch,
+            LastImportStats = lastBatch?.ToStats() ?? ImportStats.Empty,
+            Recipients = recipients,
+            Declaration = declaration,
+            MessageDraft = draft
+        };
+    }
+
+    private ImportBatch ToDomainBatch(ImportBatchEntity entity)
+    {
+        var issues = db.ImportIssues
+            .AsNoTracking()
+            .Where(x => x.ImportBatchId == entity.Id)
+            .OrderBy(x => x.RowNumber)
+            .Select(x => new RecipientImportIssue(x.RowNumber, x.Email, x.Message))
+            .ToArray();
+
+        return new ImportBatch(
+            entity.Id,
+            entity.MailingId,
+            entity.FileName,
+            Enum.Parse<ImportSourceFormat>(entity.SourceFormat),
+            entity.CreatedAt,
+            entity.TotalRows,
+            entity.Accepted,
+            entity.Duplicates,
+            entity.Invalid,
+            entity.GloballySuppressed,
+            Enum.Parse<ImportBatchStatus>(entity.Status),
+            issues);
+    }
+
+    private static Recipient ToDomainRecipient(RecipientEntity entity) => new(
+        entity.SourceEmail,
+        entity.NormalizedEmail,
+        Enum.Parse<RecipientStatus>(entity.Status),
+        entity.ExclusionReason,
+        entity.ImportBatchId);
+
+    private static MailingDeclaration ToDomainDeclaration(MailingDeclarationEntity entity) => new(
+        entity.MailingId,
+        entity.UserEmail,
+        Enum.Parse<BaseSource>(entity.BaseSource),
+        entity.IsBaseLegalityConfirmed,
+        entity.IsAdvertisingConsentConfirmed,
+        entity.DeclarationVersion,
+        entity.CreatedAt,
+        entity.Ip,
+        entity.UserAgent)
+    {
+        ImportBatchId = entity.ImportBatchId
+    };
+
+    private static MailingMessageDraft ToDomainDraft(MailingMessageDraftEntity entity) => new(
+        entity.SenderName,
+        entity.Subject,
+        entity.Body,
+        Enum.Parse<MessageType>(entity.MessageType),
+        entity.UpdatedAt);
+
+    private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }
