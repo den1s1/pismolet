@@ -181,7 +181,9 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
 
     private string ToAbsoluteUrl(string url)
     {
-        if (Uri.TryCreate(url, UriKind.Absolute, out _))
+        if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri) &&
+            (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps) &&
+            !string.IsNullOrWhiteSpace(absoluteUri.Host))
         {
             return url;
         }
