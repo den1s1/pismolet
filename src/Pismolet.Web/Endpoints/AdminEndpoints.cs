@@ -18,7 +18,9 @@ public static class AdminEndpoints
         app.MapGet("/admin", ShowUsers).RequireAuthorization(AdminPolicyName);
         app.MapGet("/admin/users", ShowUsers).RequireAuthorization(AdminPolicyName);
         app.MapGet("/admin/users/{email}", ShowUserProfile).RequireAuthorization(AdminPolicyName);
-        app.MapGet("/admin/recipients", (HttpContext http) => Placeholder(http, "Получатели", "Глобальные статусы получателей будут перенесены в следующем спринте.", "recipients")).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/recipients", ShowRecipients).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/recipients/{email}", ShowRecipientProfile).RequireAuthorization(AdminPolicyName);
+        app.MapPost("/admin/recipients/{email}/suppress", SuppressRecipient).RequireAuthorization(AdminPolicyName);
         app.MapGet("/admin/campaigns", (HttpContext http) => Placeholder(http, "Кампании", "Список кампаний и модерация будут расширены в следующем админском спринте.", "campaigns")).RequireAuthorization(AdminPolicyName);
         app.MapGet("/admin/payments", (HttpContext http) => Placeholder(http, "Оплаты", "Детальная история оплат появится после подключения биллинга.", "payments")).RequireAuthorization(AdminPolicyName);
         app.MapGet("/admin/settings", (HttpContext http) => Placeholder(http, "Настройки", "Здесь будут настройки лимитов, цен и правил модерации.", "settings")).RequireAuthorization(AdminPolicyName);
@@ -147,6 +149,125 @@ public static class AdminEndpoints
         return AdminHtml($"Админка - {user.Email}", adminEmail, "users", body);
     }
 
+    private static IResult ShowRecipients(HttpContext http, IAdminRecipientRepository recipients)
+    {
+        var adminEmail = CurrentEmail(http) ?? "admin@example.test";
+        var search = http.Request.Query["q"].ToString().Trim();
+        var status = http.Request.Query["status"].ToString().Trim();
+        var allRows = recipients.ListSummaries().ToArray();
+        var rows = allRows.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            rows = rows.Where(row => row.Email.Contains(search, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            rows = rows.Where(row => row.StatusCode == status);
+        }
+
+        var filtered = rows.ToArray();
+        var stats = $"""
+            <div class='admin-stats'>
+                <div class='admin-stat'><b>{allRows.Length}</b><span>Получателей</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => row.StatusCode == "active")}</b><span>Активных</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => row.StatusCode is "unsubscribed" or "blocked")}</b><span>Глобально исключены</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => row.StatusCode is "hard_bounce" or "unavailable")}</b><span>Недоступны</span></div>
+            </div>
+            """;
+        var tableRows = filtered.Length == 0
+            ? "<tr><td colspan='7'>Получатели не найдены.</td></tr>"
+            : string.Join(string.Empty, filtered.Select(RecipientRow));
+        var body = $"""
+            <section class='admin-panel'>
+                <div class='admin-title-row'>
+                    <div>
+                        <p class='eyebrow'>Администрирование</p>
+                        <h1>Получатели</h1>
+                        <p class='admin-muted'>Глобальные статусы адресов, отписки и история появления в списках клиентов.</p>
+                    </div>
+                    <a class='admin-export' href='/admin/recipients?export=csv'>Экспорт CSV - скоро</a>
+                </div>
+                {stats}
+                <form class='admin-filters' method='get' action='/admin/recipients'>
+                    <label>Поиск<input name='q' value='{H(search)}' placeholder='email получателя'></label>
+                    <label>Статус
+                        <select name='status'>
+                            {Option("", "Все", status)}
+                            {Option("active", "Активен", status)}
+                            {Option("unsubscribed", "Отписался", status)}
+                            {Option("unavailable", "Недоступен", status)}
+                            {Option("hard_bounce", "Hard bounce", status)}
+                            {Option("blocked", "Заблокирован вручную", status)}
+                        </select>
+                    </label>
+                    <button class='admin-button' type='submit'>Найти</button>
+                    <a class='admin-link' href='/admin/recipients'>Сбросить</a>
+                </form>
+                <div class='admin-table-wrap'>
+                    <table class='admin-table'>
+                        <thead><tr><th>Email</th><th>Статус</th><th>Списки</th><th>Клиентов</th><th>Писем отправлено</th><th>Последнее письмо</th><th></th></tr></thead>
+                        <tbody>{tableRows}</tbody>
+                    </table>
+                </div>
+            </section>
+            """;
+
+        return AdminHtml("Админка - получатели", adminEmail, "recipients", body);
+    }
+
+    private static IResult ShowRecipientProfile(string email, HttpContext http, IAdminRecipientRepository recipients)
+    {
+        var adminEmail = CurrentEmail(http) ?? "admin@example.test";
+        var profile = recipients.GetProfile(email);
+        if (profile is null)
+        {
+            return AdminHtml("Получатель не найден", adminEmail, "recipients", "<section class='admin-panel'><h1>Получатель не найден</h1><p class='admin-muted'>Проверьте email или вернитесь к списку получателей.</p><p><a class='admin-link' href='/admin/recipients'>К получателям</a></p></section>");
+        }
+
+        var summary = profile.Summary;
+        var ownerRows = profile.Owners.Count == 0
+            ? "<tr><td colspan='2'>Адрес пока не найден в клиентских списках.</td></tr>"
+            : string.Join(string.Empty, profile.Owners.Select(owner => $"<tr><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(owner.OwnerEmail)}'>{H(owner.OwnerEmail)}</a></td><td>{owner.MailingCount}</td></tr>"));
+        var mailingRows = profile.Mailings.Count == 0
+            ? "<tr><td colspan='5'>Последних писем нет.</td></tr>"
+            : string.Join(string.Empty, profile.Mailings.Select(row => $"<tr><td>{H(row.Subject)}</td><td>{H(row.OwnerEmail)}</td><td>{row.AcceptedRecipients}</td><td><span class='admin-badge'>{H(row.Status.ToRu())}</span></td><td>{FormatDate(row.LastMessageAt ?? row.CreatedAt)}</td></tr>"));
+        var suppression = summary.SuppressedAt is null
+            ? "Отписки не зафиксированы"
+            : $"{H(summary.SuppressionSource?.ToString())} · {FormatDate(summary.SuppressedAt)}";
+        var body = $"""
+            <section class='admin-panel'>
+                <p class='eyebrow'>Профиль получателя</p>
+                <h1>{H(summary.Email)}</h1>
+                <div class='admin-profile-grid'>
+                    <div><span>Глобальный статус</span><b>{H(summary.StatusText)}</b></div>
+                    <div><span>Первое появление</span><b>{FormatDate(summary.FirstSeenAt)}</b></div>
+                    <div><span>Последнее письмо</span><b>{FormatDate(summary.LastMessageAt)}</b></div>
+                    <div><span>Отписки</span><b>{suppression}</b></div>
+                </div>
+                <div class='admin-actions-row'>
+                    <form method='post' action='/admin/recipients/{Uri.EscapeDataString(summary.Email)}/suppress'>
+                        <button class='admin-button danger' type='submit'>Добавить глобальную отписку</button>
+                    </form>
+                    <a class='admin-link' href='/admin/recipients?q={Uri.EscapeDataString(summary.Email)}'>Найти дубли</a>
+                    <a class='admin-link' href='/admin/recipients'>К списку</a>
+                </div>
+                <div class='section-head'><div><p class='eyebrow'>Клиенты</p><h2>Списки пользователей</h2></div></div>
+                <div class='admin-table-wrap'><table class='admin-table'><thead><tr><th>Пользователь</th><th>Списков</th></tr></thead><tbody>{ownerRows}</tbody></table></div>
+                <div class='section-head'><div><p class='eyebrow'>История</p><h2>Последние письма</h2></div></div>
+                <div class='admin-table-wrap'><table class='admin-table'><thead><tr><th>Кампания</th><th>Пользователь</th><th>Всего адресов</th><th>Статус</th><th>Дата</th></tr></thead><tbody>{mailingRows}</tbody></table></div>
+            </section>
+            """;
+
+        return AdminHtml($"Админка - {summary.Email}", adminEmail, "recipients", body);
+    }
+
+    private static IResult SuppressRecipient(string email, IGlobalSuppressionRepository suppressions)
+    {
+        suppressions.Add(email);
+        return Results.Redirect($"/admin/recipients/{Uri.EscapeDataString(email)}");
+    }
+
     private static IResult ShowQueue(HttpContext http, IModerationAdminService moderation)
     {
         var items = moderation.ListOpen();
@@ -251,6 +372,8 @@ public static class AdminEndpoints
         return $"<tr><td>{H(user.Email)}</td><td>{H(user.DisplayName)}</td><td><span class='admin-badge'>{H(user.Profile.Status)}</span></td><td>{(user.EmailConfirmed ? "Подтверждён" : "Не подтверждён")}</td><td>{user.Profile.DailySendLimit}</td><td>{row.MailingCount}</td><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(user.Email)}'>Профиль</a></td></tr>";
     }
 
+    private static string RecipientRow(AdminRecipientSummary row) => $"<tr><td>{H(row.Email)}</td><td><span class='admin-badge recipient-{H(row.StatusCode)}'>{H(row.StatusText)}</span></td><td>{row.MailingCount}</td><td>{row.OwnerCount}</td><td>{row.SentCount}</td><td>{FormatDate(row.LastMessageAt)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>Профиль</a></td></tr>";
+
     private static string AdminShell(string adminEmail, string active, string content) => $"""
         <section class='admin-shell'>
             <aside class='admin-sidebar'>
@@ -285,6 +408,8 @@ public static class AdminEndpoints
     private static string SafeReasons(RiskCheckResult? risk) => risk is null || risk.TriggeredRules.Count == 0
         ? "Нет дополнительных причин"
         : string.Join("; ", risk.TriggeredRules.Select(rule => rule.PublicReason).Distinct());
+
+    private static string FormatDate(DateTimeOffset? value) => value is null ? "-" : value.Value.ToString("yyyy-MM-dd HH:mm");
 
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
 
