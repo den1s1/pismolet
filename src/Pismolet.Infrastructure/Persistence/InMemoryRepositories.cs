@@ -40,6 +40,10 @@ public sealed class InMemoryMailingRepository : IMailingRepository
             : null;
     }
 
+    public IReadOnlyCollection<Mailing> ListAll() => _items.Values
+        .OrderByDescending(mailing => mailing.CreatedAt)
+        .ToArray();
+
     public IReadOnlyCollection<Mailing> ListForOwner(string userEmail)
     {
         var normalized = Normalize(userEmail);
@@ -89,6 +93,10 @@ public sealed class InMemoryGlobalSuppressionRepository : IGlobalSuppressionRepo
     }
 
     public GlobalSuppression? GetByEmail(string normalizedEmail) => _items.GetValueOrDefault(Normalize(normalizedEmail));
+
+    public IReadOnlyCollection<GlobalSuppression> ListAll() => _items.Values
+        .OrderBy(item => item.EmailNormalized, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 
     public GlobalSuppression AddOrGet(GlobalSuppression suppression)
     {
