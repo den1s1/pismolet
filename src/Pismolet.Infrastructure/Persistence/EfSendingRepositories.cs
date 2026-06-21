@@ -169,6 +169,6 @@ public sealed class EfProviderWebhookEventRepository(PismoletDbContext db) : IPr
         item.RawPayloadStored,
         item.ReasonCode,
         item.ReasonMessage,
-        Enum.TryParse<ProviderWebhookProcessingStatus>(item.ProcessingStatus, out var status) ? status : ProviderWebhookProcessingStatus.Failed,
+        Enum.TryParse<ProviderWebhookProcessingStatus>(item.ProcessingStatus, out var status) ? status : ProviderWebhookProcessingStatus.IgnoredUnknown,
         item.CorrelationId);
 }
