@@ -27,7 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAdminMvpSettingsRepository, RuntimeAdminMvpSettingsRepository>();
         services.AddSingleton(new PublicUrlOptions(ReadPublicBaseUrl(configuration)));
         services.AddSingleton(new UnsubscribeTokenOptions(configuration["Unsubscribe:Secret"] ?? configuration["PISMOLET_UNSUBSCRIBE_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_UNSUBSCRIBE_SECRET") ?? UnsubscribeTokenOptions.DevelopmentDefault.Secret, TimeSpan.FromDays(ReadTokenLifetimeDays(configuration))));
-        services.AddSingleton(new InboundReplyTokenOptions(configuration["InboundReplies:Secret"] ?? configuration["PISMOLET_INBOUND_REPLY_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_INBOUND_REPLY_SECRET") ?? InboundReplyTokenOptions.DevelopmentDefault.Secret, configuration["InboundReplies:Domain"] ?? InboundReplyTokenOptions.DevelopmentDefault.InboundDomain, TimeSpan.FromDays(ReadInboundTokenLifetimeDays(configuration))));
+        services.AddSingleton(new InboundReplyTokenOptions(configuration["InboundReplies:Secret"] ?? configuration["PISMOLET_INBOUND_REPLY_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_INBOUND_REPLY_SECRET") ?? InboundReplyTokenOptions.DevelopmentDefault.Secret, configuration["InboundReplies:Domain"] ?? InboundReplyOptions.DevelopmentDefault.InboundDomain, TimeSpan.FromDays(ReadInboundTokenLifetimeDays(configuration))));
         services.AddSingleton(new InboundReplyOptions(ReadInt(configuration, "InboundReplies:BodyRetentionDays", 14, 1, 60), ReadInt(configuration, "InboundReplies:MaxStoredBodyChars", 12000, 0, 16000), ReadInt(configuration, "InboundReplies:ForwardBatchSize", 50, 1, 500)));
         services.AddSingleton(ReadMailWarmupLimitOptions(configuration));
         services.AddSingleton<IMailWarmupThrottle, MailWarmupThrottle>();
@@ -164,7 +164,7 @@ public static class ServiceCollectionExtensions
 
         foreach (var child in section.GetChildren())
         {
-            var domain = child.Key.Trim().ToLowerInvariant();
+            var domain = NormalizeWarmupDomainKey(child.Key);
             if (string.IsNullOrWhiteSpace(domain))
             {
                 continue;
@@ -188,6 +188,17 @@ public static class ServiceCollectionExtensions
         }
 
         return limits.Count == 0 ? null : limits;
+    }
+
+    private static string NormalizeWarmupDomainKey(string key)
+    {
+        var domain = key.Trim().ToLowerInvariant();
+        if (domain.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return domain.Contains('.') ? domain : domain.Replace('_', '.');
     }
 
     private static string Required(IConfiguration configuration, string key, string envName)
