@@ -230,5 +230,5 @@ public sealed class InMemoryReplyEventRepository : IReplyEventRepository
         if (Get(replyEventId) is { } item) Save(item.MarkBodyDeleted());
     }
 
-    private static string Key(string provider, string providerInboundEventId) => $"{provider.Trim().ToLowerInvariant()}:{providerEventId.Trim().ToLowerInvariant()}";
+    private static string Key(string provider, string providerInboundEventId) => $"{provider.Trim().ToLowerInvariant()}:{providerInboundEventId.Trim().ToLowerInvariant()}";
 }
