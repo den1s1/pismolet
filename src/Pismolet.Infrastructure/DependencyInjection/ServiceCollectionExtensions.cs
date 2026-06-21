@@ -77,6 +77,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IUserRepository, InMemoryUserRepository>();
             services.AddSingleton<IMailingRepository, InMemoryMailingRepository>();
             services.AddSingleton<IGlobalSuppressionRepository, InMemoryGlobalSuppressionRepository>();
+            services.AddSingleton<IAdminRecipientRepository, InMemoryAdminRecipientRepository>();
             services.AddSingleton<IAuditLogger, InMemoryAuditLogger>();
             return services;
         }
@@ -88,6 +89,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IMailingRepository, EfMailingRepository>();
         services.AddScoped<IGlobalSuppressionRepository, EfGlobalSuppressionRepository>();
+        services.AddScoped<IAdminRecipientRepository, EfAdminRecipientRepository>();
         services.AddScoped<IProviderWebhookEventRepository, EfProviderWebhookEventRepository>();
         services.AddScoped<IClientSuppressionRepository, EfClientSuppressionRepository>();
         services.AddScoped<IReplyEventRepository, EfReplyEventRepository>();
