@@ -3,6 +3,7 @@
 ## Статус
 
 Дата фиксации: 21 июня 2026 г.
+Дата минимального закрытия: 21 июня 2026 г.
 
 UI MVP закрыт зелёным build/test gate. Замечания по спринтам 8-12 устранены:
 
@@ -14,11 +15,18 @@ UI MVP закрыт зелёным build/test gate. Замечания по сп
 - integration tests: 4/4;
 - web tests: 97/97.
 
-Остаточный риск не блокирует UI freeze, но должен быть закрыт отдельным техническим спринтом перед активной разработкой движка рассылок или перед инфраструктурными изменениями SMTP.
+Минимальный техспринт 0 закрывает прямое EF-покрытие через relational DbContext-тесты на SQLite in-memory:
+
+- `EfAdminMailingSummaryRepository.ListSummaries()`;
+- тот же контракт через `IAdminPaymentRepository.ListSummaries()`;
+- `EfAdminRecipientRepository.GetProfile()` для получателя с несколькими рассылками и send event;
+- `EfAdminRecipientRepository.GetProfile()` для suppression-only профиля.
+
+Остаточный риск: SQL-interceptor для проверки факта фильтрации на уровне SQL не внедрён и остаётся отдельной задачей. Это не блокирует переход к спринтам движка рассылок.
 
 ## Проблема
 
-Основная часть web endpoint-тестов работает через InMemory persistence. Поэтому самые важные EF/Postgres-ветки админки покрыты косвенно и могут сломаться без падения UI-тестов.
+Основная часть web endpoint-тестов работает через InMemory persistence. Поэтому самые важные EF/Postgres-ветки админки нужно держать прямыми repository-тестами, чтобы они не зависели только от UI endpoint-smoke сценариев.
 
 Риск относится к:
 
@@ -38,12 +46,14 @@ EF-запросам для /admin/recipients/{email}
 
 ### 1. EfAdminMailingSummaryRepository
 
+Статус: закрыто в `tests/Pismolet.Web.Tests/AdminEfRepositoryTests.cs`.
+
 Проверить, что summary строится без загрузки полного domain-графа через `IMailingRepository.ListForOwner`.
 
 Сценарий:
 
 ```text
-1. Создать DbContext на тестовой БД.
+1. Создать DbContext на тестовой relational БД.
 2. Добавить users.
 3. Добавить mailings.
 4. Добавить import_batches.
@@ -56,6 +66,8 @@ EF-запросам для /admin/recipients/{email}
 
 ### 2. EfAdminRecipientRepository.GetProfile
 
+Статус: закрыто в `tests/Pismolet.Web.Tests/AdminEfRepositoryTests.cs`.
+
 Проверить, что профиль получателя корректно строится по одному email.
 
 Сценарий:
@@ -66,10 +78,12 @@ EF-запросам для /admin/recipients/{email}
 3. Запросить GetProfile("target@example.com").
 4. Проверить, что вернулся только target@example.com.
 5. Проверить owners, mailings, accepted recipients.
-6. Добавить global_suppression и проверить статус.
+6. Добавить global_suppression и проверить status.
 ```
 
 ### 3. Проверка фильтра до materialize
+
+Статус: оставлено отдельной задачей.
 
 Желательно добавить проверку через EF logging или отдельный тестовый DbCommandInterceptor.
 
@@ -97,4 +111,4 @@ Web: green
 
 ## Приоритет
 
-Средний. Не блокирует текущий UI MVP, но желательно закрыть перед движком рассылок, потому админка будет использоваться для контроля очереди, оплат, статусов, bounce и репутации клиентов.
+Средний. Не блокирует текущий UI MVP и после минимального закрытия не блокирует старт движка рассылок. SQL-interceptor желательно добавить перед расширением админского мониторинга очереди, оплат, статусов, bounce и репутации клиентов.
