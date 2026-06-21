@@ -9,8 +9,10 @@ public static class MailWarmupSnapshotFactory
         string? recipientEmail,
         DateTimeOffset now)
     {
+        var nowUtc = now.ToUniversalTime();
         var acceptedEvents = acceptedSends
-            .Where(x => x.SentAt <= now.ToUniversalTime())
+            .Select(x => x with { SentAt = x.SentAt.ToUniversalTime() })
+            .Where(x => x.SentAt <= nowUtc)
             .ToArray();
         var recipientDomain = GetEmailDomain(recipientEmail);
         var domainEvents = string.IsNullOrWhiteSpace(recipientDomain)
@@ -18,26 +20,25 @@ public static class MailWarmupSnapshotFactory
             : acceptedEvents.Where(x => string.Equals(GetEmailDomain(x.RecipientEmail), recipientDomain, StringComparison.OrdinalIgnoreCase)).ToArray();
 
         return new MailWarmupLimitSnapshot(
-            GlobalSentLastMinute: CountSince(acceptedEvents, now, TimeSpan.FromMinutes(1)),
-            GlobalSentLastHour: CountSince(acceptedEvents, now, TimeSpan.FromHours(1)),
-            GlobalSentToday: CountToday(acceptedEvents, now),
+            GlobalSentLastMinute: CountSince(acceptedEvents, nowUtc, TimeSpan.FromMinutes(1)),
+            GlobalSentLastHour: CountSince(acceptedEvents, nowUtc, TimeSpan.FromHours(1)),
+            GlobalSentToday: CountToday(acceptedEvents, nowUtc),
             GlobalLastSentAt: LastSentAt(acceptedEvents),
-            DomainSentLastMinute: CountSince(domainEvents, now, TimeSpan.FromMinutes(1)),
-            DomainSentLastHour: CountSince(domainEvents, now, TimeSpan.FromHours(1)),
-            DomainSentToday: CountToday(domainEvents, now),
+            DomainSentLastMinute: CountSince(domainEvents, nowUtc, TimeSpan.FromMinutes(1)),
+            DomainSentLastHour: CountSince(domainEvents, nowUtc, TimeSpan.FromHours(1)),
+            DomainSentToday: CountToday(domainEvents, nowUtc),
             DomainLastSentAt: LastSentAt(domainEvents));
     }
 
-    private static int CountSince(IReadOnlyCollection<MailWarmupAcceptedSend> sends, DateTimeOffset now, TimeSpan window)
+    private static int CountSince(IReadOnlyCollection<MailWarmupAcceptedSend> sends, DateTimeOffset nowUtc, TimeSpan window)
     {
-        var from = now.ToUniversalTime() - window;
-        var until = now.ToUniversalTime();
-        return sends.Count(x => x.SentAt > from && x.SentAt <= until);
+        var from = nowUtc - window;
+        return sends.Count(x => x.SentAt > from && x.SentAt <= nowUtc);
     }
 
-    private static int CountToday(IReadOnlyCollection<MailWarmupAcceptedSend> sends, DateTimeOffset now)
+    private static int CountToday(IReadOnlyCollection<MailWarmupAcceptedSend> sends, DateTimeOffset nowUtc)
     {
-        var today = now.ToUniversalTime().UtcDateTime.Date;
+        var today = nowUtc.UtcDateTime.Date;
         return sends.Count(x => x.SentAt.UtcDateTime.Date == today);
     }
 
