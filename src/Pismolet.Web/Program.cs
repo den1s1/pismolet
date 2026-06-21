@@ -46,6 +46,7 @@ app.UseAuthorization();
 app.MapHomeEndpoints();
 app.MapAccountEndpoints();
 app.MapDashboardEndpoints();
+app.MapProfileEndpoints();
 app.MapPaymentEndpoints();
 app.MapCheckEndpoints();
 app.MapSendEndpoints();
