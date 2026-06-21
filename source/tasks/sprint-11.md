@@ -17,7 +17,8 @@
 - Sprint 9 дал inbound replies, `ReplyEvent` и fake-пересылку ответа клиенту;
 - Sprint 10 дал admin-контроль: клиенты, блокировки, лимиты, настройки MVP, audit log, импорты, complaints, delivery errors, replies;
 - production-срез storage уже частично есть для `global_suppressions`, `send_events`, `provider_webhook_events`, `client_suppressions`;
-- часть storage всё ещё остаётся in-memory/dev-sрезом: payment/risk/moderation и отдельные настройки цены/админских параметров;
+- часть storage всё ещё остаётся in-memory/dev-срезом: payment/risk/moderation и отдельные настройки цены/админских параметров;
+- в Development уже есть startup seed/migration hook вида `SeedPismoletDevData()`; Sprint 11 должен расширять или заменить его явно, а не создавать второй несогласованный seed-механизм;
 - документация локального запуска и smoke-проверок уже есть частично, но её нужно привести к единому demo/e2e checklist.
 
 Sprint 11 — это не новый функциональный модуль. Главная задача — стабилизировать MVP как демонстрируемый end-to-end продукт: убрать тупики UX, проверить state machine, сделать воспроизводимый demo seed, закрыть основные ошибки, оформить локальный запуск и инструкции для LLM-агентов.
@@ -38,13 +39,16 @@ Sprint 11 — это не новый функциональный модуль. 
 - Не переписывать архитектуру слоёв `Domain` / `Application` / `Infrastructure` / `Web` без отдельного ADR.
 - Не менять принятый стек .NET / ASP.NET Core / Razor Pages / EF Core / PostgreSQL / Hangfire.
 - Не подключать реального платёжного агента и реального email provider в рамках Sprint 11.
+- Smoke/demo flow должен явно использовать fake provider и fake payment. Любые реальные provider/payment settings должны быть отсутствующими, выключенными или требовать отдельного explicit enable flag.
 - Не заменять fake provider contract без синхронизации `README.md`, task-файлов и тестов.
 - Не хранить raw email body, reply body, provider payload и токены дольше/шире, чем нужно для MVP-debug.
 - Не показывать пользователю технические сущности `Campaign`, `SendEvent`, `PaymentAttempt`, `ProviderWebhookEvent` без пользовательского перевода.
 - Все ошибки должны иметь понятный русский текст и безопасный fallback.
-- End-to-end сценарий должен работать в dev/in-memory и в Postgres profile, где это уже поддержано.
+- P0 full e2e должен проходить в dev/in-memory режиме.
+- Postgres+Hangfire smoke должен проверять уже устойчивые storage-части: `global_suppressions`, `send_events`, `provider_webhook_events`, `client_suppressions`, очередь отправки/обработки. Полная production persistence для payment/risk/moderation/settings не является P0 Sprint 11, если не была реализована раньше.
 - Все dev-only endpoints должны быть явно недоступны вне Development-окружения.
 - Финальный smoke checklist должен быть выполним без знания внутренней архитектуры.
+- Sprint 11 фиксирует MVP acceptance. Новые production-требования нельзя молча добавлять в MVP; их нужно отмечать как post-MVP или production hardening.
 
 ## 4. Приоритеты Sprint 11
 
@@ -53,15 +57,16 @@ Sprint 11 — это не новый функциональный модуль. 
 Без P0 Sprint 11 нельзя считать завершённым:
 
 - единый e2e smoke checklist от регистрации до статистики;
-- стабильный happy path без ручного редактирования БД;
+- стабильный happy path в dev/in-memory без ручного редактирования БД;
+- отдельный Postgres+Hangfire smoke по устойчивым storage/queue частям;
 - обработка ключевых ошибок импорта, оплаты, проверки, отправки, webhook, unsubscribe и inbound reply;
-- seed/demo данные для быстрой проверки;
+- seed/demo данные для быстрой проверки на базе существующего `SeedPismoletDevData()` или явной миграции к config-driven seed mode;
 - понятные статусы и CTA на каждом шаге рассылки;
 - базовые regression tests для state machine рассылки и импорта;
-- интеграционный happy path;
-- документация локального запуска;
-- документация для LLM-агентов;
-- финальная сверка MVP acceptance criteria.
+- интеграционный happy path как один тест или набор устойчивых тестов с общими helpers;
+- обязательные документы: `docs/demo_checklist.md`, `docs/local_run.md`, `docs/llm_agent_guide.md`, `docs/mvp_acceptance.md`;
+- README как короткий индекс со ссылками на документы;
+- финальная сверка MVP acceptance criteria без расширения до production hardening.
 
 ### P1 — желательно после P0
 
@@ -111,7 +116,9 @@ Sprint 11 — это не новый функциональный модуль. 
   - проверка admin audit.
 - Для каждого шага указать URL, ожидаемый статус и ожидаемый пользовательский текст.
 - Добавить отдельный блок «что делать, если шаг не прошёл».
-- Добавить checklist для dev/in-memory и Postgres+Hangfire profile.
+- Разделить checklist на два режима:
+  - dev/in-memory full e2e;
+  - Postgres+Hangfire smoke по устойчивым storage/queue частям.
 
 Acceptance criteria:
 
@@ -272,9 +279,10 @@ Acceptance criteria:
 
 Задачи:
 
-- Добавить dev-only seed endpoint или startup seed mode по конфигурации.
+- Использовать и расширить существующий Development seed hook `SeedPismoletDevData()` либо явно заменить его конфигурируемым seed mode.
+- Не создавать параллельный seed endpoint/service, который расходится с существующим startup seed.
 - Seed должен быть явно отключён в production-like окружении.
-- Добавить demo admin user или инструкцию, как сделать пользователя админом через allowlist.
+- Добавить demo admin user или инструкцию, как сделать пользователя админом через `Admin:AllowedEmails` / `PISMOLET_ADMIN_EMAILS`.
 - Добавить demo client profile.
 - Добавить demo mailing draft или набор demo CSV/XLSX.
 - Добавить demo recipients:
@@ -284,13 +292,14 @@ Acceptance criteria:
   - hard bounce candidate;
   - complaint candidate;
   - already suppressed email.
-- Зафиксировать seed contract в документации.
+- Зафиксировать seed contract в `docs/local_run.md` и `docs/demo_checklist.md`.
 
 Acceptance criteria:
 
 - Разработчик может быстро получить demo-сценарий без ручного SQL.
 - Seed не включается случайно вне Development.
 - Demo данные не используют реальные email-адреса.
+- В проекте один согласованный seed-механизм или явно задокументированная миграция от старого к новому.
 
 ### T11-09. Документировать локальный запуск
 
@@ -298,9 +307,11 @@ Acceptance criteria:
 
 Задачи:
 
-- Обновить `README.md` или создать `docs/local_run.md`.
+- Создать или обновить обязательный документ `docs/local_run.md`.
+- README оставить коротким индексом со ссылкой на `docs/local_run.md`, `docs/demo_checklist.md`, `docs/llm_agent_guide.md`, `docs/mvp_acceptance.md`.
 - Описать запуск in-memory/dev profile.
-- Описать запуск Postgres+Hangfire profile.
+- Описать Postgres+Hangfire smoke profile и явно указать, какие части проверяются как устойчивые storage/queue части.
+- Описать, что payment/risk/moderation/settings могут оставаться in-memory/dev-срезом, если production persistence для них не была реализована ранее.
 - Описать миграции и ожидаемые таблицы.
 - Описать обязательные настройки:
   - `Persistence:Provider`;
@@ -321,13 +332,14 @@ Acceptance criteria:
   - не работает Hangfire;
   - нет доступа в admin;
   - webhook отклоняется;
-  - unsubscribe token невалиден.
+  - unsubscribe token невалиден;
+  - fake provider/payment случайно заменён реальной конфигурацией.
 
 Acceptance criteria:
 
-- Инструкция самодостаточна для локального запуска.
-- Инструкция различает dev/in-memory и Postgres+Hangfire режимы.
-- README содержит ссылку на подробный документ, если он вынесен отдельно.
+- `docs/local_run.md` самодостаточен для локального запуска.
+- Инструкция различает dev/in-memory full e2e и Postgres+Hangfire smoke.
+- README содержит ссылки на обязательные документы, а не пытается вместить всю детализацию.
 
 ### T11-10. Документировать правила для LLM-агентов
 
@@ -335,7 +347,7 @@ Acceptance criteria:
 
 Задачи:
 
-- Создать или обновить `docs/llm_agent_guide.md`.
+- Создать или обновить обязательный документ `docs/llm_agent_guide.md`.
 - Зафиксировать архитектурные границы:
   - `Domain` не зависит от infrastructure/web;
   - `Application` содержит сценарии и интерфейсы;
@@ -370,13 +382,14 @@ Acceptance criteria:
 
 Задачи:
 
-- Создать `docs/mvp_acceptance.md` или обновить существующий документ.
+- Создать или обновить обязательный документ `docs/mvp_acceptance.md`.
 - Сопоставить acceptance criteria с `docs/specification.md`, `docs/platform_tz.md`, `docs/sprints.md`.
 - Отметить для каждого критерия:
   - реализовано;
   - частично реализовано;
   - не входит в MVP;
-  - требует отдельного production hardening.
+  - требует отдельного production hardening;
+  - post-MVP.
 - Проверить продуктовые обязательства:
   - простая рассылка без BCC;
   - импорт адресов;
@@ -388,21 +401,24 @@ Acceptance criteria:
   - ответы получателей;
   - админ-контроль рисков.
 - Отдельно перечислить известные ограничения MVP.
+- Зафиксировать freeze-правило: Sprint 11 не расширяет MVP новыми production-обязательствами. Новые требования записываются как post-MVP / production hardening, если они не нужны для локального demo.
 
 Acceptance criteria:
 
 - Есть один документ, по которому можно принять или не принять MVP.
 - Все известные ограничения явно названы.
 - Нет скрытых production-обещаний, которых код не выполняет.
+- Новые production-требования не блокируют MVP-testing, если не были частью согласованного MVP.
 
-### T11-12. Покрыть полный happy path интеграционным тестом
+### T11-12. Покрыть happy path интеграционным тестом или набором тестов
 
 **Цель:** защитить основной flow от регрессий.
 
 Задачи:
 
-- Добавить integration test полного happy path.
-- Тест должен проходить ключевые HTTP endpoints в порядке пользовательского сценария.
+- Добавить integration test или набор integration tests полного happy path.
+- Разрешён набор устойчивых тестов с общим helper/factory; не требуется один гигантский тест на 200 шагов, если он становится хрупким.
+- Тесты должны проходить ключевые HTTP endpoints в порядке пользовательского сценария.
 - Где невозможно пройти реальную авторизацию через UI, использовать существующие test helpers, но не обходить бизнес-правила.
 - Проверить, что после отправки есть `SendEvent` и корректная статистика.
 - Проверить, что fake webhook обновляет delivery-сводку.
@@ -412,8 +428,9 @@ Acceptance criteria:
 Acceptance criteria:
 
 - Один тест или набор тестов доказывает основной e2e flow.
-- Тест не зависит от порядка запуска других тестов.
-- Тест не использует реальные внешние сервисы.
+- Тесты не зависят от порядка запуска других тестов.
+- Тесты не используют реальные внешние сервисы.
+- Тесты читаемы и не превращаются в неподдерживаемый монолит.
 
 ### T11-13. Добавить regression tests для критичных негативных сценариев
 
@@ -472,23 +489,26 @@ Acceptance criteria:
 
 ### T11-15. Финальный hardening dev-only и security flags
 
-**Цель:** исключить случайный доступ к dev-инструментам вне Development.
+**Цель:** исключить случайный доступ к dev-инструментам и реальные внешние действия в MVP smoke.
 
 Задачи:
 
 - Проверить `/dev/fake-mailer`.
 - Проверить `/dev/webhooks/fake`.
-- Проверить seed/demo endpoints.
+- Проверить seed/demo endpoints или startup seed mode.
 - Проверить dev admin allowlist warnings.
 - Проверить, что fake secrets не имеют production defaults без warning/fail-fast.
 - Проверить, что raw payload/body/token не показываются обычному пользователю.
 - Проверить, что admin pages имеют backend auth guard.
+- Проверить, что fake provider/fake payment используются в smoke/demo flow.
+- Проверить, что реальные email/payment provider settings либо отсутствуют, либо выключены, либо требуют explicit enable flag вне Sprint 11.
 
 Acceptance criteria:
 
-- Dev-only endpoints недоступны вне Development.
+- Dev-only endpoints закрыты вне Development.
 - Слабые секреты дают warning или fail-fast в production-like конфигурации.
 - Обычный пользователь не видит debug/raw данные.
+- Финальный smoke не создаёт реальных внешних отправок и платежей.
 
 ## 6. Unit-тесты Sprint 11
 
@@ -505,13 +525,15 @@ Acceptance criteria:
 - unsubscribe idempotency;
 - reply cleanup;
 - blocked client / blocked mailing policy;
-- admin settings application rules.
+- admin settings application rules;
+- seed/demo guard rules;
+- MVP acceptance freeze rules, если они вынесены в кодовые checks.
 
 ## 7. Интеграционные тесты Sprint 11
 
 Обязательный минимум:
 
-- полный happy path;
+- полный happy path как один тест или набор устойчивых тестов;
 - сценарий с ручной модерацией;
 - сценарий с отпиской;
 - сценарий с hard bounce;
@@ -521,6 +543,8 @@ Acceptance criteria:
 - повторный fake payment callback;
 - повторный send job;
 - повторный webhook event;
+- dev/in-memory full e2e;
+- Postgres+Hangfire smoke, если test setup позволяет;
 - запрет dev-only endpoints вне Development, если test setup позволяет.
 
 ## 8. Ручные тесты Sprint 11
@@ -548,24 +572,27 @@ Acceptance criteria:
 19. Открыть unsubscribe link из fake mailer.
 20. Отправить fake inbound reply.
 21. Проверить admin audit.
-22. Повторить ключевой smoke test с Postgres+Hangfire profile.
+22. Повторить smoke test с Postgres+Hangfire profile по устойчивым storage/queue частям.
 23. Проверить мобильную ширину.
 24. Проверить CSV с ошибками.
 25. Проверить refresh/retry на оплате, отправке и webhook.
+26. Проверить, что fake provider/payment не заменены реальными интеграциями в smoke flow.
 
 ## 9. Definition of Done Sprint 11
 
 Sprint 11 считается завершённым, если:
 
-- полный demo checklist проходит локально;
-- основной happy path покрыт интеграционным тестом;
+- полный `docs/demo_checklist.md` проходит локально;
+- dev/in-memory full e2e проходит без ручной правки БД;
+- Postgres+Hangfire smoke проходит по устойчивым storage/queue частям;
+- основной happy path покрыт интеграционным тестом или набором устойчивых тестов;
 - критичные негативные сценарии покрыты unit/integration tests;
 - пользовательские ошибки отображаются понятным русским текстом;
 - нет тупиков UI в основном flow;
 - fake provider, fake payment, unsubscribe, webhook, inbound reply и admin audit работают в связке;
-- README или docs содержат локальный запуск и smoke checklist;
-- есть guide для LLM-агентов;
-- есть acceptance checklist MVP с известными ограничениями;
+- есть обязательные документы: `docs/demo_checklist.md`, `docs/local_run.md`, `docs/llm_agent_guide.md`, `docs/mvp_acceptance.md`;
+- README содержит короткий индекс и ссылки на обязательные документы;
+- MVP acceptance фиксирует известные ограничения и не расширяет Sprint 11 до production hardening;
 - `dotnet format --verify-no-changes`, `dotnet build` и `dotnet test` проходят;
 - dev-only endpoints не доступны вне Development;
 - все изменения не создают реальных внешних отправок и платежей.
@@ -574,11 +601,11 @@ Sprint 11 считается завершённым, если:
 
 В рамках Sprint 11 нужно синхронизировать:
 
-- `README.md` — локальный запуск, ссылки на demo checklist, актуальные маршруты, smoke flow;
+- `README.md` — короткий индекс, ссылки на demo checklist, local run, LLM guide, MVP acceptance, актуальные маршруты;
 - `docs/demo_checklist.md` — полный ручной e2e сценарий;
-- `docs/local_run.md` — подробный запуск dev/in-memory и Postgres+Hangfire, если не всё помещается в README;
+- `docs/local_run.md` — подробный запуск dev/in-memory и Postgres+Hangfire smoke;
 - `docs/llm_agent_guide.md` — правила для LLM-агентов;
-- `docs/mvp_acceptance.md` — критерии приёмки MVP и известные ограничения;
+- `docs/mvp_acceptance.md` — критерии приёмки MVP, известные ограничения, post-MVP / production hardening;
 - `docs/platform_tz.md` — только если в процессе hardening меняются архитектурные решения;
 - `docs/specification.md` — менять не требуется, если не меняются продуктовые решения.
 
@@ -587,8 +614,10 @@ Sprint 11 считается завершённым, если:
 - Реальный email provider.
 - Реальный платёжный агент.
 - Полная production deliverability-инфраструктура.
+- Production persistence для всех оставшихся in-memory/dev-срезов, если это не было реализовано раньше.
 - Массовая аналитика и BI.
 - Полный redesign UI.
 - Мультидоменная отправка от клиентов.
 - Персонализация по ФИО для новых клиентов сверх уже согласованной модели.
 - Production-grade хранение всех исторических provider payload без отдельной retention policy.
+- Расширение MVP acceptance новыми production-обязательствами без отдельного решения.
