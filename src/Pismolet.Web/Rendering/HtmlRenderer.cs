@@ -49,29 +49,10 @@ public static class HtmlRenderer
 
     public static string Dashboard(UserAccount user)
     {
-        var mailings = user.Mailings.ToList();
+        var mailings = user.Mailings.OrderByDescending(mailing => mailing.CreatedAt).ToList();
         var total = mailings.Count;
-        var active = mailings.Count(m => m.Status is MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Paused);
+        var active = mailings.Count(m => m.Status is MailingStatus.PaymentPending or MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired or MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Paused);
         var sent = mailings.Count(m => m.Status is MailingStatus.Sent);
-
-        var rows = mailings.Count == 0
-            ? "<div class='empty-state'>Пока нет рассылок. Создайте первую, чтобы проверить базу, подготовить письмо и отправить его получателям.</div>"
-            : string.Join(string.Empty, mailings.Select(m =>
-            {
-                var (actionUrl, actionText) = DashboardAction(m);
-                return $"""
-                    <div class='history-row'>
-                        <div>
-                            <b>{H(m.Subject)}</b><br>
-                            <span class='hint'>Статус: {H(m.StatusRu)}</span>
-                        </div>
-                        <div class='history-actions'>
-                            <span class='{BadgeClass(m)}'>{H(m.StatusRu)}</span>
-                            <a class='text-link' href='{H(actionUrl)}'>{H(actionText)}</a>
-                        </div>
-                    </div>
-                    """;
-            }));
 
         return $"""
             <section class='dashboard-shell'>
@@ -82,7 +63,7 @@ public static class HtmlRenderer
                         <p>Загрузите адреса, подтвердите основание рассылки, подготовьте письмо и отправьте его через Письмолёт.</p>
                         <div class='actions'>
                             <a class='btn' href='/mailings/new'>Создать рассылку</a>
-                            <a class='btn secondary' href='#latest-mailings'>Последние рассылки</a>
+                            <a class='btn secondary' href='#mailing-history'>История рассылок</a>
                         </div>
                     </div>
                 </section>
@@ -103,15 +84,15 @@ public static class HtmlRenderer
                     </div>
                 </section>
 
-                <section class='panel' id='latest-mailings'>
+                <section class='panel' id='mailing-history'>
                     <div class='section-head'>
                         <div>
-                            <p class='eyebrow'>История</p>
-                            <h2>Последние рассылки</h2>
+                            <p class='eyebrow'>Контроль</p>
+                            <h2>История рассылок</h2>
                         </div>
                         <a class='btn secondary' href='/mailings/new'>Новая рассылка</a>
                     </div>
-                    <div class='history-list'>{rows}</div>
+                    {MailingHistoryRows(mailings)}
                 </section>
             </section>
             """;
@@ -218,6 +199,46 @@ public static class HtmlRenderer
             """;
     }
 
+    private static string MailingHistoryRows(IReadOnlyCollection<Mailing> mailings)
+    {
+        if (mailings.Count == 0)
+        {
+            return "<div class='empty-state'>Пока нет рассылок. Создайте первую, чтобы проверить базу, подготовить письмо и отправить его получателям.</div>";
+        }
+
+        var rows = string.Join(string.Empty, mailings.Select(mailing =>
+        {
+            var accepted = mailing.LastImportStats.Accepted;
+            var estimatedCost = accepted;
+            var (actionUrl, actionText) = DashboardAction(mailing);
+            return $"""
+                <div class='history-row campaign-history-row'>
+                    <div class='campaign-main'>
+                        <b>{H(mailing.Subject)}</b>
+                        <span class='hint'>Создано: {mailing.CreatedAt:dd.MM.yyyy}</span>
+                    </div>
+                    <div><span class='history-label'>Письма</span><b>{accepted}</b></div>
+                    <div><span class='history-label'>Стоимость</span><b>{estimatedCost:0.##} ₽</b></div>
+                    <div><span class='history-label'>Статус</span><span class='{BadgeClass(mailing)}'>{H(mailing.StatusRu)}</span></div>
+                    <div class='history-actions'><a class='text-link' href='{H(actionUrl)}'>{H(actionText)}</a></div>
+                </div>
+                """;
+        }));
+
+        return $"""
+            <div class='history-table'>
+                <div class='history-table-head'>
+                    <span>Название</span>
+                    <span>Количество писем</span>
+                    <span>Стоимость</span>
+                    <span>Статус</span>
+                    <span>Действие</span>
+                </div>
+                {rows}
+            </div>
+            """;
+    }
+
     private static string PaymentRows(IReadOnlyCollection<Mailing> mailings, string emptyText)
     {
         if (mailings.Count == 0)
@@ -285,7 +306,7 @@ public static class HtmlRenderer
         return mailing.Status switch
         {
             MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired or MailingStatus.Approved or MailingStatus.Rejected => ($"/mailings/{mailing.Id}/checks", "Открыть проверку"),
-            MailingStatus.Sending or MailingStatus.Sent or MailingStatus.Paused or MailingStatus.Failed => ($"/mailings/{mailing.Id}", "Открыть"),
+            MailingStatus.Sending or MailingStatus.Sent or MailingStatus.Paused or MailingStatus.Failed => ($"/mailings/{mailing.Id}/send", "Открыть отправку"),
             _ => ($"/mailings/{mailing.Id}/payment", "К оплате")
         };
     }
