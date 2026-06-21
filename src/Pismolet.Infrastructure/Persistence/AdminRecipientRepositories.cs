@@ -183,7 +183,7 @@ public sealed class EfAdminRecipientRepository(PismoletDbContext db) : IAdminRec
     }
 }
 
-file sealed record RecipientSnapshot(
+internal sealed record RecipientSnapshot(
     string Email,
     Guid MailingId,
     string OwnerEmail,
@@ -193,7 +193,7 @@ file sealed record RecipientSnapshot(
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastMessageAt);
 
-file sealed record SendSnapshot(
+internal sealed record SendSnapshot(
     string Email,
     Guid MailingId,
     SendEventStatus Status,
