@@ -1,4 +1,4 @@
-using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Infrastructure.Audit;
