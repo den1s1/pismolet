@@ -37,7 +37,8 @@ public interface IUserAccountService
 public sealed class UserAccountService(
     IUserRepository users,
     IFakeMailer fakeMailer,
-    IAuditLogger auditLogger) : IUserAccountService
+    IAuditLogger auditLogger,
+    IAdminMvpSettingsRepository settingsRepository) : IUserAccountService
 {
     public RegisterUserResult Register(RegisterUserCommand command, RequestMetadata request)
     {
@@ -56,6 +57,7 @@ public sealed class UserAccountService(
             return RegisterUserResult.Failure("Пользователь уже существует.");
         }
 
+        var settings = settingsRepository.Get();
         var token = Guid.NewGuid().ToString("N");
         var user = new UserAccount(
             Email: email,
@@ -63,7 +65,7 @@ public sealed class UserAccountService(
             DisplayName: displayName,
             ConfirmationToken: token,
             EmailConfirmed: false,
-            Profile: ClientProfile.NewClientDefault(),
+            Profile: ClientProfile.NewClientDefault(settings),
             Mailings: [Mailing.Draft("Первая рассылка")]);
 
         if (!users.TryAdd(user))
