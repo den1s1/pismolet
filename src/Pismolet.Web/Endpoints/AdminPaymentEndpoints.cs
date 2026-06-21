@@ -22,39 +22,37 @@ public static class AdminPaymentEndpoints
         return app;
     }
 
-    private static IResult ShowPayments(HttpContext http, IUserRepository users, IMailingRepository mailings)
+    private static IResult ShowPayments(HttpContext http, IAdminPaymentRepository payments)
     {
         var adminEmail = CurrentEmail(http) ?? "admin@example.test";
         var search = http.Request.Query["q"].ToString().Trim();
         var status = http.Request.Query["status"].ToString().Trim();
-        var allRows = users.ListAll()
-            .OrderBy(user => user.Email, StringComparer.OrdinalIgnoreCase)
-            .SelectMany(user => mailings.ListForOwner(user.Email)
-                .Select(mailing => new AdminPaymentRow(mailing, user.DisplayName)))
-            .OrderByDescending(row => row.Mailing.CreatedAt)
+        var allRows = payments.ListSummaries()
+            .OrderByDescending(row => row.CreatedAt)
             .ToArray();
 
         var rows = allRows.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             rows = rows.Where(row =>
-                row.Mailing.Subject.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                row.Mailing.OwnerEmail.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                row.Subject.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                row.DisplaySubject.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                row.OwnerEmail.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                 row.ClientName.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            rows = rows.Where(row => PaymentStageCode(row.Mailing) == status);
+            rows = rows.Where(row => PaymentStageCode(row) == status);
         }
 
         var filtered = rows.ToArray();
         var stats = $"""
             <div class='admin-stats'>
                 <div class='admin-stat'><b>{allRows.Length}</b><span>Счетов</span></div>
-                <div class='admin-stat'><b>{allRows.Count(row => PaymentStageCode(row.Mailing) == "pending")}</b><span>Ожидают оплаты</span></div>
-                <div class='admin-stat'><b>{allRows.Count(row => PaymentStageCode(row.Mailing) == "paid")}</b><span>Оплачены</span></div>
-                <div class='admin-stat'><b>{FormatMoney(allRows.Where(row => PaymentStageCode(row.Mailing) == "paid").Sum(row => row.Mailing.LastImportStats.Accepted))}</b><span>Оплачено всего</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => PaymentStageCode(row) == "pending")}</b><span>Ожидают оплаты</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => PaymentStageCode(row) == "paid")}</b><span>Оплачены</span></div>
+                <div class='admin-stat'><b>{FormatMoney(allRows.Where(row => PaymentStageCode(row) == "paid").Sum(row => row.AcceptedRecipients))}</b><span>Оплачено всего</span></div>
             </div>
             """;
         var tableRows = filtered.Length == 0
@@ -143,11 +141,8 @@ public static class AdminPaymentEndpoints
         return AdminHtml($"Админка - оплата {mailing.Subject}", adminEmail, "payments", body);
     }
 
-    private static string PaymentRow(AdminPaymentRow row)
-    {
-        var mailing = row.Mailing;
-        return $"<tr><td><a class='admin-link' href='/admin/payments/{mailing.Id}'>{H(mailing.MessageDraft?.Subject ?? mailing.Subject)}</a><br><span class='admin-muted'>{H(mailing.Id.ToString())}</span></td><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(mailing.OwnerEmail)}'>{H(row.ClientName)}</a><br><span class='admin-muted'>{H(mailing.OwnerEmail)}</span></td><td><span class='admin-badge payment-{H(PaymentStageCode(mailing))}'>{H(PaymentStageText(mailing))}</span></td><td>{mailing.LastImportStats.Accepted}</td><td>{FormatMoney(mailing.LastImportStats.Accepted)}</td><td>{FormatDate(mailing.CreatedAt)}</td><td><a class='admin-link' href='/admin/campaigns/{mailing.Id}'>Кампания</a></td></tr>";
-    }
+    private static string PaymentRow(AdminMailingSummary row) =>
+        $"<tr><td><a class='admin-link' href='/admin/payments/{row.Id}'>{H(row.DisplaySubject)}</a><br><span class='admin-muted'>{H(row.Id.ToString())}</span></td><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(row.OwnerEmail)}'>{H(row.ClientName)}</a><br><span class='admin-muted'>{H(row.OwnerEmail)}</span></td><td><span class='admin-badge payment-{H(PaymentStageCode(row))}'>{H(PaymentStageText(row))}</span></td><td>{row.AcceptedRecipients}</td><td>{FormatMoney(row.AcceptedRecipients)}</td><td>{FormatDate(row.CreatedAt)}</td><td><a class='admin-link' href='/admin/campaigns/{row.Id}'>Кампания</a></td></tr>";
 
     private static string PaymentEventsRows(Mailing mailing)
     {
@@ -172,14 +167,29 @@ public static class AdminPaymentEndpoints
         return string.Join(string.Empty, rows);
     }
 
+    private static string PaymentStageCode(AdminMailingSummary row)
+    {
+        if (row.Status == MailingStatus.Paid) return "paid";
+        if (row.Status == MailingStatus.PaymentPending) return "pending";
+        if (row.Status == MailingStatus.MessagePrepared) return "ready";
+        return row.AcceptedRecipients > 0 && row.HasMessageDraft ? "ready" : "not_ready";
+    }
+
     private static string PaymentStageCode(Mailing mailing)
     {
-        var status = mailing.Status.ToString();
-        if (status.Equals("Paid", StringComparison.OrdinalIgnoreCase)) return "paid";
-        if (status.Equals("PaymentPending", StringComparison.OrdinalIgnoreCase)) return "pending";
-        if (status.Equals("MessagePrepared", StringComparison.OrdinalIgnoreCase)) return "ready";
+        if (mailing.Status == MailingStatus.Paid) return "paid";
+        if (mailing.Status == MailingStatus.PaymentPending) return "pending";
+        if (mailing.Status == MailingStatus.MessagePrepared) return "ready";
         return mailing.LastImportStats.Accepted > 0 && mailing.MessageDraft is not null ? "ready" : "not_ready";
     }
+
+    private static string PaymentStageText(AdminMailingSummary row) => PaymentStageCode(row) switch
+    {
+        "paid" => "Оплачено",
+        "pending" => "Ожидает оплаты",
+        "ready" => "Готово к оплате",
+        _ => "Не готово"
+    };
 
     private static string PaymentStageText(Mailing mailing) => PaymentStageCode(mailing) switch
     {
@@ -224,6 +234,4 @@ public static class AdminPaymentEndpoints
     private static string FormatDate(DateTimeOffset? value) => value is null ? "-" : value.Value.ToString("yyyy-MM-dd HH:mm");
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
-
-    private sealed record AdminPaymentRow(Mailing Mailing, string ClientName);
 }
