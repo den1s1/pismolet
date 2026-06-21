@@ -127,7 +127,8 @@ public static class AdminSprint10Endpoints
         <label>Дневной лимит нового клиента <input name='dailyLimit' type='number' min='0' value='{settings.DefaultDailySendLimit}'></label>
         <label>Общий лимит нового клиента <input name='totalLimit' type='number' min='0' value='{settings.DefaultTotalSendLimit}'></label>
         <label>Retention тела ответа, дней <input name='replyRetentionDays' type='number' min='1' max='60' value='{settings.ReplyBodyRetentionDays}'></label>
-        <button class='admin-button' type='submit'>Сохранить настройки</button></form></section>""";
+        <button class='admin-button' type='submit'>Сохранить настройки</button></form></section>
+        """;
         return AdminHtml("Настройки MVP", CurrentEmail(http), "settings", body);
     }
 
