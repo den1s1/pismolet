@@ -39,3 +39,133 @@
 .payment-list .empty-state {
   margin-top: 12px;
 }
+
+.wizard-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.wizard-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wizard-step {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  padding: 7px 13px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.wizard-step.current {
+  border-color: #bfdbfe;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.wizard-step.done {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: var(--ok);
+}
+
+.wizard-intro {
+  max-width: 760px;
+}
+
+.legal-warning {
+  border: 1px solid #fed7aa;
+  border-radius: 18px;
+  background: var(--warn-soft);
+  color: #92400e;
+  padding: 16px 18px;
+  margin: 18px 0;
+  font-weight: 800;
+}
+
+.error-message {
+  border: 1px solid #fecaca;
+  border-radius: 16px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  padding: 14px 16px;
+  font-weight: 800;
+}
+
+.wizard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.dropzone,
+.manual-addresses {
+  align-content: start;
+  border: 1px dashed #93c5fd;
+  border-radius: 22px;
+  background: #f8fbff;
+  padding: 20px;
+}
+
+.dropzone span,
+.manual-addresses span {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.dropzone input[type="file"] {
+  border-style: dashed;
+  background: #fff;
+}
+
+.wizard-actions {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.import-summary {
+  margin: 20px 0 26px;
+}
+
+.issue-list {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 14px 0 0;
+}
+
+.issue-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #f8fafc;
+  padding: 12px 14px;
+}
+
+.issue-list span {
+  word-break: break-word;
+}
+
+.issue-list em {
+  color: var(--danger);
+  font-style: normal;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .issue-list li {
+    grid-template-columns: 1fr;
+  }
+}
