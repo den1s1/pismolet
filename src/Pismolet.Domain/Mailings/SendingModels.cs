@@ -15,6 +15,7 @@ public enum SendSkipReason
     GlobalSuppression,
     ClientSuppression,
     DailyLimit,
+    WarmupLimit,
     AlreadySent,
     NoMessage
 }
@@ -193,7 +194,7 @@ public sealed record SendEvent(
         };
     }
 
-    public SendEvent ResetForResume() => Status == SendEventStatus.Paused && Reason == SendSkipReason.DailyLimit
+    public SendEvent ResetForResume() => Status == SendEventStatus.Paused && Reason is SendSkipReason.DailyLimit or SendSkipReason.WarmupLimit
         ? this with { Status = SendEventStatus.Pending, Reason = SendSkipReason.None, UpdatedAt = DateTimeOffset.UtcNow }
         : this;
 
