@@ -106,7 +106,7 @@ public sealed class MailingDeclarationService(
         var userEmail = emailNormalizer.Normalize(command.UserEmail);
         if (string.IsNullOrWhiteSpace(userEmail))
         {
-            return MailingDeclarationResult.Failure("Пользователь не определён.");
+            return MailingDeclarationResult.Failure("Пользователь не определён.", null);
         }
 
         var mailing = mailings.GetForOwner(command.MailingId, userEmail);
@@ -257,14 +257,14 @@ public sealed class MessageRenderingService : IMessageRenderingService
 
     public RenderedMessagePreview RenderPreview(Mailing mailing)
     {
+        var serviceId = $"Служебный идентификатор рассылки: {mailing.PublicId}";
         if (mailing.MessageDraft is null)
         {
-            return new RenderedMessagePreview(string.Empty, string.Empty, string.Empty, mailing.PublicId);
+            return new RenderedMessagePreview(string.Empty, string.Empty, string.Empty, serviceId);
         }
 
         var source = mailing.Declaration?.BaseSource.ToRu() ?? "загруженной базы адресов";
         var reason = $"Почему вы получили это письмо: ваш адрес находится в базе «{source}», которую отправитель подтвердил перед рассылкой.";
-        var serviceId = $"Служебный идентификатор рассылки: {mailing.PublicId}";
         var plain = string.Join("\n\n", mailing.MessageDraft.Body, reason, $"Отписаться от всех рассылок через сервис: {PreviewUnsubscribeUrl}", serviceId);
 
         return new RenderedMessagePreview(plain, PreviewUnsubscribeUrl, reason, serviceId);
