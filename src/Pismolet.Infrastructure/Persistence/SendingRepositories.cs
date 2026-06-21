@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Mailings;
 
@@ -32,6 +33,23 @@ public sealed class InMemorySendEventRepository : ISendEventRepository
         x.AcceptedAt is not null &&
         string.Equals(x.OwnerEmail, ownerEmail.Trim().ToLowerInvariant(), StringComparison.OrdinalIgnoreCase) &&
         DateOnly.FromDateTime(x.AcceptedAt.Value.UtcDateTime) == utcDate);
+
+    public IReadOnlyCollection<MailWarmupAcceptedSend> ListAcceptedForWarmupWindow(string ownerEmail, DateTimeOffset sinceUtc)
+    {
+        var normalized = ownerEmail.Trim().ToLowerInvariant();
+        var since = sinceUtc.ToUniversalTime();
+
+        return _items.Values
+            .Where(x =>
+                x.Status == SendEventStatus.Accepted &&
+                x.AcceptedAt is not null &&
+                string.Equals(x.OwnerEmail, normalized, StringComparison.OrdinalIgnoreCase) &&
+                x.AcceptedAt.Value.ToUniversalTime() >= since)
+            .OrderBy(x => x.AcceptedAt!.Value)
+            .ThenBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new MailWarmupAcceptedSend(x.RecipientEmail, x.AcceptedAt!.Value.ToUniversalTime()))
+            .ToArray();
+    }
 
     public void Save(SendEvent sendEvent) => _items[Key(sendEvent.MailingId, sendEvent.RecipientEmail)] = sendEvent;
 
