@@ -52,7 +52,7 @@ public sealed class MailingWizardEndpointsTests
     }
 
     [Fact]
-    public async Task Manual_address_import_preserves_list_and_shows_import_result()
+    public async Task Manual_address_import_preserves_accepted_recipients_and_shows_import_result()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Wizard Owner");
@@ -79,10 +79,19 @@ public sealed class MailingWizardEndpointsTests
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
         var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
         Assert.NotNull(mailing);
-        Assert.Equal(3, mailing.Recipients.Count);
+        Assert.Equal(3, mailing.LastImportStats.TotalRows);
+        Assert.Equal(1, mailing.LastImportStats.Accepted);
+        Assert.Equal(1, mailing.LastImportStats.Duplicates);
+        Assert.Equal(1, mailing.LastImportStats.Invalid);
+        Assert.Equal(0, mailing.LastImportStats.GloballySuppressed);
+        Assert.Equal(1, mailing.Recipients.Count);
         Assert.Single(mailing.Recipients, recipient => recipient.Status == RecipientStatus.Accepted);
-        Assert.Single(mailing.Recipients, recipient => recipient.Status == RecipientStatus.Duplicate);
-        Assert.Single(mailing.Recipients, recipient => recipient.Status == RecipientStatus.Invalid);
+        Assert.NotNull(mailing.LastImportBatch);
+        Assert.Equal(3, mailing.LastImportBatch.TotalRows);
+        Assert.Equal(1, mailing.LastImportBatch.Accepted);
+        Assert.Equal(1, mailing.LastImportBatch.Duplicates);
+        Assert.Equal(1, mailing.LastImportBatch.Invalid);
+        Assert.Equal(2, mailing.LastImportBatch.Issues.Count);
     }
 
     [Fact]
@@ -102,6 +111,32 @@ public sealed class MailingWizardEndpointsTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Ручная вставка слишком большая", html);
+
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.Empty(mailing.Recipients);
+    }
+
+    [Fact]
+    public async Task Manual_address_import_rejects_too_many_rows_before_import()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Wizard Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Too many rows manual import campaign");
+        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+        var manualAddresses = string.Join('\n', Enumerable.Range(1, 1001).Select(index => $"person{index}@example.test"));
+        using var content = new MultipartFormDataContent
+        {
+            { new StringContent(manualAddresses), "manualAddresses" }
+        };
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/recipients", content);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Ручная вставка содержит больше 1000 строк", html);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
