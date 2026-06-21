@@ -23,7 +23,7 @@ public sealed class SendingServicesTests
         var fakeMailer = new TestFakeMailer();
         var provider = new FakeEmailProviderAdapter(fakeMailer);
         var mailingId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        var message = new EmailMessage(mailingId, new EmailRecipient("ok@example.test"), "Sender", "Subject", "Body", "/unsubscribe/test", "PL-TEST");
+        var message = CreateMessage(mailingId, "ok@example.test");
 
         var first = await provider.SendAsync(message, CancellationToken.None);
         var second = await provider.SendAsync(message, CancellationToken.None);
@@ -38,7 +38,7 @@ public sealed class SendingServicesTests
     public async Task Fake_provider_returns_failure_for_fail_address()
     {
         var provider = new FakeEmailProviderAdapter(new TestFakeMailer());
-        var message = new EmailMessage(Guid.NewGuid(), new EmailRecipient("please-fail@example.test"), "Sender", "Subject", "Body", "/unsubscribe/test", "PL-TEST");
+        var message = CreateMessage(Guid.NewGuid(), "please-fail@example.test");
 
         var result = await provider.SendAsync(message, CancellationToken.None);
 
@@ -58,6 +58,18 @@ public sealed class SendingServicesTests
         Assert.Equal(SendEventStatus.Skipped, suppressed.Status);
         Assert.Equal(SendEventStatus.Paused, paused.Status);
     }
+
+    private static EmailMessage CreateMessage(Guid mailingId, string recipientEmail) => new(
+        mailingId,
+        new EmailRecipient(recipientEmail),
+        "Sender",
+        "Subject",
+        "Body",
+        "/unsubscribe/test",
+        "PL-TEST",
+        "reply@example.test",
+        "reply-token",
+        new Dictionary<string, string> { ["mailingId"] = mailingId.ToString("N") });
 
     private sealed class TestFakeMailer : IFakeMailer
     {
