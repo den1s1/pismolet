@@ -104,6 +104,11 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
     {
         var mime = new MimeMessage();
         var displayName = string.IsNullOrWhiteSpace(message.SenderName) ? options.FromName : message.SenderName.Trim();
+        var unsubscribeUrl = ToAbsoluteUrl(message.UnsubscribeUrl);
+        var textBody = ReplaceRelativeUrl(message.PlainTextBody, message.UnsubscribeUrl, unsubscribeUrl);
+        textBody = ReplaceVisibleRelativeUnsubscribeLinks(textBody);
+        textBody = KeepSingleVisibleUnsubscribeLink(textBody, unsubscribeUrl);
+
         mime.From.Add(new MailboxAddress(displayName, options.FromEmail));
         mime.To.Add(MailboxAddress.Parse(message.Recipient.Email));
         mime.Subject = message.Subject;
@@ -114,14 +119,10 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
             mime.ReplyTo.Add(replyTo);
         }
 
-        if (message.Metadata.TryGetValue("listUnsubscribe", out var listUnsubscribe) && !string.IsNullOrWhiteSpace(listUnsubscribe))
+        if (!string.IsNullOrWhiteSpace(unsubscribeUrl))
         {
-            mime.Headers.Replace("List-Unsubscribe", listUnsubscribe);
-        }
-
-        if (message.Metadata.TryGetValue("listUnsubscribePost", out var listUnsubscribePost) && !string.IsNullOrWhiteSpace(listUnsubscribePost))
-        {
-            mime.Headers.Replace("List-Unsubscribe-Post", listUnsubscribePost);
+            mime.Headers.Replace("List-Unsubscribe", $"<{unsubscribeUrl}>");
+            mime.Headers.Replace("List-Unsubscribe-Post", "List-Unsubscribe=One-Click");
         }
 
         if (message.Metadata.TryGetValue("mailingId", out var mailingId))
@@ -136,8 +137,8 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
 
         var body = new BodyBuilder
         {
-            TextBody = message.PlainTextBody,
-            HtmlBody = BuildHtmlBody(message.PlainTextBody, message.UnsubscribeUrl)
+            TextBody = textBody,
+            HtmlBody = BuildHtmlBody(textBody, unsubscribeUrl)
         };
         mime.Body = body.ToMessageBody();
         return mime;
@@ -197,7 +198,7 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
 
     private static string ReplaceRelativeUrl(string body, string relativeUrl, string absoluteUrl)
     {
-        if (string.IsNullOrWhiteSpace(relativeUrl) || relativeUrl == absoluteUrl)
+        if (string.IsNullOrWhiteSpace(body) || string.IsNullOrWhiteSpace(relativeUrl) || relativeUrl == absoluteUrl)
         {
             return body;
         }
