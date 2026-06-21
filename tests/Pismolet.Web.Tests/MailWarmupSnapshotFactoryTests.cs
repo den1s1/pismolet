@@ -87,5 +87,5 @@ public sealed class MailWarmupSnapshotFactoryTests
 
     private static MailWarmupAcceptedSend Send(string recipientEmail, DateTimeOffset sentAt) => new(
         recipientEmail.Trim().ToLowerInvariant(),
-        sentAt.ToUniversalTime());
+        sentAt);
 }
