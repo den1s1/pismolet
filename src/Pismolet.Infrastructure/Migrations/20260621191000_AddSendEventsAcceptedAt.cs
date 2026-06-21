@@ -1,10 +1,14 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Pismolet.Web.Infrastructure.Database;
 
 #nullable disable
 
 namespace Pismolet.Web.Infrastructure.Migrations;
 
+[DbContext(typeof(PismoletDbContext))]
+[Migration("20260621191000_AddSendEventsAcceptedAt")]
 public partial class AddSendEventsAcceptedAt : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
