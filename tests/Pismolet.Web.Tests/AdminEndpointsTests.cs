@@ -12,6 +12,8 @@ using Microsoft.Extensions.Options;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Application.Persistence;
+using Pismolet.Web.Domain.Mailings;
 
 namespace Pismolet.Web.Tests;
 
@@ -112,6 +114,55 @@ public sealed class AdminEndpointsTests
         Assert.Contains("Owner campaign", html);
     }
 
+    [Fact]
+    public async Task Admin_recipients_page_shows_statuses_and_filters_by_email()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Owner User");
+        SeedUser(factory, OtherEmail, "Other User");
+        SeedRecipientMailing(factory, OwnerEmail, "Lead campaign", "lead@example.test");
+        SeedRecipientMailing(factory, OtherEmail, "Other lead campaign", "lead@example.test");
+        SeedRecipientMailing(factory, OtherEmail, "Blocked campaign", "blocked@example.test");
+        SuppressRecipient(factory, "blocked@example.test");
+        using var client = CreateAuthenticatedClient(factory, AdminEmail);
+
+        var html = await client.GetStringAsync("/admin/recipients");
+
+        Assert.Contains("Получатели", html);
+        Assert.Contains("lead@example.test", html);
+        Assert.Contains("Активен", html);
+        Assert.Contains("blocked@example.test", html);
+        Assert.Contains("Заблокирован вручную", html);
+        Assert.Contains("Клиентов", html);
+
+        var filtered = await client.GetStringAsync("/admin/recipients?q=blocked");
+        Assert.Contains("blocked@example.test", filtered);
+        Assert.DoesNotContain("lead@example.test", filtered);
+    }
+
+    [Fact]
+    public async Task Admin_recipient_profile_shows_lists_and_allows_global_suppression()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Owner User");
+        SeedRecipientMailing(factory, OwnerEmail, "Lead campaign", "lead@example.test");
+        using var client = CreateAuthenticatedClient(factory, AdminEmail);
+
+        var html = await client.GetStringAsync("/admin/recipients/" + Uri.EscapeDataString("lead@example.test"));
+
+        Assert.Contains("Профиль получателя", html);
+        Assert.Contains("lead@example.test", html);
+        Assert.Contains("Списки пользователей", html);
+        Assert.Contains(OwnerEmail, html);
+        Assert.Contains("Lead campaign", html);
+        Assert.Contains("Добавить глобальную отписку", html);
+
+        var response = await client.PostAsync("/admin/recipients/" + Uri.EscapeDataString("lead@example.test") + "/suppress", new StringContent(string.Empty));
+        response.EnsureSuccessStatusCode();
+        var updated = await client.GetStringAsync("/admin/recipients/" + Uri.EscapeDataString("lead@example.test"));
+        Assert.Contains("Заблокирован вручную", updated);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -159,6 +210,24 @@ public sealed class AdminEndpointsTests
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
         var result = mailings.CreateDraft(new CreateMailingCommand(ownerEmail, subject), Request());
         Assert.True(result.Ok, result.Error);
+    }
+
+    private static void SeedRecipientMailing(WebApplicationFactory<Program> factory, string ownerEmail, string subject, string recipientEmail)
+    {
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingRepository>();
+        var normalized = recipientEmail.Trim().ToLowerInvariant();
+        var mailing = Mailing.Draft(ownerEmail, subject).WithImportResult(
+            new ImportStats(1, 1, 0, 0, 0),
+            [Recipient.Accepted(recipientEmail, normalized)]);
+        Assert.True(mailings.TryAdd(mailing));
+    }
+
+    private static void SuppressRecipient(WebApplicationFactory<Program> factory, string email)
+    {
+        using var scope = factory.Services.CreateScope();
+        var suppressions = scope.ServiceProvider.GetRequiredService<IGlobalSuppressionRepository>();
+        suppressions.Add(email);
     }
 
     private static RequestMetadata Request() => new("127.0.0.1", "admin-endpoint-tests");
