@@ -68,15 +68,14 @@ public sealed class MailWarmupSnapshotFactoryTests
     [Fact]
     public void Snapshot_factory_uses_explicit_sent_at_instead_of_mutable_update_time()
     {
-        var now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
+        var deliveryUpdateTime = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
         var yesterdaySend = DateTimeOffset.Parse("2026-06-20T10:00:00Z");
-        var recentDeliveryUpdate = now.AddSeconds(-10);
         var sends = new[]
         {
             Send("lead1@example.test", yesterdaySend)
         };
 
-        var snapshot = MailWarmupSnapshotFactory.Build(sends, "target@example.test", recentDeliveryUpdate);
+        var snapshot = MailWarmupSnapshotFactory.Build(sends, "target@example.test", deliveryUpdateTime);
 
         Assert.Equal(0, snapshot.GlobalSentLastMinute);
         Assert.Equal(0, snapshot.GlobalSentLastHour);
