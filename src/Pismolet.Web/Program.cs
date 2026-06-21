@@ -73,6 +73,7 @@ app.MapPaymentEndpoints();
 app.MapCheckEndpoints();
 app.MapSendEndpoints();
 app.MapAdminEndpoints();
+app.MapAdminPaymentEndpoints();
 app.MapUnsubscribeEndpoints();
 app.MapWebhookEndpoints();
 app.MapInboundReplyEndpoints();
