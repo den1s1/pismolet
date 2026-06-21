@@ -23,7 +23,7 @@ public static class SendEndpoints
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.GetState(email, id);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Отправка рассылки", SendPage(result, replies.GetSummary(id), null)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Отправка рассылки", SendPage(result, replies.GetSummary(id), null), authenticated: true));
     }
 
     private static IResult StartSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies)
@@ -31,7 +31,7 @@ public static class SendEndpoints
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.StartSending(email, id, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Отправка рассылки", SendPage(result, replies.GetSummary(id), result.Ok ? "Отправка поставлена в очередь." : result.Error)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Отправка рассылки", SendPage(result, replies.GetSummary(id), result.Ok ? "Отправка поставлена в очередь." : result.Error), authenticated: true));
     }
 
     private static IResult ResumeSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies)
@@ -39,7 +39,7 @@ public static class SendEndpoints
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.ResumeSending(email, id, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Отправка рассылки", SendPage(result, replies.GetSummary(id), result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Отправка рассылки", SendPage(result, replies.GetSummary(id), result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error), authenticated: true));
     }
 
     private static string SendPage(MailingSendResult result, ReplySummary replySummary, string? message)
