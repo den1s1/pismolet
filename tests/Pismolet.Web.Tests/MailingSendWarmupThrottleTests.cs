@@ -60,6 +60,39 @@ public sealed class MailingSendWarmupThrottleTests
         Assert.NotNull(item.AcceptedAt);
     }
 
+    [Fact]
+    public async Task Execute_batch_with_real_warmup_gate_pauses_second_recipient_after_first_acceptance()
+    {
+        var mailingId = Guid.Parse("cccccccc-3333-3333-3333-cccccccccccc");
+        var mailings = new InMemoryMailingRepository();
+        var sendEvents = new InMemorySendEventRepository();
+        var provider = new CountingEmailProviderAdapter();
+        var queue = new CountingQueue();
+        var audit = new InMemoryAuditLogger();
+        var gate = new MailWarmupSendGate(
+            sendEvents,
+            new MailWarmupThrottle(),
+            new MailWarmupLimitOptions(
+                MaxPerMinute: 1,
+                MaxPerHour: 100,
+                MaxPerDay: 1000,
+                MinSecondsBetweenSends: 0));
+        mailings.TryAdd(SendingMailing(mailingId, "first@example.test", "second@example.test"));
+        sendEvents.Save(SendEvent.Pending(mailingId, "owner@example.test", "first@example.test"));
+        sendEvents.Save(SendEvent.Pending(mailingId, "owner@example.test", "second@example.test"));
+        var service = CreateService(mailings, sendEvents, provider, queue, audit, gate);
+
+        await service.ExecuteQueuedBatchAsync(mailingId, CancellationToken.None);
+
+        Assert.Equal(1, provider.SendCalls);
+        Assert.Equal(0, queue.EnqueueCalls);
+        Assert.Equal(MailingStatus.Paused, mailings.Get(mailingId)!.Status);
+        var events = sendEvents.ListByMailingId(mailingId).ToArray();
+        Assert.Contains(events, x => x.RecipientEmail == "first@example.test" && x.Status == SendEventStatus.Accepted && x.AcceptedAt is not null);
+        Assert.Contains(events, x => x.RecipientEmail == "second@example.test" && x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.DailyLimit);
+        Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_paused_by_warmup" && x.Context.Contains("reason=global_minute_limit", StringComparison.Ordinal));
+    }
+
     private static MailingSendService CreateService(
         InMemoryMailingRepository mailings,
         InMemorySendEventRepository sendEvents,
