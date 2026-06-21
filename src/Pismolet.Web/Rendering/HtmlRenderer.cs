@@ -115,6 +115,98 @@ public static class HtmlRenderer
             """;
     }
 
+    public static string UserProfile(UserAccount user)
+    {
+        var confirmed = user.EmailConfirmed ? "подтверждён" : "ожидает подтверждения";
+        var moderation = user.Profile.PremoderationRequired ? "первые и рискованные рассылки проходят проверку" : "премодерация отключена";
+
+        return $"""
+            <section class='dashboard-shell'>
+                <section class='panel'>
+                    <div class='section-head'>
+                        <div>
+                            <p class='eyebrow'>Профиль</p>
+                            <h1>{H(user.DisplayName)}</h1>
+                        </div>
+                        <span class='badge neutral'>{H(user.Profile.Status)}</span>
+                    </div>
+                    <p class='muted'>Здесь собраны данные аккаунта, лимиты и настройки отправителя. Часть полей пока информационная и будет подключена к реальным настройкам в следующих спринтах.</p>
+                </section>
+
+                <section class='panel'>
+                    <div class='details-grid'>
+                        <div class='profile-field'><span>Email для входа</span><b>{H(user.Email)}</b><small>{H(confirmed)}</small></div>
+                        <div class='profile-field'><span>Имя пользователя</span><b>{H(user.DisplayName)}</b><small>берётся из регистрации</small></div>
+                        <div class='profile-field'><span>Телефон для связи</span><b>Не указан</b><small>будет редактироваться позже</small></div>
+                        <div class='profile-field'><span>Отправитель по умолчанию</span><b>Письмолёт</b><small>демонстрационное значение</small></div>
+                        <div class='profile-field'><span>Email для пересылки ответов</span><b>{H(user.Email)}</b><small>пока используется email аккаунта</small></div>
+                        <div class='profile-field'><span>Статус аккаунта</span><b>{H(user.Profile.Status)}</b><small>{H(moderation)}</small></div>
+                        <div class='profile-field'><span>Дневной лимит</span><b>{user.Profile.DailySendLimit}</b><small>писем в сутки</small></div>
+                        <div class='profile-field'><span>Общий лимит</span><b>{user.Profile.TotalSendLimit}</b><small>лимит аккаунта в MVP</small></div>
+                    </div>
+                </section>
+
+                <section class='panel'>
+                    <div class='section-head'>
+                        <div>
+                            <p class='eyebrow'>Оплата</p>
+                            <h2>Состояние оплат</h2>
+                        </div>
+                        <a class='btn secondary' href='/payments'>Открыть платежи</a>
+                    </div>
+                    <p class='muted'>На текущем этапе оплата тестовая. История оплат и ожидающие оплаты вынесены на отдельный экран.</p>
+                </section>
+            </section>
+            """;
+    }
+
+    public static string Payments(UserAccount user)
+    {
+        var mailings = user.Mailings.OrderByDescending(m => m.CreatedAt).ToList();
+        var pending = mailings.Where(m => m.Status is MailingStatus.Priced or MailingStatus.PaymentPending or MailingStatus.MessagePrepared).ToList();
+        var paid = mailings.Where(m => m.Status is MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired or MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Sent or MailingStatus.Failed or MailingStatus.Paused).ToList();
+
+        var pendingRows = pending.Count == 0
+            ? "<div class='empty-state'>Нет рассылок, ожидающих оплаты.</div>"
+            : string.Join(string.Empty, pending.Select(PaymentRow));
+        var paidRows = paid.Count == 0
+            ? "<div class='empty-state'>Пока нет оплаченных рассылок.</div>"
+            : string.Join(string.Empty, paid.Select(PaymentRow));
+        var historyRows = mailings.Count == 0
+            ? "<div class='empty-state'>История оплат появится после создания и оплаты первой рассылки.</div>"
+            : string.Join(string.Empty, mailings.Select(PaymentRow));
+
+        return $"""
+            <section class='dashboard-shell'>
+                <section class='panel'>
+                    <div class='section-head'>
+                        <div>
+                            <p class='eyebrow'>Платежи</p>
+                            <h1>Оплаты и счета</h1>
+                        </div>
+                        <a class='btn' href='/mailings/new'>Создать рассылку</a>
+                    </div>
+                    <p class='muted'>Пока в MVP используется тестовая оплата. Реальный биллинг будет подключён отдельно, а этот экран уже фиксирует структуру ЛК.</p>
+                </section>
+
+                <section class='panel'>
+                    <div class='section-head'><h2>Ожидают оплаты</h2><span class='badge warn'>{pending.Count}</span></div>
+                    <div class='payment-list'>{pendingRows}</div>
+                </section>
+
+                <section class='panel'>
+                    <div class='section-head'><h2>Оплаченные рассылки</h2><span class='badge'>{paid.Count}</span></div>
+                    <div class='payment-list'>{paidRows}</div>
+                </section>
+
+                <section class='panel'>
+                    <div class='section-head'><h2>История оплат</h2><span class='badge neutral'>{mailings.Count}</span></div>
+                    <div class='payment-list'>{historyRows}</div>
+                </section>
+            </section>
+            """;
+    }
+
     public static string FakeMailer(IEnumerable<FakeMail> messages) =>
         "<section class='panel'><h1>Fake mailer</h1>" +
         string.Join(string.Empty, messages.Select(x => $"<article class='mail'><b>{H(x.Subject)}</b><p>{H(x.To)}</p><a href='{H(x.Link)}'>{H(x.Link)}</a></article>")) +
@@ -133,12 +225,34 @@ public static class HtmlRenderer
                     <div class='profile-dropdown' role='menu'>
                         <a href='/mailings/new' role='menuitem'>Новая рассылка</a>
                         <a href='/dashboard' role='menuitem'>История</a>
+                        <a href='/payments' role='menuitem'>Платежи</a>
+                        <a href='/profile' role='menuitem'>Профиль</a>
                         <a href='/admin' role='menuitem'>Админка</a>
                         {devLink}
                         <form method='post' action='/account/logout'>
                             <button type='submit'>Выйти</button>
                         </form>
                     </div>
+                </div>
+            </div>
+            """;
+    }
+
+    private static string PaymentRow(Mailing mailing)
+    {
+        var url = mailing.Status is MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired or MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Sent or MailingStatus.Failed or MailingStatus.Paused
+            ? $"/mailings/{mailing.Id}/checks"
+            : $"/mailings/{mailing.Id}/payment";
+
+        return $"""
+            <div class='history-row'>
+                <div>
+                    <b>{H(mailing.Subject)}</b><br>
+                    <span class='hint'>Создана: {mailing.CreatedAt:yyyy-MM-dd HH:mm} UTC</span>
+                </div>
+                <div class='history-actions'>
+                    <span class='{BadgeClass(mailing)}'>{H(mailing.StatusRu)}</span>
+                    <a class='text-link' href='{H(url)}'>Открыть</a>
                 </div>
             </div>
             """;
