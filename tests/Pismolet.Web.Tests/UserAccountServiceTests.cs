@@ -17,7 +17,7 @@ public sealed class UserAccountServiceTests
         var users = new InMemoryUserRepository();
         var mailer = new InMemoryFakeMailer();
         var audit = new InMemoryAuditLogger();
-        var service = new UserAccountService(users, mailer, audit);
+        var service = new UserAccountService(users, mailer, audit, new InMemoryAdminMvpSettingsRepository());
 
         var result = service.Register(new RegisterUserCommand("CLIENT@EXAMPLE.COM", "password123", "Клиент"), Request);
 
@@ -39,7 +39,7 @@ public sealed class UserAccountServiceTests
     public void Authenticate_rejects_user_before_email_confirmation()
     {
         var users = new InMemoryUserRepository();
-        var service = new UserAccountService(users, new InMemoryFakeMailer(), new InMemoryAuditLogger());
+        var service = new UserAccountService(users, new InMemoryFakeMailer(), new InMemoryAuditLogger(), new InMemoryAdminMvpSettingsRepository());
 
         service.Register(new RegisterUserCommand("client@example.com", "password123", "Клиент"), Request);
 
@@ -53,7 +53,7 @@ public sealed class UserAccountServiceTests
     {
         var users = new InMemoryUserRepository();
         var audit = new InMemoryAuditLogger();
-        var service = new UserAccountService(users, new InMemoryFakeMailer(), audit);
+        var service = new UserAccountService(users, new InMemoryFakeMailer(), audit, new InMemoryAdminMvpSettingsRepository());
         var result = service.Register(new RegisterUserCommand("client@example.com", "password123", "Клиент"), Request);
         var token = result.ConfirmLink!.Split("token=")[1];
 
