@@ -67,10 +67,11 @@ public static class SendEndpoints
             : result.Ok
                 ? $"<p class='notice'>{H(message)}</p>"
                 : $"<p class='error-message'>{H(message)}</p>";
+        var pausedNote = PauseNote(state.Events);
         var action = mailing.Status switch
         {
             MailingStatus.Approved => $"<form method='post' action='/mailings/{mailing.Id}/send/start'><button class='button'>Запустить отправку</button></form>",
-            MailingStatus.Paused => $"<form method='post' action='/mailings/{mailing.Id}/send/resume'><button class='button'>Продолжить отправку</button></form><p class='muted'>Достигнут дневной лимит отправки. Продолжение возможно после смены дня или изменения лимита администратором.</p>",
+            MailingStatus.Paused => $"<form method='post' action='/mailings/{mailing.Id}/send/resume'><button class='button'>Продолжить отправку</button></form>{pausedNote}",
             MailingStatus.Sending => $"<p><span class='badge warn'>Отправка выполняется</span></p><p><a class='button' href='/mailings/{mailing.Id}/send'>Обновить статус</a></p>",
             MailingStatus.Sent => "<p><span class='badge ok'>Отправка завершена</span></p>",
             MailingStatus.Failed => "<p><span class='badge danger'>Есть ошибки отправки</span></p><p class='muted'>Подробности ошибок доступны администратору; пользователю показываем только безопасную сводку.</p>",
@@ -134,6 +135,17 @@ public static class SendEndpoints
               </section>
             </section>
             """;
+    }
+
+    private static string PauseNote(IReadOnlyCollection<SendEvent> events)
+    {
+        var paused = events.Where(x => x.Status == SendEventStatus.Paused).ToArray();
+        if (paused.Any(x => x.Reason == SendSkipReason.WarmupLimit) && paused.All(x => x.Reason != SendSkipReason.DailyLimit))
+        {
+            return "<p class='muted'>Отправка временно приостановлена из-за лимитов прогрева почты. Продолжение возможно позже, когда пройдёт минимальный интервал между письмами, или после изменения лимитов администратором.</p>";
+        }
+
+        return "<p class='muted'>Достигнут дневной лимит отправки. Продолжение возможно после смены дня или изменения лимита администратором.</p>";
     }
 
     private static string MaskEmail(string email)
