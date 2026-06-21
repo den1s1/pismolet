@@ -11,7 +11,7 @@ public static class AdminEndpoints
 {
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin", () => HtmlRenderer.Html(HtmlRenderer.Page("Админ-зона", "<section class='card'><h1>Админ-зона</h1><p>Внутренние инструменты MVP.</p><p><a class='button' href='/admin/moderation'>Очередь модерации</a></p><p><a class='button' href='/admin/limits'>Дневные лимиты клиентов</a></p><p class='muted'>TODO: подключить роли администратора после появления RBAC-модели.</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>"))).RequireAuthorization();
+        app.MapGet("/admin", () => HtmlRenderer.Html(HtmlRenderer.Page("Админ-зона", "<section class='card'><h1>Админ-зона</h1><p>Внутренние инструменты MVP.</p><p><a class='button' href='/admin/moderation'>Очередь модерации</a></p><p><a class='button' href='/admin/limits'>Дневные лимиты клиентов</a></p><p class='muted'>TODO: подключить роли администратора после появления RBAC-модели.</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>", authenticated: true))).RequireAuthorization();
         app.MapGet("/admin/moderation", ShowQueue).RequireAuthorization();
         app.MapGet("/admin/moderation/{reviewId:guid}", ShowReview).RequireAuthorization();
         app.MapPost("/admin/moderation/{reviewId:guid}/approve", Approve).RequireAuthorization();
@@ -34,13 +34,13 @@ public static class AdminEndpoints
             }));
 
         var body = $"<section class='card'><h1>Очередь модерации</h1><p class='muted'>Доступ пока ограничен общей авторизацией. TODO: добавить роль администратора.</p><table><thead><tr><th>Дата</th><th>Тема</th><th>Клиент</th><th>Причины</th><th></th></tr></thead><tbody>{rows}</tbody></table><p><a href='/admin'>Вернуться в админ-зону</a></p></section>";
-        return HtmlRenderer.Html(HtmlRenderer.Page("Очередь модерации", body));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Очередь модерации", body, authenticated: true));
     }
 
     private static IResult ShowReview(Guid reviewId, IModerationAdminService moderation, IMessageRenderingService renderer)
     {
         var result = moderation.Get(reviewId);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Карточка модерации", ReviewPage(result, renderer)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Карточка модерации", ReviewPage(result, renderer), authenticated: true));
     }
 
     private static async Task<IResult> Approve(Guid reviewId, HttpContext http, IModerationAdminService moderation, IMessageRenderingService renderer)
@@ -49,7 +49,7 @@ public static class AdminEndpoints
         if (email is null) return Results.Redirect("/account/login");
         var form = await http.Request.ReadFormAsync();
         var result = moderation.Approve(reviewId, email, form["comment"].ToString(), ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Карточка модерации", ReviewPage(result, renderer)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Карточка модерации", ReviewPage(result, renderer), authenticated: true));
     }
 
     private static async Task<IResult> Reject(Guid reviewId, HttpContext http, IModerationAdminService moderation, IMessageRenderingService renderer)
@@ -58,10 +58,10 @@ public static class AdminEndpoints
         if (email is null) return Results.Redirect("/account/login");
         var form = await http.Request.ReadFormAsync();
         var result = moderation.Reject(reviewId, email, form["comment"].ToString(), ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Карточка модерации", ReviewPage(result, renderer)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Карточка модерации", ReviewPage(result, renderer), authenticated: true));
     }
 
-    private static IResult ShowLimits() => HtmlRenderer.Html(HtmlRenderer.Page("Дневные лимиты", LimitPage(null, null, null)));
+    private static IResult ShowLimits() => HtmlRenderer.Html(HtmlRenderer.Page("Дневные лимиты", LimitPage(null, null, null), authenticated: true));
 
     private static async Task<IResult> UpdateLimit(HttpContext http, IClientSendLimitAdminService limits)
     {
@@ -72,14 +72,14 @@ public static class AdminEndpoints
         var rawLimit = form["dailyLimit"].ToString();
         if (!int.TryParse(rawLimit, out var dailyLimit))
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Дневные лимиты", LimitPage("Укажите лимит числом.", clientEmail, rawLimit)));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Дневные лимиты", LimitPage("Укажите лимит числом.", clientEmail, rawLimit), authenticated: true));
         }
 
         var result = limits.UpdateDailyLimit(clientEmail, dailyLimit, adminEmail, ToRequestMetadata(http));
         var message = result.Ok && result.User is not null
             ? $"Лимит клиента {result.User.Email} изменён на {result.User.Profile.DailySendLimit}."
             : result.Error;
-        return HtmlRenderer.Html(HtmlRenderer.Page("Дневные лимиты", LimitPage(message, clientEmail, dailyLimit.ToString())));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Дневные лимиты", LimitPage(message, clientEmail, dailyLimit.ToString()), authenticated: true));
     }
 
     private static string ReviewPage(AdminModerationResult result, IMessageRenderingService renderer)
