@@ -30,7 +30,7 @@ public sealed class MailingSendWarmupThrottleTests
         Assert.Equal(0, queue.EnqueueCalls);
         Assert.Equal(MailingStatus.Paused, mailings.Get(mailingId)!.Status);
         var events = sendEvents.ListByMailingId(mailingId).ToArray();
-        Assert.Contains(events, x => x.RecipientEmail == "first@example.test" && x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.DailyLimit);
+        Assert.Contains(events, x => x.RecipientEmail == "first@example.test" && x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.WarmupLimit);
         Assert.Contains(events, x => x.RecipientEmail == "second@example.test" && x.Status == SendEventStatus.Pending);
         Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_paused_by_warmup");
         Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_paused_by_limit" && x.Context.Contains("source=warmup", StringComparison.Ordinal));
@@ -89,7 +89,7 @@ public sealed class MailingSendWarmupThrottleTests
         Assert.Equal(MailingStatus.Paused, mailings.Get(mailingId)!.Status);
         var events = sendEvents.ListByMailingId(mailingId).ToArray();
         Assert.Contains(events, x => x.RecipientEmail == "first@example.test" && x.Status == SendEventStatus.Accepted && x.AcceptedAt is not null);
-        Assert.Contains(events, x => x.RecipientEmail == "second@example.test" && x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.DailyLimit);
+        Assert.Contains(events, x => x.RecipientEmail == "second@example.test" && x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.WarmupLimit);
         Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_paused_by_warmup" && x.Context.Contains("reason=global_minute_limit", StringComparison.Ordinal));
     }
 
