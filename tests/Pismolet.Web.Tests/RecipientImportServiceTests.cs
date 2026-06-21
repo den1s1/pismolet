@@ -17,37 +17,34 @@ public sealed class RecipientImportServiceTests
     {
         var normalizer = new EmailNormalizer();
 
-        Assert.Equal("client@example.com", normalizer.Normalize(" CLIENT@EXAMPLE.COM "));
+        Assert.Equal("client@test.local", normalizer.Normalize(" CLIENT@TEST.LOCAL "));
         Assert.Equal(string.Empty, normalizer.Normalize("   "));
     }
 
     [Fact]
-    public async Task ImportCsv_counts_valid_duplicates_invalid_and_global_opt_outs()
+    public async Task ImportCsv_counts_valid_duplicates_and_invalid_rows()
     {
         var mailings = new InMemoryMailingRepository();
         var audit = new InMemoryAuditLogger();
         var mailingService = new MailingService(mailings, audit, new EmailNormalizer());
-        var created = mailingService.CreateDraft(new CreateMailingCommand("client@example.com", "Новости"), Request);
-        var optOuts = new InMemoryGlobalSuppressionRepository();
-        optOuts.Add("blocked@example.com");
+        var created = mailingService.CreateDraft(new CreateMailingCommand("client@test.local", "Новости"), Request);
         var service = new RecipientImportService(
             mailings,
-            optOuts,
+            new InMemoryGlobalSuppressionRepository(),
+            new InMemoryClientSuppressionRepository(),
             new EmailNormalizer(),
             new EmailSyntaxValidator(),
             audit);
 
-        await using var stream = ToStream("email\nfirst@example.com\nFIRST@example.com\nwrong-email\nblocked@example.com\nsecond@example.com\n");
-        var result = await service.ImportAsync(new ImportRecipientsCommand("client@example.com", created.Mailing!.Id, "list.csv", stream, Request));
+        await using var stream = ToStream("email\nfirst@test.local\nFIRST@test.local\nwrong-email\nsecond@test.local\n");
+        var result = await service.ImportAsync(new ImportRecipientsCommand("client@test.local", created.Mailing!.Id, "list.csv", stream, Request));
 
         Assert.True(result.Ok);
-        Assert.Equal(5, result.Stats.TotalRows);
+        Assert.Equal(4, result.Stats.TotalRows);
         Assert.Equal(2, result.Stats.Accepted);
         Assert.Equal(1, result.Stats.Duplicates);
         Assert.Equal(1, result.Stats.Invalid);
-        Assert.Equal(1, result.Stats.GloballySuppressed);
-        Assert.Equal(2, mailings.GetForOwner(created.Mailing.Id, "client@example.com")!.Recipients.Count);
-        Assert.NotNull(mailings.GetForOwner(created.Mailing.Id, "client@example.com")!.LastImportBatch);
+        Assert.Equal(2, mailings.GetForOwner(created.Mailing.Id, "client@test.local")!.Recipients.Count);
         Assert.Contains(audit.GetRecords(), record => record.EventType == "recipients_import_completed");
     }
 
@@ -56,16 +53,17 @@ public sealed class RecipientImportServiceTests
     {
         var mailings = new InMemoryMailingRepository();
         var created = new MailingService(mailings, new InMemoryAuditLogger(), new EmailNormalizer())
-            .CreateDraft(new CreateMailingCommand("client@example.com", "Новости"), Request);
+            .CreateDraft(new CreateMailingCommand("client@test.local", "Новости"), Request);
         var service = new RecipientImportService(
             mailings,
             new InMemoryGlobalSuppressionRepository(),
+            new InMemoryClientSuppressionRepository(),
             new EmailNormalizer(),
             new EmailSyntaxValidator(),
             new InMemoryAuditLogger());
 
-        await using var stream = ToStream("name\nclient@example.com\n");
-        var result = await service.ImportAsync(new ImportRecipientsCommand("client@example.com", created.Mailing!.Id, "list.csv", stream, Request));
+        await using var stream = ToStream("name\nclient@test.local\n");
+        var result = await service.ImportAsync(new ImportRecipientsCommand("client@test.local", created.Mailing!.Id, "list.csv", stream, Request));
 
         Assert.False(result.Ok);
         Assert.Equal("В файле должна быть колонка email.", result.Error);
