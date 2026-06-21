@@ -1,0 +1,210 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Pismolet.Web.Infrastructure.Database;
+
+#nullable disable
+
+namespace Pismolet.Web.Infrastructure.Migrations;
+
+[DbContext(typeof(PismoletDbContext))]
+public partial class PismoletDbContextModelSnapshot : ModelSnapshot
+{
+    protected override void BuildModel(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
+
+        modelBuilder.Entity<UserEntity>(entity =>
+        {
+            entity.ToTable("users");
+            entity.HasKey(x => x.Email);
+            entity.HasIndex(x => x.NormalizedEmail).IsUnique();
+            entity.Property(x => x.Email).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.NormalizedEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PasswordHash).IsRequired();
+            entity.Property(x => x.ConfirmationToken).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.ProfileStatus).HasMaxLength(40).IsRequired();
+        });
+
+        modelBuilder.Entity<MailingEntity>(entity =>
+        {
+            entity.ToTable("mailings");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.OwnerEmail);
+            entity.Property(x => x.OwnerEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.Subject).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.StatusRu).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.PublicId).HasMaxLength(32).IsRequired();
+        });
+
+        modelBuilder.Entity<ImportBatchEntity>(entity =>
+        {
+            entity.ToTable("import_batches");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.MailingId);
+            entity.Property(x => x.FileName).HasMaxLength(260).IsRequired();
+            entity.Property(x => x.SourceFormat).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            entity.HasOne<MailingEntity>().WithMany().HasForeignKey(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RecipientEntity>(entity =>
+        {
+            entity.ToTable("recipients");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.MailingId);
+            entity.HasIndex(x => x.NormalizedEmail);
+            entity.Property(x => x.SourceEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.NormalizedEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.ExclusionReason).HasMaxLength(200);
+            entity.HasOne<MailingEntity>().WithMany().HasForeignKey(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ImportBatchEntity>().WithMany().HasForeignKey(x => x.ImportBatchId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ImportIssueEntity>(entity =>
+        {
+            entity.ToTable("import_issues");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.ImportBatchId);
+            entity.Property(x => x.Email).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.Message).HasMaxLength(200).IsRequired();
+            entity.HasOne<ImportBatchEntity>().WithMany().HasForeignKey(x => x.ImportBatchId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MailingDeclarationEntity>(entity =>
+        {
+            entity.ToTable("mailing_declarations");
+            entity.HasKey(x => x.MailingId);
+            entity.HasIndex(x => x.UserEmail);
+            entity.HasIndex(x => x.ImportBatchId);
+            entity.Property(x => x.UserEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.BaseSource).HasMaxLength(60).IsRequired();
+            entity.Property(x => x.DeclarationVersion).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Ip).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.UserAgent).HasMaxLength(512).IsRequired();
+            entity.HasOne<MailingEntity>().WithOne().HasForeignKey<MailingDeclarationEntity>(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MailingMessageDraftEntity>(entity =>
+        {
+            entity.ToTable("mailing_message_drafts");
+            entity.HasKey(x => x.MailingId);
+            entity.Property(x => x.SenderName).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Subject).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Body).IsRequired();
+            entity.Property(x => x.MessageType).HasMaxLength(40).IsRequired();
+            entity.HasOne<MailingEntity>().WithOne().HasForeignKey<MailingMessageDraftEntity>(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AuditRecordEntity>(entity =>
+        {
+            entity.ToTable("audit_records");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.User);
+            entity.Property(x => x.User).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.EventType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Ip).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.UserAgent).HasMaxLength(512).IsRequired();
+            entity.Property(x => x.Context).IsRequired();
+        });
+
+        modelBuilder.Entity<GlobalSuppressionEntity>(entity =>
+        {
+            entity.ToTable("global_suppressions");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.EmailNormalized).IsUnique();
+            entity.HasIndex(x => x.EmailHash);
+            entity.HasIndex(x => x.SourceMailingId);
+            entity.Property(x => x.EmailNormalized).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.EmailHash).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Source).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.SourceRecipientKey).HasMaxLength(120);
+            entity.Property(x => x.CreatedIpHash).HasMaxLength(64);
+            entity.Property(x => x.UserAgentHash).HasMaxLength(64);
+        });
+
+        modelBuilder.Entity<SendEventEntity>(entity =>
+        {
+            entity.ToTable("send_events");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.MailingId);
+            entity.HasIndex(x => new { x.MailingId, x.RecipientEmail }).IsUnique();
+            entity.HasIndex(x => x.ProviderMessageId);
+            entity.HasIndex(x => new { x.MailingId, x.Status, x.CreatedAt });
+            entity.HasIndex(x => new { x.MailingId, x.DeliveryStatus });
+            entity.HasIndex(x => new { x.OwnerEmail, x.UpdatedAt });
+            entity.HasIndex(x => new { x.OwnerEmail, x.AcceptedAt });
+            entity.Property(x => x.OwnerEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.RecipientEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Reason).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Provider).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.ProviderMessageId).HasMaxLength(240);
+            entity.Property(x => x.ErrorCode).HasMaxLength(120);
+            entity.Property(x => x.ErrorMessage).HasMaxLength(1000);
+            entity.Property(x => x.DeliveryStatus).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.LastDeliverySummary).HasMaxLength(1000);
+            entity.HasOne<MailingEntity>().WithMany().HasForeignKey(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProviderWebhookEventEntity>(entity =>
+        {
+            entity.ToTable("provider_webhook_events");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Provider, x.ProviderEventId }).IsUnique();
+            entity.HasIndex(x => x.ProviderMessageId);
+            entity.HasIndex(x => x.MailingId);
+            entity.HasIndex(x => new { x.MailingId, x.EventType });
+            entity.Property(x => x.Provider).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.ProviderEventId).HasMaxLength(240).IsRequired();
+            entity.Property(x => x.ProviderMessageId).HasMaxLength(240);
+            entity.Property(x => x.ClientId).HasMaxLength(254);
+            entity.Property(x => x.RecipientEmailNormalized).HasMaxLength(254);
+            entity.Property(x => x.EventType).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.RawPayloadHash).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.RawPayloadStored).HasMaxLength(4096);
+            entity.Property(x => x.ReasonCode).HasMaxLength(120);
+            entity.Property(x => x.ReasonMessage).HasMaxLength(1000);
+            entity.Property(x => x.ProcessingStatus).HasMaxLength(40).IsRequired();
+        });
+
+        modelBuilder.Entity<ClientSuppressionEntity>(entity =>
+        {
+            entity.ToTable("client_suppressions");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.ClientId, x.EmailNormalized }).IsUnique();
+            entity.HasIndex(x => x.EmailNormalized);
+            entity.Property(x => x.ClientId).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.EmailNormalized).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.Reason).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.SourceProviderMessageId).HasMaxLength(240);
+        });
+
+        modelBuilder.Entity<ReplyEventEntity>(entity =>
+        {
+            entity.ToTable("reply_events");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Provider, x.ProviderInboundEventId }).IsUnique();
+            entity.HasIndex(x => new { x.MailingId, x.ReceivedAt });
+            entity.HasIndex(x => new { x.ClientId, x.ReceivedAt });
+            entity.HasIndex(x => new { x.ProcessingStatus, x.ReceivedAt });
+            entity.HasIndex(x => x.BodyExpiresAt);
+            entity.Property(x => x.Provider).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.ProviderInboundEventId).HasMaxLength(240).IsRequired();
+            entity.Property(x => x.ClientId).HasMaxLength(254);
+            entity.Property(x => x.RecipientEmailNormalized).HasMaxLength(254);
+            entity.Property(x => x.FromEmailNormalized).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.ToAddress).HasMaxLength(512).IsRequired();
+            entity.Property(x => x.ReplyTokenHash).HasMaxLength(64);
+            entity.Property(x => x.SubjectPreview).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.ForwardToEmailNormalized).HasMaxLength(254);
+            entity.Property(x => x.ProcessingStatus).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.BodyStorageStatus).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.BodyTextStored).HasMaxLength(16000);
+            entity.Property(x => x.RawPayloadHash).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.ErrorCode).HasMaxLength(120);
+            entity.Property(x => x.ErrorMessage).HasMaxLength(1000);
+        });
+    }
+}
