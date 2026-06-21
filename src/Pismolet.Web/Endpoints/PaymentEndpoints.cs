@@ -21,7 +21,7 @@ public static class PaymentEndpoints
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Проверка и оплата", PaymentPage(result)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Проверка и оплата", PaymentPage(result), authenticated: true));
     }
 
     private static IResult StartPayment(Guid id, HttpContext http, IMailingPaymentService payments)
@@ -29,9 +29,9 @@ public static class PaymentEndpoints
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = payments.StartPayment(email, id, ToRequestMetadata(http));
-        if (!result.Ok || result.Review?.Payment is null) return HtmlRenderer.Html(HtmlRenderer.Page("Проверка и оплата", PaymentPage(result)));
+        if (!result.Ok || result.Review?.Payment is null) return HtmlRenderer.Html(HtmlRenderer.Page("Проверка и оплата", PaymentPage(result), authenticated: true));
         var operationId = result.Review.Payment.Attempts.LastOrDefault()?.ProviderOperationId ?? string.Empty;
-        return HtmlRenderer.Html(HtmlRenderer.Page("Тестовая оплата", ConfirmPage(id, operationId)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Тестовая оплата", ConfirmPage(id, operationId), authenticated: true));
     }
 
     private static IResult ConfirmPayment(Guid id, HttpContext http, IMailingPaymentService payments)
@@ -40,7 +40,7 @@ public static class PaymentEndpoints
         if (email is null) return Results.Redirect("/account/login");
         var operationId = http.Request.Form["operationId"].ToString();
         var result = payments.ConfirmPayment(email, id, operationId, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Проверка и оплата", PaymentPage(result)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Проверка и оплата", PaymentPage(result), authenticated: true));
     }
 
     private static string PaymentPage(MailingPaymentResult result)
