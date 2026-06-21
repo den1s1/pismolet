@@ -21,7 +21,12 @@ public static class AdminEndpoints
         app.MapGet("/admin/recipients", ShowRecipients).RequireAuthorization(AdminPolicyName);
         app.MapGet("/admin/recipients/{email}", ShowRecipientProfile).RequireAuthorization(AdminPolicyName);
         app.MapPost("/admin/recipients/{email}/suppress", SuppressRecipient).RequireAuthorization(AdminPolicyName);
-        app.MapGet("/admin/campaigns", (HttpContext http) => Placeholder(http, "Кампании", "Список кампаний и модерация будут расширены в следующем админском спринте.", "campaigns")).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/campaigns", ShowCampaigns).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/campaigns/{campaignId:guid}", ShowCampaignProfile).RequireAuthorization(AdminPolicyName);
+        app.MapPost("/admin/campaigns/{campaignId:guid}/pause", (Guid campaignId) => CampaignAction(campaignId, "paused")).RequireAuthorization(AdminPolicyName);
+        app.MapPost("/admin/campaigns/{campaignId:guid}/recheck", (Guid campaignId) => CampaignAction(campaignId, "recheck")).RequireAuthorization(AdminPolicyName);
+        app.MapPost("/admin/campaigns/{campaignId:guid}/moderation", (Guid campaignId) => CampaignAction(campaignId, "moderation")).RequireAuthorization(AdminPolicyName);
+        app.MapPost("/admin/campaigns/{campaignId:guid}/cancel", (Guid campaignId) => CampaignAction(campaignId, "cancelled")).RequireAuthorization(AdminPolicyName);
         app.MapGet("/admin/payments", (HttpContext http) => Placeholder(http, "Оплаты", "Детальная история оплат появится после подключения биллинга.", "payments")).RequireAuthorization(AdminPolicyName);
         app.MapGet("/admin/settings", (HttpContext http) => Placeholder(http, "Настройки", "Здесь будут настройки лимитов, цен и правил модерации.", "settings")).RequireAuthorization(AdminPolicyName);
         app.MapGet("/admin/moderation", ShowQueue).RequireAuthorization(AdminPolicyName);
@@ -124,7 +129,7 @@ public static class AdminEndpoints
         var userMailings = mailings.ListForOwner(user.Email).OrderByDescending(mailing => mailing.CreatedAt).ToArray();
         var mailingRows = userMailings.Length == 0
             ? "<tr><td colspan='4'>Кампаний пока нет.</td></tr>"
-            : string.Join(string.Empty, userMailings.Select(mailing => $"<tr><td>{H(mailing.Subject)}</td><td>{mailing.LastImportStats.Accepted}</td><td><span class='admin-badge'>{H(mailing.StatusRu)}</span></td><td><a class='admin-link' href='/mailings/{mailing.Id}/send'>Открыть</a></td></tr>"));
+            : string.Join(string.Empty, userMailings.Select(mailing => $"<tr><td>{H(mailing.Subject)}</td><td>{mailing.LastImportStats.Accepted}</td><td><span class='admin-badge'>{H(mailing.StatusRu)}</span></td><td><a class='admin-link' href='/admin/campaigns/{mailing.Id}'>Открыть</a></td></tr>"));
 
         var body = $"""
             <section class='admin-panel'>
@@ -268,6 +273,144 @@ public static class AdminEndpoints
         return Results.Redirect($"/admin/recipients/{Uri.EscapeDataString(email)}");
     }
 
+    private static IResult ShowCampaigns(HttpContext http, IUserRepository users, IMailingRepository mailings)
+    {
+        var adminEmail = CurrentEmail(http) ?? "admin@example.test";
+        var search = http.Request.Query["q"].ToString().Trim();
+        var status = http.Request.Query["status"].ToString().Trim();
+        var userNames = users.ListAll().ToDictionary(user => user.Email, user => user.DisplayName, StringComparer.OrdinalIgnoreCase);
+        var allRows = mailings.ListAll()
+            .OrderByDescending(mailing => mailing.CreatedAt)
+            .Select(mailing => new AdminCampaignRow(mailing, userNames.GetValueOrDefault(mailing.OwnerEmail) ?? mailing.OwnerEmail))
+            .ToArray();
+
+        var rows = allRows.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            rows = rows.Where(row =>
+                row.Mailing.Subject.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                row.Mailing.OwnerEmail.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                row.ClientName.Contains(search, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            rows = rows.Where(row => string.Equals(row.Mailing.Status.ToString(), status, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var filtered = rows.ToArray();
+        var stats = $"""
+            <div class='admin-stats'>
+                <div class='admin-stat'><b>{allRows.Length}</b><span>Кампаний</span></div>
+                <div class='admin-stat'><b>{allRows.Sum(row => row.Mailing.LastImportStats.Accepted)}</b><span>Получателей к отправке</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => row.Mailing.StatusRu.Contains("провер", StringComparison.OrdinalIgnoreCase))}</b><span>На проверке</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => row.Mailing.StatusRu.Contains("отправ", StringComparison.OrdinalIgnoreCase))}</b><span>В отправке</span></div>
+            </div>
+            """;
+        var statusOptions = string.Join(string.Empty, allRows
+            .Select(row => row.Mailing.Status.ToString())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .Select(value => Option(value, value, status)));
+        var tableRows = filtered.Length == 0
+            ? "<tr><td colspan='7'>Кампании не найдены.</td></tr>"
+            : string.Join(string.Empty, filtered.Select(CampaignRow));
+        var body = $"""
+            <section class='admin-panel'>
+                <div class='admin-title-row'>
+                    <div>
+                        <p class='eyebrow'>Администрирование</p>
+                        <h1>Кампании</h1>
+                        <p class='admin-muted'>Все рассылки сервиса, статусы, стоимость, получатели и быстрые действия модератора.</p>
+                    </div>
+                    <a class='admin-export' href='/admin/moderation'>Очередь модерации</a>
+                </div>
+                {stats}
+                <form class='admin-filters' method='get' action='/admin/campaigns'>
+                    <label>Поиск<input name='q' value='{H(search)}' placeholder='кампания, email или клиент'></label>
+                    <label>Статус
+                        <select name='status'>
+                            {Option("", "Все", status)}
+                            {statusOptions}
+                        </select>
+                    </label>
+                    <button class='admin-button' type='submit'>Найти</button>
+                    <a class='admin-link' href='/admin/campaigns'>Сбросить</a>
+                </form>
+                <div class='admin-table-wrap'>
+                    <table class='admin-table'>
+                        <thead><tr><th>Кампания</th><th>Пользователь</th><th>Статус</th><th>Получателей</th><th>Стоимость</th><th>Создана</th><th></th></tr></thead>
+                        <tbody>{tableRows}</tbody>
+                    </table>
+                </div>
+            </section>
+            """;
+
+        return AdminHtml("Админка - кампании", adminEmail, "campaigns", body);
+    }
+
+    private static IResult ShowCampaignProfile(Guid campaignId, HttpContext http, IUserRepository users, IMailingRepository mailings, ISendEventRepository sends)
+    {
+        var adminEmail = CurrentEmail(http) ?? "admin@example.test";
+        var mailing = mailings.Get(campaignId);
+        if (mailing is null)
+        {
+            return AdminHtml("Кампания не найдена", adminEmail, "campaigns", "<section class='admin-panel'><h1>Кампания не найдена</h1><p class='admin-muted'>Проверьте идентификатор кампании и вернитесь к списку.</p><p><a class='admin-link' href='/admin/campaigns'>К кампаниям</a></p></section>");
+        }
+
+        var client = users.GetByEmail(mailing.OwnerEmail);
+        var sendEvents = sends.ListByMailingId(mailing.Id).OrderByDescending(x => x.UpdatedAt).Take(12).ToArray();
+        var action = http.Request.Query["action"].ToString();
+        var actionMessage = action switch
+        {
+            "paused" => "Запрос на паузу зафиксирован в UI. Фактическая остановка очереди будет подключена вместе с боевым SMTP-воркером.",
+            "recheck" => "Запрос на повторную проверку письма принят.",
+            "moderation" => "Кампания помечена для возврата на модерацию в рабочем сценарии.",
+            "cancelled" => "Запрос на отмену кампании принят.",
+            _ => string.Empty
+        };
+        var alert = string.IsNullOrWhiteSpace(actionMessage) ? string.Empty : $"<p class='admin-alert'>{H(actionMessage)}</p>";
+        var sendRows = sendEvents.Length == 0
+            ? "<tr><td colspan='5'>Лог отправки пока пуст.</td></tr>"
+            : string.Join(string.Empty, sendEvents.Select(x => $"<tr><td>{H(x.RecipientEmail)}</td><td>{H(x.Status.ToString())}</td><td>{H(x.DeliveryStatus.ToString())}</td><td>{FormatDate(x.UpdatedAt)}</td><td>{H(x.Reason?.ToString())}</td></tr>"));
+        var timeline = CampaignTimeline(mailing, sendEvents.Length != 0);
+        var bodyText = mailing.MessageDraft?.Body ?? "Письмо ещё не заполнено.";
+        var body = $"""
+            <section class='admin-panel'>
+                <p class='eyebrow'>Профиль кампании</p>
+                <h1>{H(mailing.MessageDraft?.Subject ?? mailing.Subject)}</h1>
+                {alert}
+                <div class='admin-profile-grid'>
+                    <div><span>Пользователь</span><b><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(mailing.OwnerEmail)}'>{H(client?.DisplayName ?? mailing.OwnerEmail)}</a></b></div>
+                    <div><span>Email клиента</span><b>{H(mailing.OwnerEmail)}</b></div>
+                    <div><span>Дата создания</span><b>{FormatDate(mailing.CreatedAt)}</b></div>
+                    <div><span>Статус</span><b>{H(mailing.StatusRu)}</b></div>
+                    <div><span>Получателей</span><b>{mailing.LastImportStats.Accepted}</b></div>
+                    <div><span>Стоимость</span><b>{FormatMoney(mailing.LastImportStats.Accepted)}</b></div>
+                    <div><span>Тип письма</span><b>{H(mailing.MessageDraft is null ? "Не указан" : "Указан в письме")}</b></div>
+                    <div><span>Отправитель</span><b>{H(mailing.MessageDraft?.SenderName ?? "-")}</b></div>
+                </div>
+                <div class='admin-actions-row'>
+                    <form method='post' action='/admin/campaigns/{mailing.Id}/pause'><button class='admin-button' type='submit'>Поставить на паузу</button></form>
+                    <form method='post' action='/admin/campaigns/{mailing.Id}/recheck'><button class='admin-button' type='submit'>Повторно проверить письмо</button></form>
+                    <form method='post' action='/admin/campaigns/{mailing.Id}/moderation'><button class='admin-button' type='submit'>Вернуть на модерацию</button></form>
+                    <form method='post' action='/admin/campaigns/{mailing.Id}/cancel'><button class='admin-button danger' type='submit'>Отменить кампанию</button></form>
+                </div>
+                <div class='section-head'><div><p class='eyebrow'>Контроль</p><h2>Таймлайн кампании</h2></div></div>
+                <ol class='admin-timeline'>{timeline}</ol>
+                <div class='section-head'><div><p class='eyebrow'>Письмо</p><h2>Текст письма</h2></div></div>
+                <pre>{H(bodyText)}</pre>
+                <div class='section-head'><div><p class='eyebrow'>Отправка</p><h2>Лог отправки</h2></div><a class='admin-link' href='/mailings/{mailing.Id}/send'>Открыть клиентский экран</a></div>
+                <div class='admin-table-wrap'><table class='admin-table'><thead><tr><th>Email</th><th>Событие</th><th>Доставка</th><th>Дата</th><th>Причина</th></tr></thead><tbody>{sendRows}</tbody></table></div>
+                <p><a class='admin-link' href='/admin/campaigns'>Вернуться к кампаниям</a></p>
+            </section>
+            """;
+
+        return AdminHtml($"Админка - {mailing.Subject}", adminEmail, "campaigns", body);
+    }
+
+    private static IResult CampaignAction(Guid campaignId, string action) => Results.Redirect($"/admin/campaigns/{campaignId}?action={Uri.EscapeDataString(action)}");
+
     private static IResult ShowQueue(HttpContext http, IModerationAdminService moderation)
     {
         var items = moderation.ListOpen();
@@ -374,6 +517,27 @@ public static class AdminEndpoints
 
     private static string RecipientRow(AdminRecipientSummary row) => $"<tr><td>{H(row.Email)}</td><td><span class='admin-badge recipient-{H(row.StatusCode)}'>{H(row.StatusText)}</span></td><td>{row.MailingCount}</td><td>{row.OwnerCount}</td><td>{row.SentCount}</td><td>{FormatDate(row.LastMessageAt)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>Профиль</a></td></tr>";
 
+    private static string CampaignRow(AdminCampaignRow row)
+    {
+        var mailing = row.Mailing;
+        return $"<tr><td>{H(mailing.MessageDraft?.Subject ?? mailing.Subject)}</td><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(mailing.OwnerEmail)}'>{H(row.ClientName)}</a><br><span class='admin-muted'>{H(mailing.OwnerEmail)}</span></td><td><span class='admin-badge'>{H(mailing.StatusRu)}</span></td><td>{mailing.LastImportStats.Accepted}</td><td>{FormatMoney(mailing.LastImportStats.Accepted)}</td><td>{FormatDate(mailing.CreatedAt)}</td><td><a class='admin-link' href='/admin/campaigns/{mailing.Id}'>Открыть</a></td></tr>";
+    }
+
+    private static string CampaignTimeline(Mailing mailing, bool hasSendEvents)
+    {
+        var accepted = mailing.LastImportStats.Accepted > 0;
+        var hasMessage = mailing.MessageDraft is not null;
+        var status = mailing.StatusRu;
+        var paid = status.Contains("оплат", StringComparison.OrdinalIgnoreCase) || status.Contains("очеред", StringComparison.OrdinalIgnoreCase) || status.Contains("отправ", StringComparison.OrdinalIgnoreCase);
+        return $"<li>Создана: {FormatDate(mailing.CreatedAt)}</li>" +
+               $"<li>{(accepted ? "Адреса проверены" : "Адреса ещё не загружены")}</li>" +
+               $"<li>{(hasMessage ? "Письмо подготовлено" : "Письмо ещё не подготовлено")}</li>" +
+               $"<li>{(paid ? "Оплата пройдена или ожидается" : "Оплата ещё не завершена")}</li>" +
+               $"<li>{(hasSendEvents ? "Отправка начата" : "Отправка ещё не начиналась")}</li>";
+    }
+
+    private static string FormatMoney(int acceptedRecipients) => $"{acceptedRecipients} ₽";
+
     private static string AdminShell(string adminEmail, string active, string content) => $"""
         <section class='admin-shell'>
             <aside class='admin-sidebar'>
@@ -421,6 +585,7 @@ public static class AdminEndpoints
     }
 
     private sealed record AdminUserRow(UserAccount User, int MailingCount);
+    private sealed record AdminCampaignRow(Mailing Mailing, string ClientName);
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
