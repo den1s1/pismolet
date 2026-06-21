@@ -12,6 +12,8 @@ public sealed class InMemoryPaymentRepository : IPaymentRepository
 
     public Payment? GetByProviderOperationId(string providerOperationId) => _items.Values.FirstOrDefault(payment => payment.Attempts.Any(attempt => attempt.ProviderOperationId == providerOperationId));
 
+    public IReadOnlyCollection<Payment> ListAll() => _items.Values.OrderByDescending(payment => payment.CreatedAt).ToArray();
+
     public void Save(Payment payment) => _items[payment.MailingId] = payment;
 }
 
