@@ -26,17 +26,14 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
     public int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate)
     {
         var normalized = Normalize(ownerEmail);
-        var targetDate = utcDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).Date;
+        var acceptedUtcDay = ToAcceptedUtcDay(utcDate);
 
         return db.SendEvents
             .AsNoTracking()
-            .Where(x =>
+            .Count(x =>
                 x.Status == SendEventStatus.Accepted.ToString() &&
                 x.OwnerEmail == normalized &&
-                x.AcceptedAt != null)
-            .Select(x => x.AcceptedAt!.Value)
-            .AsEnumerable()
-            .Count(acceptedAt => acceptedAt.UtcDateTime.Date == targetDate);
+                x.AcceptedUtcDay == acceptedUtcDay);
     }
 
     public void Save(SendEvent sendEvent)
@@ -63,6 +60,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
             entity.CreatedAt = sendEvent.CreatedAt.ToUniversalTime();
             entity.UpdatedAt = sendEvent.UpdatedAt.ToUniversalTime();
             entity.AcceptedAt = sendEvent.AcceptedAt?.ToUniversalTime();
+            entity.AcceptedUtcDay = ToAcceptedUtcDay(sendEvent.AcceptedAt);
         }
 
         db.SaveChanges();
@@ -96,10 +94,15 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         LastDeliverySummary = sendEvent.LastDeliverySummary,
         CreatedAt = sendEvent.CreatedAt.ToUniversalTime(),
         UpdatedAt = sendEvent.UpdatedAt.ToUniversalTime(),
-        AcceptedAt = sendEvent.AcceptedAt?.ToUniversalTime()
+        AcceptedAt = sendEvent.AcceptedAt?.ToUniversalTime(),
+        AcceptedUtcDay = ToAcceptedUtcDay(sendEvent.AcceptedAt)
     };
 
     private static SendEvent ToDomain(SendEventEntity entity) => new(entity.Id, entity.MailingId, entity.OwnerEmail, entity.RecipientEmail, Enum.Parse<SendEventStatus>(entity.Status), Enum.Parse<SendSkipReason>(entity.Reason), entity.Provider, entity.ProviderMessageId, entity.Attempt, entity.ErrorCode, entity.ErrorMessage, entity.CreatedAt, entity.UpdatedAt, Enum.TryParse<DeliveryStatus>(entity.DeliveryStatus, out var status) ? status : DeliveryStatus.NotReported, entity.LastDeliveryEventAt, entity.LastDeliverySummary, entity.AcceptedAt);
+
+    private static int? ToAcceptedUtcDay(DateTimeOffset? acceptedAt) => acceptedAt is null ? null : ToAcceptedUtcDay(DateOnly.FromDateTime(acceptedAt.Value.UtcDateTime));
+
+    private static int ToAcceptedUtcDay(DateOnly utcDate) => utcDate.Year * 10000 + utcDate.Month * 100 + utcDate.Day;
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }
