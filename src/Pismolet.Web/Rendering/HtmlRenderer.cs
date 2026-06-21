@@ -22,6 +22,7 @@ public static class HtmlRenderer
                 <title>{H(title)} - Письмолёт</title>
                 <link rel='icon' href='/assets/brand/favicon.svg' type='image/svg+xml'>
                 <link rel='stylesheet' href='/app.css'>
+                <link rel='stylesheet' href='/cabinet.css'>
             </head>
             <body>
                 <header class='app-header'>
