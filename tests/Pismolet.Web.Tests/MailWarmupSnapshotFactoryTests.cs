@@ -33,7 +33,7 @@ public sealed class MailWarmupSnapshotFactoryTests
     }
 
     [Fact]
-    public void Snapshot_factory_ignores_future_and_previous_day_events()
+    public void Snapshot_factory_ignores_future_and_previous_day_for_today_counts()
     {
         var now = DateTimeOffset.Parse("2026-06-21T00:10:00Z");
         var mailingId = Guid.NewGuid();
@@ -48,9 +48,9 @@ public sealed class MailWarmupSnapshotFactoryTests
 
         Assert.Equal(0, snapshot.GlobalSentLastMinute);
         Assert.Equal(2, snapshot.GlobalSentLastHour);
-        Assert.Equal(2, snapshot.GlobalSentToday);
+        Assert.Equal(1, snapshot.GlobalSentToday);
         Assert.Equal(now.AddMinutes(-5), snapshot.GlobalLastSentAt);
-        Assert.Equal(2, snapshot.DomainSentToday);
+        Assert.Equal(1, snapshot.DomainSentToday);
     }
 
     [Fact]
