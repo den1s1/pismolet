@@ -2,6 +2,7 @@ using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Domain.Mail;
 using Pismolet.Web.Domain.Mailings;
+using Xunit;
 
 namespace Pismolet.Web.Tests;
 
