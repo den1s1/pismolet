@@ -95,3 +95,39 @@ public sealed class InMemoryGlobalSuppressionRepository : IGlobalSuppressionRepo
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }
+
+public sealed class InMemoryClientSuppressionRepository : IClientSuppressionRepository
+{
+    private readonly ConcurrentDictionary<string, ClientSuppression> _items = new(StringComparer.OrdinalIgnoreCase);
+
+    public IReadOnlySet<string> GetSuppressedSet(string ownerEmail, IEnumerable<string> normalizedEmails)
+    {
+        var owner = Normalize(ownerEmail);
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var email in normalizedEmails.Select(Normalize).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (_items.ContainsKey(Key(owner, email)))
+            {
+                result.Add(email);
+            }
+        }
+
+        return result;
+    }
+
+    public void AddOrUpdate(ClientSuppression suppression)
+    {
+        var owner = Normalize(suppression.OwnerEmailNormalized);
+        var email = Normalize(suppression.EmailNormalized);
+        if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(email))
+        {
+            return;
+        }
+
+        _items[Key(owner, email)] = suppression with { OwnerEmailNormalized = owner, EmailNormalized = email };
+    }
+
+    private static string Key(string ownerEmail, string email) => $"{ownerEmail}\n{email}";
+
+    private static string Normalize(string email) => email.Trim().ToLowerInvariant();
+}
