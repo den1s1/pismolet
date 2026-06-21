@@ -3,6 +3,16 @@ using Pismolet.Web.Endpoints;
 using Pismolet.Web.Infrastructure.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
+var isRunningUnderTests = builder.Environment.IsEnvironment("Testing") || IsRunningUnderTests();
+
+if (isRunningUnderTests)
+{
+    builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Persistence:Provider"] = "InMemory",
+        ["MailProvider"] = "FakeMailer"
+    });
+}
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -23,7 +33,7 @@ builder.Services.AddPismoletEfSendingStorage(builder.Configuration);
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() && !isRunningUnderTests)
 {
     app.Services.MigratePismoletDatabase();
     app.Services.SeedPismoletDevData();
@@ -54,6 +64,12 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.Run();
+
+static bool IsRunningUnderTests() => AppDomain.CurrentDomain.GetAssemblies().Any(assembly =>
+{
+    var name = assembly.GetName().Name;
+    return name is "testhost" || (name?.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase) ?? false);
+});
 
 public partial class Program
 {
