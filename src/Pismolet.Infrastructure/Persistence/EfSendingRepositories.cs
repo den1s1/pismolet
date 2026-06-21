@@ -26,21 +26,16 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
     public int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate)
     {
         var normalized = Normalize(ownerEmail);
-        var start = utcDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var start = new DateTimeOffset(utcDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
         var end = start.AddDays(1);
-        var acceptedAtValues = db.SendEvents
+
+        return db.SendEvents
             .AsNoTracking()
-            .Where(x =>
+            .Count(x =>
                 x.Status == SendEventStatus.Accepted.ToString() &&
                 x.OwnerEmail == normalized &&
-                x.AcceptedAt != null)
-            .Select(x => x.AcceptedAt)
-            .ToArray();
-
-        return acceptedAtValues.Count(acceptedAt =>
-            acceptedAt is not null &&
-            acceptedAt.Value.UtcDateTime >= start &&
-            acceptedAt.Value.UtcDateTime < end);
+                x.AcceptedAt >= start &&
+                x.AcceptedAt < end);
     }
 
     public void Save(SendEvent sendEvent)
