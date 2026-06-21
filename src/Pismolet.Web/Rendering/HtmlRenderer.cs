@@ -57,13 +57,14 @@ public static class HtmlRenderer
 
     public static string Dashboard(UserAccount user)
     {
-        var total = user.Mailings.Count;
-        var active = user.Mailings.Count(m => m.Status is MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Paused);
-        var sent = user.Mailings.Count(m => m.Status is MailingStatus.Sent);
+        var mailings = user.Mailings.ToList();
+        var total = mailings.Count;
+        var active = mailings.Count(m => m.Status is MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Paused);
+        var sent = mailings.Count(m => m.Status is MailingStatus.Sent);
 
-        var rows = user.Mailings.Count == 0
+        var rows = mailings.Count == 0
             ? "<div class='empty-state'>Пока нет рассылок. Создайте первую, чтобы проверить базу, подготовить письмо и отправить его получателям.</div>"
-            : string.Join(string.Empty, user.Mailings.Select(m =>
+            : string.Join(string.Empty, mailings.Select(m =>
             {
                 var (actionUrl, actionText) = DashboardAction(m);
                 return $"""
