@@ -75,6 +75,11 @@ public sealed class InMemoryProviderWebhookEventRepository : IProviderWebhookEve
         .OrderBy(x => x.ReceivedAt)
         .ToArray();
 
+    public IReadOnlyCollection<ProviderWebhookEvent> ListRecent(int limit) => _items.Values
+        .OrderByDescending(x => x.ReceivedAt)
+        .Take(Math.Max(1, limit))
+        .ToArray();
+
     public void Save(ProviderWebhookEvent webhookEvent) => _items[Key(webhookEvent.Provider, webhookEvent.ProviderEventId)] = webhookEvent;
 
     private static string Key(string provider, string providerEventId) => $"{provider.Trim().ToLowerInvariant()}:{providerEventId.Trim().ToLowerInvariant()}";
@@ -100,6 +105,11 @@ public sealed class InMemoryClientSuppressionRepository : IClientSuppressionRepo
 
         return result;
     }
+
+    public IReadOnlyCollection<ClientSuppression> ListRecent(int limit) => _items.Values
+        .OrderByDescending(x => x.CreatedAt)
+        .Take(Math.Max(1, limit))
+        .ToArray();
 
     public ClientSuppression AddOrUpdate(ClientSuppression suppression)
     {
