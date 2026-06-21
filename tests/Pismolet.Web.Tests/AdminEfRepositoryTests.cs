@@ -124,6 +124,57 @@ public sealed class AdminEfRepositoryTests
     }
 
     [Fact]
+    public void Ef_admin_recipient_repository_get_profile_prefers_global_suppression_for_recipient_profile()
+    {
+        using var db = CreateContext();
+        var now = DateTimeOffset.Parse("2026-06-21T11:30:00+00:00");
+        var firstMailingId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+        var secondMailingId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+        var suppressedAt = now.AddMinutes(-30);
+        const string targetEmail = "suppressed@example.test";
+
+        db.Mailings.AddRange(
+            Mailing(firstMailingId, "owner1@example.test", "Первая рассылка", MailingStatus.Sent, now.AddDays(-2)),
+            Mailing(secondMailingId, "owner2@example.test", "Вторая рассылка", MailingStatus.Sending, now.AddDays(-1)));
+        db.Recipients.AddRange(
+            Recipient(firstMailingId, "Suppressed@Example.Test", targetEmail, RecipientStatus.Accepted),
+            Recipient(firstMailingId, "other@example.test", "other@example.test", RecipientStatus.Accepted),
+            Recipient(secondMailingId, targetEmail, targetEmail, RecipientStatus.Accepted),
+            Recipient(secondMailingId, targetEmail, targetEmail, RecipientStatus.Invalid));
+        db.GlobalSuppressions.Add(new GlobalSuppressionEntity
+        {
+            Id = Guid.Parse("99999999-9999-9999-9999-999999999999"),
+            EmailNormalized = targetEmail,
+            EmailHash = "target-hash",
+            Source = nameof(GlobalSuppressionSource.UnsubscribeLink),
+            SourceMailingId = firstMailingId,
+            SourceRecipientKey = "recipient-key-1",
+            CreatedAt = suppressedAt,
+            CreatedIpHash = "ip-hash",
+            UserAgentHash = "ua-hash"
+        });
+        db.SaveChanges();
+
+        var repository = new EfAdminRecipientRepository(db);
+
+        var profile = repository.GetProfile(" SUPPRESSED@EXAMPLE.TEST ");
+
+        Assert.NotNull(profile);
+        Assert.Equal(targetEmail, profile!.Summary.Email);
+        Assert.Equal("unsubscribed", profile.Summary.StatusCode);
+        Assert.Equal("Отписался", profile.Summary.StatusText);
+        Assert.Equal(2, profile.Summary.MailingCount);
+        Assert.Equal(2, profile.Summary.OwnerCount);
+        Assert.Equal(suppressedAt, profile.Summary.SuppressedAt);
+        Assert.Equal(GlobalSuppressionSource.UnsubscribeLink, profile.Summary.SuppressionSource);
+
+        Assert.Equal(["owner1@example.test", "owner2@example.test"], profile.Owners.Select(x => x.OwnerEmail).ToArray());
+        Assert.Equal([secondMailingId, firstMailingId], profile.Mailings.Select(x => x.MailingId).ToArray());
+        Assert.Equal(2, profile.Mailings.Single(x => x.MailingId == firstMailingId).AcceptedRecipients);
+        Assert.Equal(1, profile.Mailings.Single(x => x.MailingId == secondMailingId).AcceptedRecipients);
+    }
+
+    [Fact]
     public void Ef_admin_recipient_repository_get_profile_returns_suppression_only_profile()
     {
         using var db = CreateContext();
