@@ -52,6 +52,31 @@ public sealed class SendEventRepositoryAcceptedAtTests
     }
 
     [Fact]
+    public void Ef_warmup_history_uses_accepted_at_not_mutable_updated_at()
+    {
+        using var db = CreateContext();
+        var mailingId = Guid.Parse("44444444-aaaa-aaaa-aaaa-444444444444");
+        var since = DateTimeOffset.Parse("2026-06-21T00:00:00Z");
+        var oldAcceptedAt = DateTimeOffset.Parse("2026-06-20T23:55:00Z");
+        var recentAcceptedAt = DateTimeOffset.Parse("2026-06-21T00:05:00Z");
+        var deliveryUpdatedAt = DateTimeOffset.Parse("2026-06-21T00:10:00Z");
+        db.Mailings.Add(Mailing(mailingId, "owner@example.test", oldAcceptedAt.AddHours(-1)));
+        db.SaveChanges();
+        var repository = new EfSendEventRepository(db);
+        repository.Save(AcceptedEvent(mailingId, "owner@example.test", "old@example.test", oldAcceptedAt, deliveryUpdatedAt));
+        repository.Save(AcceptedEvent(mailingId, "owner@example.test", "recent@example.test", recentAcceptedAt, deliveryUpdatedAt));
+        repository.Save(AcceptedEvent(mailingId, "other@example.test", "other@example.test", recentAcceptedAt, deliveryUpdatedAt));
+        db.ChangeTracker.Clear();
+
+        var history = repository.ListAcceptedForWarmupWindow("owner@example.test", since);
+
+        var item = Assert.Single(history);
+        Assert.Equal("recent@example.test", item.RecipientEmail);
+        Assert.Equal(recentAcceptedAt, item.SentAt);
+        Assert.DoesNotContain(history, x => x.RecipientEmail == "old@example.test");
+    }
+
+    [Fact]
     public void In_memory_daily_limit_count_uses_accepted_at_not_mutable_updated_at()
     {
         var mailingId = Guid.Parse("33333333-aaaa-aaaa-aaaa-333333333333");
@@ -65,6 +90,27 @@ public sealed class SendEventRepositoryAcceptedAtTests
 
         Assert.Equal(1, previousDayCount);
         Assert.Equal(0, todayCount);
+    }
+
+    [Fact]
+    public void In_memory_warmup_history_uses_accepted_at_not_mutable_updated_at()
+    {
+        var mailingId = Guid.Parse("55555555-aaaa-aaaa-aaaa-555555555555");
+        var since = DateTimeOffset.Parse("2026-06-21T00:00:00Z");
+        var oldAcceptedAt = DateTimeOffset.Parse("2026-06-20T23:55:00Z");
+        var recentAcceptedAt = DateTimeOffset.Parse("2026-06-21T00:05:00Z");
+        var deliveryUpdatedAt = DateTimeOffset.Parse("2026-06-21T00:10:00Z");
+        var repository = new InMemorySendEventRepository();
+        repository.Save(AcceptedEvent(mailingId, "owner@example.test", "old@example.test", oldAcceptedAt, deliveryUpdatedAt));
+        repository.Save(AcceptedEvent(mailingId, "owner@example.test", "recent@example.test", recentAcceptedAt, deliveryUpdatedAt));
+        repository.Save(AcceptedEvent(mailingId, "other@example.test", "other@example.test", recentAcceptedAt, deliveryUpdatedAt));
+
+        var history = repository.ListAcceptedForWarmupWindow("owner@example.test", since);
+
+        var item = Assert.Single(history);
+        Assert.Equal("recent@example.test", item.RecipientEmail);
+        Assert.Equal(recentAcceptedAt, item.SentAt);
+        Assert.DoesNotContain(history, x => x.RecipientEmail == "old@example.test");
     }
 
     private static PismoletDbContext CreateContext()
