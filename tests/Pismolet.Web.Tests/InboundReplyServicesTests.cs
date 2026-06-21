@@ -1,5 +1,6 @@
 using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
+using Xunit;
 
 namespace Pismolet.Web.Tests;
 
