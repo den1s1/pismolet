@@ -66,7 +66,7 @@ public sealed class MailWarmupSnapshotFactoryTests
     }
 
     [Fact]
-    public void Snapshot_factory_uses_explicit_sent_at_instead_of_mutable_update_time()
+    public void Snapshot_factory_does_not_recount_old_send_as_fresh_when_clock_is_today()
     {
         var now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
         var yesterdaySend = DateTimeOffset.Parse("2026-06-20T10:00:00Z");
