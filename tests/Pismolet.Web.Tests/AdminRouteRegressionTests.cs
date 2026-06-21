@@ -18,12 +18,12 @@ public sealed class AdminRouteRegressionTests
     private const string NonAdminEmail = "not-admin-routes@example.test";
 
     [Theory]
-    [InlineData("/admin", "Пользователи")]
-    [InlineData("/admin/users", "Пользователи")]
-    [InlineData("/admin/recipients", "Получатели")]
-    [InlineData("/admin/campaigns", "Кампании")]
-    [InlineData("/admin/payments", "Оплаты")]
-    [InlineData("/admin/settings", "Настройки сервиса")]
+    [InlineData("/admin", "\u041e\u043f\u0435\u0440\u0430\u0446\u0438\u043e\u043d\u043d\u044b\u0439 dashboard")]
+    [InlineData("/admin/users", "\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0438")]
+    [InlineData("/admin/recipients", "\u041f\u043e\u043b\u0443\u0447\u0430\u0442\u0435\u043b\u0438")]
+    [InlineData("/admin/campaigns", "\u041a\u0430\u043c\u043f\u0430\u043d\u0438\u0438")]
+    [InlineData("/admin/payments", "\u041e\u043f\u043b\u0430\u0442\u044b")]
+    [InlineData("/admin/settings", "\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0441\u0435\u0440\u0432\u0438\u0441\u0430")]
     public async Task Admin_top_level_routes_are_available_and_not_ambiguous(string path, string expectedText)
     {
         using var factory = CreateAuthorizedFactory();
@@ -34,7 +34,7 @@ public sealed class AdminRouteRegressionTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(expectedText, html);
-        Assert.Contains("Письмолёт", html);
+        Assert.Contains("\u041f\u0438\u0441\u044c\u043c\u043e\u043b\u0451\u0442", html);
     }
 
     [Theory]
