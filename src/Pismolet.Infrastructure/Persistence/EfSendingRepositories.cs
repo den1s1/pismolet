@@ -28,7 +28,12 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         var normalized = Normalize(ownerEmail);
         var start = new DateTimeOffset(utcDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
         var end = start.AddDays(1);
-        return db.SendEvents.Count(x => x.Status == SendEventStatus.Accepted.ToString() && x.OwnerEmail == normalized && x.UpdatedAt >= start && x.UpdatedAt < end);
+        return db.SendEvents.Count(x =>
+            x.Status == SendEventStatus.Accepted.ToString() &&
+            x.OwnerEmail == normalized &&
+            x.AcceptedAt != null &&
+            x.AcceptedAt >= start &&
+            x.AcceptedAt < end);
     }
 
     public void Save(SendEvent sendEvent)
@@ -54,6 +59,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
             entity.LastDeliverySummary = sendEvent.LastDeliverySummary;
             entity.CreatedAt = sendEvent.CreatedAt.ToUniversalTime();
             entity.UpdatedAt = sendEvent.UpdatedAt.ToUniversalTime();
+            entity.AcceptedAt = sendEvent.AcceptedAt?.ToUniversalTime();
         }
 
         db.SaveChanges();
@@ -86,10 +92,11 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         LastDeliveryEventAt = sendEvent.LastDeliveryEventAt?.ToUniversalTime(),
         LastDeliverySummary = sendEvent.LastDeliverySummary,
         CreatedAt = sendEvent.CreatedAt.ToUniversalTime(),
-        UpdatedAt = sendEvent.UpdatedAt.ToUniversalTime()
+        UpdatedAt = sendEvent.UpdatedAt.ToUniversalTime(),
+        AcceptedAt = sendEvent.AcceptedAt?.ToUniversalTime()
     };
 
-    private static SendEvent ToDomain(SendEventEntity entity) => new(entity.Id, entity.MailingId, entity.OwnerEmail, entity.RecipientEmail, Enum.Parse<SendEventStatus>(entity.Status), Enum.Parse<SendSkipReason>(entity.Reason), entity.Provider, entity.ProviderMessageId, entity.Attempt, entity.ErrorCode, entity.ErrorMessage, entity.CreatedAt, entity.UpdatedAt, Enum.TryParse<DeliveryStatus>(entity.DeliveryStatus, out var status) ? status : DeliveryStatus.NotReported, entity.LastDeliveryEventAt, entity.LastDeliverySummary);
+    private static SendEvent ToDomain(SendEventEntity entity) => new(entity.Id, entity.MailingId, entity.OwnerEmail, entity.RecipientEmail, Enum.Parse<SendEventStatus>(entity.Status), Enum.Parse<SendSkipReason>(entity.Reason), entity.Provider, entity.ProviderMessageId, entity.Attempt, entity.ErrorCode, entity.ErrorMessage, entity.CreatedAt, entity.UpdatedAt, Enum.TryParse<DeliveryStatus>(entity.DeliveryStatus, out var status) ? status : DeliveryStatus.NotReported, entity.LastDeliveryEventAt, entity.LastDeliverySummary, entity.AcceptedAt);
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }
@@ -177,24 +184,11 @@ public sealed class EfClientSuppressionRepository(PismoletDbContext db) : IClien
             entity.SourceMailingId ??= suppression.SourceMailingId;
             entity.SourceProviderMessageId ??= suppression.SourceProviderMessageId;
         }
-
         db.SaveChanges();
         return ToDomain(entity);
     }
 
-    private static ClientSuppressionEntity ToEntity(ClientSuppression item) => new()
-    {
-        Id = item.Id == Guid.Empty ? Guid.NewGuid() : item.Id,
-        ClientId = Normalize(item.ClientId),
-        EmailNormalized = Normalize(item.EmailNormalized),
-        Reason = item.Reason.ToString(),
-        SourceMailingId = item.SourceMailingId,
-        SourceProviderMessageId = item.SourceProviderMessageId,
-        CreatedAt = item.CreatedAt.ToUniversalTime(),
-        LastSeenAt = item.LastSeenAt.ToUniversalTime()
-    };
-
-    private static ClientSuppression ToDomain(ClientSuppressionEntity entity) => new(entity.Id, entity.ClientId, entity.EmailNormalized, Enum.Parse<ClientSuppressionReason>(entity.Reason), entity.SourceMailingId, entity.SourceProviderMessageId, entity.CreatedAt, entity.LastSeenAt);
-
+    private static ClientSuppressionEntity ToEntity(ClientSuppression x) => new() { Id = x.Id == Guid.Empty ? Guid.NewGuid() : x.Id, ClientId = Normalize(x.ClientId), EmailNormalized = Normalize(x.EmailNormalized), Reason = x.Reason.ToString(), SourceMailingId = x.SourceMailingId, SourceProviderMessageId = x.SourceProviderMessageId, CreatedAt = x.CreatedAt.ToUniversalTime(), LastSeenAt = x.LastSeenAt.ToUniversalTime() };
+    private static ClientSuppression ToDomain(ClientSuppressionEntity x) => new(x.Id, x.ClientId, x.EmailNormalized, Enum.Parse<ClientSuppressionReason>(x.Reason), x.SourceMailingId, x.SourceProviderMessageId, x.CreatedAt, x.LastSeenAt);
     private static string Normalize(string value) => value.Trim().ToLowerInvariant();
 }
