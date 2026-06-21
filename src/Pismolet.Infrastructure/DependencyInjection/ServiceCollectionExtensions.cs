@@ -154,7 +154,41 @@ public static class ServiceCollectionExtensions
         MaxPerMinute: ReadInt(configuration, "MailWarmup:MaxPerMinute", MailWarmupLimitOptions.Default.MaxPerMinute, 0, 100000),
         MaxPerHour: ReadInt(configuration, "MailWarmup:MaxPerHour", MailWarmupLimitOptions.Default.MaxPerHour, 0, 100000),
         MaxPerDay: ReadInt(configuration, "MailWarmup:MaxPerDay", MailWarmupLimitOptions.Default.MaxPerDay, 0, 100000),
-        MinSecondsBetweenSends: ReadInt(configuration, "MailWarmup:MinSecondsBetweenSends", MailWarmupLimitOptions.Default.MinSecondsBetweenSends, 0, 86400));
+        MinSecondsBetweenSends: ReadInt(configuration, "MailWarmup:MinSecondsBetweenSends", MailWarmupLimitOptions.Default.MinSecondsBetweenSends, 0, 86400),
+        DomainLimits: ReadMailWarmupDomainLimits(configuration));
+
+    private static IReadOnlyDictionary<string, DomainMailWarmupLimitOptions>? ReadMailWarmupDomainLimits(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("MailWarmup:DomainLimits");
+        var limits = new Dictionary<string, DomainMailWarmupLimitOptions>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var child in section.GetChildren())
+        {
+            var domain = child.Key.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(domain))
+            {
+                continue;
+            }
+
+            var limit = new DomainMailWarmupLimitOptions(
+                MaxPerMinute: ReadNullableInt(child, "MaxPerMinute", 0, 100000),
+                MaxPerHour: ReadNullableInt(child, "MaxPerHour", 0, 100000),
+                MaxPerDay: ReadNullableInt(child, "MaxPerDay", 0, 100000),
+                MinSecondsBetweenSends: ReadNullableInt(child, "MinSecondsBetweenSends", 0, 86400));
+
+            if (limit.MaxPerMinute is null
+                && limit.MaxPerHour is null
+                && limit.MaxPerDay is null
+                && limit.MinSecondsBetweenSends is null)
+            {
+                continue;
+            }
+
+            limits[domain] = limit;
+        }
+
+        return limits.Count == 0 ? null : limits;
+    }
 
     private static string Required(IConfiguration configuration, string key, string envName)
     {
@@ -176,4 +210,5 @@ public static class ServiceCollectionExtensions
     private static int ReadTokenLifetimeDays(IConfiguration configuration) => int.TryParse(configuration["Unsubscribe:TokenLifetimeDays"], out var value) ? Math.Clamp(value, 1, 365) : 90;
     private static int ReadInboundTokenLifetimeDays(IConfiguration configuration) => int.TryParse(configuration["InboundReplies:TokenLifetimeDays"], out var value) ? Math.Clamp(value, 1, 365) : 180;
     private static int ReadInt(IConfiguration configuration, string key, int fallback, int min, int max) => int.TryParse(configuration[key], out var value) ? Math.Clamp(value, min, max) : fallback;
+    private static int? ReadNullableInt(IConfiguration configuration, string key, int min, int max) => int.TryParse(configuration[key], out var value) ? Math.Clamp(value, min, max) : null;
 }
