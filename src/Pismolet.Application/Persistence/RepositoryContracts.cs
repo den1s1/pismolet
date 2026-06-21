@@ -1,3 +1,4 @@
+using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Domain.Users;
 
@@ -146,6 +147,8 @@ public interface ISendEventRepository
     IReadOnlyCollection<SendEvent> GetPendingBatch(Guid mailingId, int batchSize);
 
     int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate);
+
+    IReadOnlyCollection<MailWarmupAcceptedSend> ListAcceptedForWarmupWindow(string ownerEmail, DateTimeOffset sinceUtc);
 
     void Save(SendEvent sendEvent);
 
