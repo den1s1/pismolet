@@ -10,12 +10,11 @@ public static class MailWarmupSnapshotFactory
         DateTimeOffset now)
     {
         var acceptedEvents = acceptedSends
-            .Select(x => new SentEventSnapshot(x.RecipientEmail, x.SentAt.ToUniversalTime()))
             .Where(x => x.SentAt <= now.ToUniversalTime())
             .ToArray();
         var recipientDomain = GetEmailDomain(recipientEmail);
         var domainEvents = string.IsNullOrWhiteSpace(recipientDomain)
-            ? Array.Empty<SentEventSnapshot>()
+            ? Array.Empty<MailWarmupAcceptedSend>()
             : acceptedEvents.Where(x => string.Equals(GetEmailDomain(x.RecipientEmail), recipientDomain, StringComparison.OrdinalIgnoreCase)).ToArray();
 
         return new MailWarmupLimitSnapshot(
@@ -29,20 +28,20 @@ public static class MailWarmupSnapshotFactory
             DomainLastSentAt: LastSentAt(domainEvents));
     }
 
-    private static int CountSince(IReadOnlyCollection<SentEventSnapshot> events, DateTimeOffset now, TimeSpan window)
+    private static int CountSince(IReadOnlyCollection<MailWarmupAcceptedSend> sends, DateTimeOffset now, TimeSpan window)
     {
         var from = now.ToUniversalTime() - window;
         var until = now.ToUniversalTime();
-        return events.Count(x => x.SentAt > from && x.SentAt <= until);
+        return sends.Count(x => x.SentAt > from && x.SentAt <= until);
     }
 
-    private static int CountToday(IReadOnlyCollection<SentEventSnapshot> events, DateTimeOffset now)
+    private static int CountToday(IReadOnlyCollection<MailWarmupAcceptedSend> sends, DateTimeOffset now)
     {
         var today = now.ToUniversalTime().UtcDateTime.Date;
-        return events.Count(x => x.SentAt.UtcDateTime.Date == today);
+        return sends.Count(x => x.SentAt.UtcDateTime.Date == today);
     }
 
-    private static DateTimeOffset? LastSentAt(IReadOnlyCollection<SentEventSnapshot> events) => events
+    private static DateTimeOffset? LastSentAt(IReadOnlyCollection<MailWarmupAcceptedSend> sends) => sends
         .OrderByDescending(x => x.SentAt)
         .Select(x => (DateTimeOffset?)x.SentAt)
         .FirstOrDefault();
@@ -59,6 +58,4 @@ public static class MailWarmupSnapshotFactory
             ? null
             : email[(at + 1)..].Trim().ToLowerInvariant();
     }
-
-    private sealed record SentEventSnapshot(string RecipientEmail, DateTimeOffset SentAt);
 }
