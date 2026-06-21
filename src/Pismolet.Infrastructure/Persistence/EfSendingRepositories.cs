@@ -26,14 +26,21 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
     public int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate)
     {
         var normalized = Normalize(ownerEmail);
-        var start = new DateTimeOffset(utcDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+        var start = utcDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var end = start.AddDays(1);
-        return db.SendEvents.Count(x =>
-            x.Status == SendEventStatus.Accepted.ToString() &&
-            x.OwnerEmail == normalized &&
-            x.AcceptedAt != null &&
-            x.AcceptedAt >= start &&
-            x.AcceptedAt < end);
+        var acceptedAtValues = db.SendEvents
+            .AsNoTracking()
+            .Where(x =>
+                x.Status == SendEventStatus.Accepted.ToString() &&
+                x.OwnerEmail == normalized &&
+                x.AcceptedAt != null)
+            .Select(x => x.AcceptedAt)
+            .ToArray();
+
+        return acceptedAtValues.Count(acceptedAt =>
+            acceptedAt is not null &&
+            acceptedAt.Value.UtcDateTime >= start &&
+            acceptedAt.Value.UtcDateTime < end);
     }
 
     public void Save(SendEvent sendEvent)
@@ -151,44 +158,5 @@ public sealed class EfProviderWebhookEventRepository(PismoletDbContext db) : IPr
         CorrelationId = item.CorrelationId
     };
 
-    private static ProviderWebhookEvent ToDomain(ProviderWebhookEventEntity entity) => new(entity.Id, entity.Provider, entity.ProviderEventId, entity.ProviderMessageId, entity.MailingId, entity.ClientId, entity.RecipientEmailNormalized, Enum.Parse<ProviderWebhookEventType>(entity.EventType), entity.OccurredAt, entity.ReceivedAt, entity.RawPayloadHash, entity.RawPayloadStored, entity.ReasonCode, entity.ReasonMessage, Enum.Parse<ProviderWebhookProcessingStatus>(entity.ProcessingStatus), entity.CorrelationId);
-}
-
-public sealed class EfClientSuppressionRepository(PismoletDbContext db) : IClientSuppressionRepository
-{
-    public bool IsSuppressed(string clientId, string normalizedEmail) => db.ClientSuppressions.Any(x => x.ClientId == Normalize(clientId) && x.EmailNormalized == Normalize(normalizedEmail));
-
-    public IReadOnlySet<string> GetSuppressedSet(string clientId, IEnumerable<string> normalizedEmails)
-    {
-        var normalizedClient = Normalize(clientId);
-        var emails = normalizedEmails.Select(Normalize).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        if (emails.Length == 0) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        return db.ClientSuppressions.AsNoTracking().Where(x => x.ClientId == normalizedClient && emails.Contains(x.EmailNormalized)).Select(x => x.EmailNormalized).ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    public IReadOnlyCollection<ClientSuppression> ListRecent(int limit) => db.ClientSuppressions.AsNoTracking().OrderByDescending(x => x.LastSeenAt).Take(Math.Max(1, limit)).Select(x => ToDomain(x)).ToArray();
-
-    public ClientSuppression AddOrUpdate(ClientSuppression suppression)
-    {
-        var clientId = Normalize(suppression.ClientId);
-        var email = Normalize(suppression.EmailNormalized);
-        var entity = db.ClientSuppressions.FirstOrDefault(x => x.ClientId == clientId && x.EmailNormalized == email);
-        if (entity is null)
-        {
-            entity = ToEntity(suppression with { ClientId = clientId, EmailNormalized = email });
-            db.ClientSuppressions.Add(entity);
-        }
-        else
-        {
-            entity.LastSeenAt = DateTimeOffset.UtcNow;
-            entity.SourceMailingId ??= suppression.SourceMailingId;
-            entity.SourceProviderMessageId ??= suppression.SourceProviderMessageId;
-        }
-        db.SaveChanges();
-        return ToDomain(entity);
-    }
-
-    private static ClientSuppressionEntity ToEntity(ClientSuppression x) => new() { Id = x.Id == Guid.Empty ? Guid.NewGuid() : x.Id, ClientId = Normalize(x.ClientId), EmailNormalized = Normalize(x.EmailNormalized), Reason = x.Reason.ToString(), SourceMailingId = x.SourceMailingId, SourceProviderMessageId = x.SourceProviderMessageId, CreatedAt = x.CreatedAt.ToUniversalTime(), LastSeenAt = x.LastSeenAt.ToUniversalTime() };
-    private static ClientSuppression ToDomain(ClientSuppressionEntity x) => new(x.Id, x.ClientId, x.EmailNormalized, Enum.Parse<ClientSuppressionReason>(x.Reason), x.SourceMailingId, x.SourceProviderMessageId, x.CreatedAt, x.LastSeenAt);
-    private static string Normalize(string value) => value.Trim().ToLowerInvariant();
+    private static ProviderWebhookEvent ToDomain(ProviderWebhookEventEntity entity) => new(entity.Id, entity.Provider, entity.ProviderEventId, entity.ProviderMessageId, entity.MailingId, entity.ClientId, entity.RecipientEmailNormalized, Enum.TryParse<ProviderWebhookEventType>(entity.EventType, out var type) ? type : ProviderWebhookEventType.Unknown, entity.OccurredAt, entity.ReceivedAt, entity.RawPayloadHash, entity.RawPayloadStored, entity.ReasonCode, entity.ReasonMessage, Enum.TryParse<ProviderWebhookProcessingStatus>(entity.ProcessingStatus, out var status) ? status : ProviderWebhookProcessingStatus.IgnoredUnknown, entity.CorrelationId);
 }
