@@ -10,51 +10,25 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
     public SendEvent? Get(Guid mailingId, string recipientEmail)
     {
         var normalized = Normalize(recipientEmail);
-        return db.SendEvents
-            .AsNoTracking()
-            .FirstOrDefault(x => x.MailingId == mailingId && x.RecipientEmail == normalized) is { } entity
-                ? ToDomain(entity)
-                : null;
+        return db.SendEvents.AsNoTracking().FirstOrDefault(x => x.MailingId == mailingId && x.RecipientEmail == normalized) is { } entity ? ToDomain(entity) : null;
     }
 
     public SendEvent? GetByProviderMessageId(string providerMessageId)
     {
         var normalized = providerMessageId.Trim();
-        return db.SendEvents
-            .AsNoTracking()
-            .FirstOrDefault(x => x.ProviderMessageId == normalized) is { } entity
-                ? ToDomain(entity)
-                : null;
+        return db.SendEvents.AsNoTracking().FirstOrDefault(x => x.ProviderMessageId == normalized) is { } entity ? ToDomain(entity) : null;
     }
 
-    public IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId) => db.SendEvents
-        .AsNoTracking()
-        .Where(x => x.MailingId == mailingId)
-        .OrderBy(x => x.CreatedAt)
-        .ThenBy(x => x.RecipientEmail)
-        .Select(x => ToDomain(x))
-        .ToArray();
+    public IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId) => db.SendEvents.AsNoTracking().Where(x => x.MailingId == mailingId).OrderBy(x => x.CreatedAt).ThenBy(x => x.RecipientEmail).Select(x => ToDomain(x)).ToArray();
 
-    public IReadOnlyCollection<SendEvent> GetPendingBatch(Guid mailingId, int batchSize) => db.SendEvents
-        .AsNoTracking()
-        .Where(x => x.MailingId == mailingId && x.Status == SendEventStatus.Pending.ToString())
-        .OrderBy(x => x.CreatedAt)
-        .ThenBy(x => x.RecipientEmail)
-        .Take(Math.Max(1, batchSize))
-        .Select(x => ToDomain(x))
-        .ToArray();
+    public IReadOnlyCollection<SendEvent> GetPendingBatch(Guid mailingId, int batchSize) => db.SendEvents.AsNoTracking().Where(x => x.MailingId == mailingId && x.Status == SendEventStatus.Pending.ToString()).OrderBy(x => x.CreatedAt).ThenBy(x => x.RecipientEmail).Take(Math.Max(1, batchSize)).Select(x => ToDomain(x)).ToArray();
 
     public int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate)
     {
         var normalized = Normalize(ownerEmail);
         var start = new DateTimeOffset(utcDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
         var end = start.AddDays(1);
-
-        return db.SendEvents.Count(x =>
-            x.Status == SendEventStatus.Accepted.ToString() &&
-            x.OwnerEmail == normalized &&
-            x.UpdatedAt >= start &&
-            x.UpdatedAt < end);
+        return db.SendEvents.Count(x => x.Status == SendEventStatus.Accepted.ToString() && x.OwnerEmail == normalized && x.UpdatedAt >= start && x.UpdatedAt < end);
     }
 
     public void Save(SendEvent sendEvent)
@@ -92,24 +66,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         var clientSuppressed = events.Count(x => x.Status == SendEventStatus.Skipped && x.Reason == SendSkipReason.ClientSuppression);
         var pausedByLimit = events.Count(x => x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.DailyLimit);
         var skippedOther = events.Count(x => x.Status == SendEventStatus.Skipped && x.Reason is not SendSkipReason.GlobalSuppression and not SendSkipReason.ClientSuppression);
-        return new MailingSendSummary(
-            mailingId,
-            events.Count(x => x.Status is SendEventStatus.Pending or SendEventStatus.Accepted or SendEventStatus.Failed),
-            events.Count(x => x.Status == SendEventStatus.Accepted),
-            events.Count(x => x.Status == SendEventStatus.Failed),
-            suppressed,
-            clientSuppressed,
-            pausedByLimit,
-            skippedOther,
-            events.Count(x => x.Status == SendEventStatus.Pending),
-            totalAcceptedRecipients,
-            events.Count(x => x.DeliveryStatus == DeliveryStatus.Accepted),
-            events.Count(x => x.DeliveryStatus == DeliveryStatus.Delivered),
-            events.Count(x => x.DeliveryStatus == DeliveryStatus.SoftBounce),
-            events.Count(x => x.DeliveryStatus == DeliveryStatus.HardBounce),
-            events.Count(x => x.DeliveryStatus == DeliveryStatus.Complaint),
-            events.Count(x => x.DeliveryStatus == DeliveryStatus.Rejected),
-            events.Count(x => x.DeliveryStatus == DeliveryStatus.Unknown));
+        return new MailingSendSummary(mailingId, events.Count(x => x.Status is SendEventStatus.Pending or SendEventStatus.Accepted or SendEventStatus.Failed), events.Count(x => x.Status == SendEventStatus.Accepted), events.Count(x => x.Status == SendEventStatus.Failed), suppressed, clientSuppressed, pausedByLimit, skippedOther, events.Count(x => x.Status == SendEventStatus.Pending), totalAcceptedRecipients, events.Count(x => x.DeliveryStatus == DeliveryStatus.Accepted), events.Count(x => x.DeliveryStatus == DeliveryStatus.Delivered), events.Count(x => x.DeliveryStatus == DeliveryStatus.SoftBounce), events.Count(x => x.DeliveryStatus == DeliveryStatus.HardBounce), events.Count(x => x.DeliveryStatus == DeliveryStatus.Complaint), events.Count(x => x.DeliveryStatus == DeliveryStatus.Rejected), events.Count(x => x.DeliveryStatus == DeliveryStatus.Unknown));
     }
 
     private static SendEventEntity ToEntity(SendEvent sendEvent) => new()
@@ -132,23 +89,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         UpdatedAt = sendEvent.UpdatedAt.ToUniversalTime()
     };
 
-    private static SendEvent ToDomain(SendEventEntity entity) => new(
-        entity.Id,
-        entity.MailingId,
-        entity.OwnerEmail,
-        entity.RecipientEmail,
-        Enum.Parse<SendEventStatus>(entity.Status),
-        Enum.Parse<SendSkipReason>(entity.Reason),
-        entity.Provider,
-        entity.ProviderMessageId,
-        entity.Attempt,
-        entity.ErrorCode,
-        entity.ErrorMessage,
-        entity.CreatedAt,
-        entity.UpdatedAt,
-        Enum.TryParse<DeliveryStatus>(entity.DeliveryStatus, out var status) ? status : DeliveryStatus.NotReported,
-        entity.LastDeliveryEventAt,
-        entity.LastDeliverySummary);
+    private static SendEvent ToDomain(SendEventEntity entity) => new(entity.Id, entity.MailingId, entity.OwnerEmail, entity.RecipientEmail, Enum.Parse<SendEventStatus>(entity.Status), Enum.Parse<SendSkipReason>(entity.Reason), entity.Provider, entity.ProviderMessageId, entity.Attempt, entity.ErrorCode, entity.ErrorMessage, entity.CreatedAt, entity.UpdatedAt, Enum.TryParse<DeliveryStatus>(entity.DeliveryStatus, out var status) ? status : DeliveryStatus.NotReported, entity.LastDeliveryEventAt, entity.LastDeliverySummary);
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }
@@ -159,19 +100,12 @@ public sealed class EfProviderWebhookEventRepository(PismoletDbContext db) : IPr
     {
         var normalizedProvider = provider.Trim();
         var normalizedEventId = providerEventId.Trim();
-        return db.ProviderWebhookEvents
-            .AsNoTracking()
-            .FirstOrDefault(x => x.Provider == normalizedProvider && x.ProviderEventId == normalizedEventId) is { } entity
-                ? ToDomain(entity)
-                : null;
+        return db.ProviderWebhookEvents.AsNoTracking().FirstOrDefault(x => x.Provider == normalizedProvider && x.ProviderEventId == normalizedEventId) is { } entity ? ToDomain(entity) : null;
     }
 
-    public IReadOnlyCollection<ProviderWebhookEvent> ListByMailingId(Guid mailingId) => db.ProviderWebhookEvents
-        .AsNoTracking()
-        .Where(x => x.MailingId == mailingId)
-        .OrderBy(x => x.ReceivedAt)
-        .Select(x => ToDomain(x))
-        .ToArray();
+    public IReadOnlyCollection<ProviderWebhookEvent> ListByMailingId(Guid mailingId) => db.ProviderWebhookEvents.AsNoTracking().Where(x => x.MailingId == mailingId).OrderBy(x => x.ReceivedAt).Select(x => ToDomain(x)).ToArray();
+
+    public IReadOnlyCollection<ProviderWebhookEvent> ListRecent(int limit) => db.ProviderWebhookEvents.AsNoTracking().OrderByDescending(x => x.ReceivedAt).Take(Math.Max(1, limit)).Select(x => ToDomain(x)).ToArray();
 
     public void Save(ProviderWebhookEvent webhookEvent)
     {
@@ -210,23 +144,7 @@ public sealed class EfProviderWebhookEventRepository(PismoletDbContext db) : IPr
         CorrelationId = item.CorrelationId
     };
 
-    private static ProviderWebhookEvent ToDomain(ProviderWebhookEventEntity entity) => new(
-        entity.Id,
-        entity.Provider,
-        entity.ProviderEventId,
-        entity.ProviderMessageId,
-        entity.MailingId,
-        entity.ClientId,
-        entity.RecipientEmailNormalized,
-        Enum.Parse<ProviderWebhookEventType>(entity.EventType),
-        entity.OccurredAt,
-        entity.ReceivedAt,
-        entity.RawPayloadHash,
-        entity.RawPayloadStored,
-        entity.ReasonCode,
-        entity.ReasonMessage,
-        Enum.Parse<ProviderWebhookProcessingStatus>(entity.ProcessingStatus),
-        entity.CorrelationId);
+    private static ProviderWebhookEvent ToDomain(ProviderWebhookEventEntity entity) => new(entity.Id, entity.Provider, entity.ProviderEventId, entity.ProviderMessageId, entity.MailingId, entity.ClientId, entity.RecipientEmailNormalized, Enum.Parse<ProviderWebhookEventType>(entity.EventType), entity.OccurredAt, entity.ReceivedAt, entity.RawPayloadHash, entity.RawPayloadStored, entity.ReasonCode, entity.ReasonMessage, Enum.Parse<ProviderWebhookProcessingStatus>(entity.ProcessingStatus), entity.CorrelationId);
 }
 
 public sealed class EfClientSuppressionRepository(PismoletDbContext db) : IClientSuppressionRepository
@@ -236,22 +154,12 @@ public sealed class EfClientSuppressionRepository(PismoletDbContext db) : IClien
     public IReadOnlySet<string> GetSuppressedSet(string clientId, IEnumerable<string> normalizedEmails)
     {
         var normalizedClient = Normalize(clientId);
-        var emails = normalizedEmails
-            .Select(Normalize)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (emails.Length == 0)
-        {
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        return db.ClientSuppressions
-            .AsNoTracking()
-            .Where(x => x.ClientId == normalizedClient && emails.Contains(x.EmailNormalized))
-            .Select(x => x.EmailNormalized)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var emails = normalizedEmails.Select(Normalize).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (emails.Length == 0) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return db.ClientSuppressions.AsNoTracking().Where(x => x.ClientId == normalizedClient && emails.Contains(x.EmailNormalized)).Select(x => x.EmailNormalized).ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
+
+    public IReadOnlyCollection<ClientSuppression> ListRecent(int limit) => db.ClientSuppressions.AsNoTracking().OrderByDescending(x => x.LastSeenAt).Take(Math.Max(1, limit)).Select(x => ToDomain(x)).ToArray();
 
     public ClientSuppression AddOrUpdate(ClientSuppression suppression)
     {
@@ -286,15 +194,7 @@ public sealed class EfClientSuppressionRepository(PismoletDbContext db) : IClien
         LastSeenAt = item.LastSeenAt.ToUniversalTime()
     };
 
-    private static ClientSuppression ToDomain(ClientSuppressionEntity entity) => new(
-        entity.Id,
-        entity.ClientId,
-        entity.EmailNormalized,
-        Enum.Parse<ClientSuppressionReason>(entity.Reason),
-        entity.SourceMailingId,
-        entity.SourceProviderMessageId,
-        entity.CreatedAt,
-        entity.LastSeenAt);
+    private static ClientSuppression ToDomain(ClientSuppressionEntity entity) => new(entity.Id, entity.ClientId, entity.EmailNormalized, Enum.Parse<ClientSuppressionReason>(entity.Reason), entity.SourceMailingId, entity.SourceProviderMessageId, entity.CreatedAt, entity.LastSeenAt);
 
     private static string Normalize(string value) => value.Trim().ToLowerInvariant();
 }
