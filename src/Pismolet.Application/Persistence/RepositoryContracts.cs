@@ -13,6 +13,8 @@ public interface IUserRepository
 
     UserAccount? FindByConfirmationToken(string token);
 
+    IReadOnlyCollection<UserAccount> ListAll();
+
     void Update(UserAccount user);
 }
 
