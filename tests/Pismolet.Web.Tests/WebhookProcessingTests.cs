@@ -6,6 +6,7 @@ using Pismolet.Web.Domain.Mail;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Infrastructure.Audit;
 using Pismolet.Web.Infrastructure.Persistence;
+using Xunit;
 
 namespace Pismolet.Web.Tests;
 
