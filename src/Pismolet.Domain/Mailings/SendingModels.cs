@@ -112,7 +112,8 @@ public sealed record SendEvent(
     DateTimeOffset UpdatedAt,
     DeliveryStatus DeliveryStatus = DeliveryStatus.NotReported,
     DateTimeOffset? LastDeliveryEventAt = null,
-    string? LastDeliverySummary = null)
+    string? LastDeliverySummary = null,
+    DateTimeOffset? AcceptedAt = null)
 {
     public const string FakeProvider = "FakeEmail";
 
@@ -145,16 +146,21 @@ public sealed record SendEvent(
         UpdatedAt = DateTimeOffset.UtcNow
     };
 
-    public SendEvent MarkAccepted(string providerMessageId) => this with
+    public SendEvent MarkAccepted(string providerMessageId)
     {
-        Status = SendEventStatus.Accepted,
-        Reason = SendSkipReason.None,
-        ProviderMessageId = string.IsNullOrWhiteSpace(ProviderMessageId) ? providerMessageId : ProviderMessageId,
-        Attempt = Attempt + 1,
-        ErrorCode = null,
-        ErrorMessage = null,
-        UpdatedAt = DateTimeOffset.UtcNow
-    };
+        var now = DateTimeOffset.UtcNow;
+        return this with
+        {
+            Status = SendEventStatus.Accepted,
+            Reason = SendSkipReason.None,
+            ProviderMessageId = string.IsNullOrWhiteSpace(ProviderMessageId) ? providerMessageId : ProviderMessageId,
+            Attempt = Attempt + 1,
+            ErrorCode = null,
+            ErrorMessage = null,
+            UpdatedAt = now,
+            AcceptedAt = AcceptedAt ?? now
+        };
+    }
 
     public SendEvent MarkFailed(string errorCode, string errorMessage) => this with
     {
