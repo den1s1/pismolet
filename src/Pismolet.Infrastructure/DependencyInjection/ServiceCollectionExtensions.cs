@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Pismolet.Web.Application.Admin;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Imports;
@@ -23,18 +24,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFakeMailer, InMemoryFakeMailer>();
         services.AddSingleton<IEmailNormalizer, EmailNormalizer>();
         services.AddSingleton<IEmailSyntaxValidator, EmailSyntaxValidator>();
+        services.AddSingleton<IAdminMvpSettingsRepository, RuntimeAdminMvpSettingsRepository>();
         services.AddSingleton(new PublicUrlOptions(ReadPublicBaseUrl(configuration)));
-        services.AddSingleton(new UnsubscribeTokenOptions(
-            configuration["Unsubscribe:Secret"] ?? configuration["PISMOLET_UNSUBSCRIBE_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_UNSUBSCRIBE_SECRET") ?? UnsubscribeTokenOptions.DevelopmentDefault.Secret,
-            TimeSpan.FromDays(ReadTokenLifetimeDays(configuration))));
-        services.AddSingleton(new InboundReplyTokenOptions(
-            configuration["InboundReplies:Secret"] ?? configuration["PISMOLET_INBOUND_REPLY_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_INBOUND_REPLY_SECRET") ?? InboundReplyTokenOptions.DevelopmentDefault.Secret,
-            configuration["InboundReplies:Domain"] ?? InboundReplyTokenOptions.DevelopmentDefault.InboundDomain,
-            TimeSpan.FromDays(ReadInboundTokenLifetimeDays(configuration))));
-        services.AddSingleton(new InboundReplyOptions(
-            ReadInt(configuration, "InboundReplies:BodyRetentionDays", 14, 1, 60),
-            ReadInt(configuration, "InboundReplies:MaxStoredBodyChars", 12000, 0, 16000),
-            ReadInt(configuration, "InboundReplies:ForwardBatchSize", 50, 1, 500)));
+        services.AddSingleton(new UnsubscribeTokenOptions(configuration["Unsubscribe:Secret"] ?? configuration["PISMOLET_UNSUBSCRIBE_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_UNSUBSCRIBE_SECRET") ?? UnsubscribeTokenOptions.DevelopmentDefault.Secret, TimeSpan.FromDays(ReadTokenLifetimeDays(configuration))));
+        services.AddSingleton(new InboundReplyTokenOptions(configuration["InboundReplies:Secret"] ?? configuration["PISMOLET_INBOUND_REPLY_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_INBOUND_REPLY_SECRET") ?? InboundReplyTokenOptions.DevelopmentDefault.Secret, configuration["InboundReplies:Domain"] ?? InboundReplyTokenOptions.DevelopmentDefault.InboundDomain, TimeSpan.FromDays(ReadInboundTokenLifetimeDays(configuration))));
+        services.AddSingleton(new InboundReplyOptions(ReadInt(configuration, "InboundReplies:BodyRetentionDays", 14, 1, 60), ReadInt(configuration, "InboundReplies:MaxStoredBodyChars", 12000, 0, 16000), ReadInt(configuration, "InboundReplies:ForwardBatchSize", 50, 1, 500)));
         services.AddSingleton<IUnsubscribeTokenService, SignedUnsubscribeTokenService>();
         services.AddSingleton<IInboundReplyTokenService, SignedInboundReplyTokenService>();
         services.AddSingleton<IMessageRenderingService, MessageRenderingService>();
@@ -65,6 +59,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IModerationAdminService, ModerationAdminService>();
         services.AddScoped<IMailingSendService, MailingSendService>();
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
+        services.AddScoped<IAdminOperationService, AdminOperationService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
         services.AddScoped<IEmailWebhookProcessingService, EmailWebhookProcessingService>();
         services.AddScoped<IInboundReplyMatchingService, InboundReplyMatchingService>();
@@ -108,7 +103,6 @@ public static class ServiceCollectionExtensions
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetService<PismoletDbContext>();
         if (db is null) return;
-
         var migrations = db.Database.GetMigrations().ToArray();
         if (migrations.Length == 0)
         {
@@ -116,7 +110,6 @@ public static class ServiceCollectionExtensions
             db.Database.EnsureCreated();
             return;
         }
-
         db.Database.Migrate();
     }
 
@@ -128,19 +121,13 @@ public static class ServiceCollectionExtensions
 
     private static void AddEmailProvider(IServiceCollection services, IConfiguration configuration)
     {
-        var provider = configuration["MailProvider"]
-            ?? configuration["Mail:Provider"]
-            ?? configuration["Email:Provider"]
-            ?? configuration["Sending:MailProvider"]
-            ?? "FakeMailer";
-
+        var provider = configuration["MailProvider"] ?? configuration["Mail:Provider"] ?? configuration["Email:Provider"] ?? configuration["Sending:MailProvider"] ?? "FakeMailer";
         if (provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton(ReadSmtpOptions(configuration));
             services.AddScoped<IEmailProviderAdapter, SmtpEmailProviderAdapter>();
             return;
         }
-
         services.AddScoped<IEmailProviderAdapter, PublicUrlFakeEmailProviderAdapter>();
     }
 
@@ -152,76 +139,30 @@ public static class ServiceCollectionExtensions
         var password = configuration["Smtp:Password"] ?? string.Empty;
         var fromEmail = configuration["Smtp:FromEmail"] ?? username;
         var fromName = configuration["Smtp:FromName"] ?? "Письмолёт";
-        var secureSocketOptions = configuration["Smtp:SecureSocketOptions"]
-            ?? configuration["Smtp:Security"]
-            ?? (port == 465 ? "SslOnConnect" : "StartTlsWhenAvailable");
+        var secureSocketOptions = configuration["Smtp:SecureSocketOptions"] ?? configuration["Smtp:Security"] ?? (port == 465 ? "SslOnConnect" : "StartTlsWhenAvailable");
         var timeoutSeconds = ReadInt(configuration, "Smtp:TimeoutSeconds", 30, 1, 300);
-
-        if (string.IsNullOrWhiteSpace(fromEmail))
-        {
-            throw new InvalidOperationException("Для SMTP задайте Smtp:FromEmail или Smtp:Username.");
-        }
-
-        return new SmtpEmailProviderOptions(
-            host.Trim(),
-            port,
-            username.Trim(),
-            password,
-            fromEmail.Trim(),
-            string.IsNullOrWhiteSpace(fromName) ? "Письмолёт" : fromName.Trim(),
-            secureSocketOptions.Trim(),
-            timeoutSeconds);
+        if (string.IsNullOrWhiteSpace(fromEmail)) throw new InvalidOperationException("Для SMTP задайте Smtp:FromEmail или Smtp:Username.");
+        return new SmtpEmailProviderOptions(host.Trim(), port, username.Trim(), password, fromEmail.Trim(), string.IsNullOrWhiteSpace(fromName) ? "Письмолёт" : fromName.Trim(), secureSocketOptions.Trim(), timeoutSeconds);
     }
 
     private static string Required(IConfiguration configuration, string key, string envName)
     {
         var value = configuration[key] ?? Environment.GetEnvironmentVariable(envName);
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new InvalidOperationException($"Задайте настройку {key}.");
-        }
-
+        if (string.IsNullOrWhiteSpace(value)) throw new InvalidOperationException($"Задайте настройку {key}.");
         return value;
     }
 
-    private static int ReadBatchSize(IConfiguration configuration)
-    {
-        var raw = configuration["Sending:BatchSize"];
-        return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 1000) : 100;
-    }
+    private static int ReadBatchSize(IConfiguration configuration) => int.TryParse(configuration["Sending:BatchSize"], out var value) ? Math.Clamp(value, 1, 1000) : 100;
 
     private static string ReadPublicBaseUrl(IConfiguration configuration)
     {
-        var raw = configuration["App:PublicBaseUrl"]
-            ?? configuration["Pismolet:PublicBaseUrl"]
-            ?? configuration["PISMOLET_PUBLIC_BASE_URL"]
-            ?? Environment.GetEnvironmentVariable("PISMOLET_PUBLIC_BASE_URL")
-            ?? PublicUrlOptions.DevelopmentDefault.PublicBaseUrl;
-
+        var raw = configuration["App:PublicBaseUrl"] ?? configuration["Pismolet:PublicBaseUrl"] ?? configuration["PISMOLET_PUBLIC_BASE_URL"] ?? Environment.GetEnvironmentVariable("PISMOLET_PUBLIC_BASE_URL") ?? PublicUrlOptions.DevelopmentDefault.PublicBaseUrl;
         raw = raw.Trim().TrimEnd('/');
-        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Scheme) || string.IsNullOrWhiteSpace(uri.Host))
-        {
-            throw new InvalidOperationException("Задайте корректный публичный URL приложения в App:PublicBaseUrl.");
-        }
-
+        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Scheme) || string.IsNullOrWhiteSpace(uri.Host)) throw new InvalidOperationException("Задайте корректный публичный URL приложения в App:PublicBaseUrl.");
         return raw;
     }
 
-    private static int ReadTokenLifetimeDays(IConfiguration configuration)
-    {
-        var raw = configuration["Unsubscribe:TokenLifetimeDays"];
-        return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 365) : 90;
-    }
-
-    private static int ReadInboundTokenLifetimeDays(IConfiguration configuration)
-    {
-        var raw = configuration["InboundReplies:TokenLifetimeDays"];
-        return int.TryParse(raw, out var value) ? Math.Clamp(value, 1, 365) : 180;
-    }
-
-    private static int ReadInt(IConfiguration configuration, string key, int fallback, int min, int max)
-    {
-        var raw = configuration[key];
-        return int.TryParse(raw, out var value) ? Math.Clamp(value, min, max) : fallback;
-    }
+    private static int ReadTokenLifetimeDays(IConfiguration configuration) => int.TryParse(configuration["Unsubscribe:TokenLifetimeDays"], out var value) ? Math.Clamp(value, 1, 365) : 90;
+    private static int ReadInboundTokenLifetimeDays(IConfiguration configuration) => int.TryParse(configuration["InboundReplies:TokenLifetimeDays"], out var value) ? Math.Clamp(value, 1, 365) : 180;
+    private static int ReadInt(IConfiguration configuration, string key, int fallback, int min, int max) => int.TryParse(configuration[key], out var value) ? Math.Clamp(value, min, max) : fallback;
 }
