@@ -48,4 +48,38 @@ public sealed class MailWarmupConfigurationTests
         Assert.Equal(50, yandex.MaxPerDay);
         Assert.Equal(30, yandex.MinSecondsBetweenSends);
     }
+
+    [Fact]
+    public void Service_registration_accepts_env_safe_domain_limit_keys()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Persistence:Provider"] = "InMemory",
+                ["MailWarmup:MaxPerMinute"] = "10",
+                ["MailWarmup:MaxPerHour"] = "100",
+                ["MailWarmup:MaxPerDay"] = "1000",
+                ["MailWarmup:MinSecondsBetweenSends"] = "30",
+                ["MailWarmup:DomainLimits:gmail_com:MaxPerMinute"] = "1",
+                ["MailWarmup:DomainLimits:mail_ru:MinSecondsBetweenSends"] = "300"
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddPismoletWebServices(configuration);
+
+        using var provider = services.BuildServiceProvider();
+        var options = provider.GetRequiredService<MailWarmupLimitOptions>();
+        var gmail = options.GetDomainLimit("gmail.com");
+        var mailRu = options.GetDomainLimit("mail.ru");
+
+        Assert.Equal(1, gmail.MaxPerMinute);
+        Assert.Equal(100, gmail.MaxPerHour);
+        Assert.Equal(1000, gmail.MaxPerDay);
+        Assert.Equal(30, gmail.MinSecondsBetweenSends);
+        Assert.Equal(10, mailRu.MaxPerMinute);
+        Assert.Equal(100, mailRu.MaxPerHour);
+        Assert.Equal(1000, mailRu.MaxPerDay);
+        Assert.Equal(300, mailRu.MinSecondsBetweenSends);
+    }
 }
