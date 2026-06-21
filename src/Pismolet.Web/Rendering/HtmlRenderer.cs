@@ -11,8 +11,7 @@ public static class HtmlRenderer
 
     public static string Page(string title, string body, bool authenticated = false, bool showDevTools = false)
     {
-        var effectiveAuthenticated = authenticated || body.Contains("dashboard-shell", StringComparison.Ordinal);
-        var accountHtml = effectiveAuthenticated ? AccountMenu(showDevTools) : PublicNav();
+        var accountHtml = authenticated ? AccountMenu(showDevTools) : PublicNav();
 
         return $"""
             <!doctype html>
