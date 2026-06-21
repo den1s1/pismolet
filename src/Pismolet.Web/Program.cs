@@ -16,7 +16,7 @@ if (isRunningUnderTests)
     });
 }
 
-var adminEmails = ReadAdminEmails(builder.Configuration);
+var fallbackAdminEmails = ReadAdminEmails(builder.Configuration);
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -38,7 +38,16 @@ builder.Services.AddAuthorization(options =>
         .RequireAssertion(context =>
         {
             var email = context.User.FindFirstValue(ClaimTypes.Email);
-            return !string.IsNullOrWhiteSpace(email) && adminEmails.Contains(email);
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return false;
+            }
+
+            var adminEmails = context.Resource is HttpContext httpContext
+                ? ReadAdminEmails(httpContext.RequestServices.GetRequiredService<IConfiguration>())
+                : fallbackAdminEmails;
+
+            return adminEmails.Contains(email);
         }));
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
