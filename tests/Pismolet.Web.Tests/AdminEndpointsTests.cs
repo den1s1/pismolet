@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -33,6 +34,25 @@ public sealed class AdminEndpointsTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/account/login", response.Headers.Location?.ToString() ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Authenticated_non_admin_user_is_forbidden_from_admin()
+    {
+        using var factory = CreateAuthorizedFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
+
+        var response = await client.GetAsync("/admin/users");
+
+        Assert.True(response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Redirect, $"Unexpected status: {response.StatusCode}");
+        if (response.StatusCode == HttpStatusCode.Redirect)
+        {
+            Assert.Contains("/account/login", response.Headers.Location?.ToString() ?? string.Empty);
+        }
     }
 
     [Fact]
@@ -96,6 +116,13 @@ public sealed class AdminEndpointsTests
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Admin:AllowedEmails"] = AdminEmail
+                });
+            });
         });
 
     private static WebApplicationFactory<Program> CreateAuthorizedFactory() =>
