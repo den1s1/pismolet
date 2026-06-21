@@ -63,8 +63,8 @@ public sealed class SmtpTransportLoggingTests
         var result = await adapter.SendAsync(message, CancellationToken.None);
 
         Assert.False(result.Accepted);
-        var started = Assert.Single(logger.Entries.Where(x => x.LogLevel == LogLevel.Information && x.Message.Contains("SMTP send started", StringComparison.Ordinal)));
-        var failed = Assert.Single(logger.Entries.Where(x => x.LogLevel == LogLevel.Warning && x.Message.Contains("SMTP send failed", StringComparison.Ordinal)));
+        var started = Assert.Single(logger.Entries, x => x.LogLevel == LogLevel.Information && x.Message.Contains("SMTP send started", StringComparison.Ordinal));
+        var failed = Assert.Single(logger.Entries, x => x.LogLevel == LogLevel.Warning && x.Message.Contains("SMTP send failed", StringComparison.Ordinal));
         Assert.Equal("LocalSmtp", started.Value("Transport"));
         Assert.Equal("127.0.0.1", started.Value("Host"));
         Assert.Equal(1, started.Value("Port"));
