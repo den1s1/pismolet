@@ -273,42 +273,41 @@ public static class AdminEndpoints
         return Results.Redirect($"/admin/recipients/{Uri.EscapeDataString(email)}");
     }
 
-    private static IResult ShowCampaigns(HttpContext http, IUserRepository users, IMailingRepository mailings)
+    private static IResult ShowCampaigns(HttpContext http, IAdminCampaignRepository campaigns)
     {
         var adminEmail = CurrentEmail(http) ?? "admin@example.test";
         var search = http.Request.Query["q"].ToString().Trim();
         var status = http.Request.Query["status"].ToString().Trim();
-        var userNames = users.ListAll().ToDictionary(user => user.Email, user => user.DisplayName, StringComparer.OrdinalIgnoreCase);
-        var allRows = mailings.ListAll()
-            .OrderByDescending(mailing => mailing.CreatedAt)
-            .Select(mailing => new AdminCampaignRow(mailing, userNames.GetValueOrDefault(mailing.OwnerEmail) ?? mailing.OwnerEmail))
+        var allRows = campaigns.ListSummaries()
+            .OrderByDescending(row => row.CreatedAt)
             .ToArray();
 
         var rows = allRows.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             rows = rows.Where(row =>
-                row.Mailing.Subject.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                row.Mailing.OwnerEmail.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                row.Subject.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                row.DisplaySubject.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                row.OwnerEmail.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                 row.ClientName.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            rows = rows.Where(row => string.Equals(row.Mailing.Status.ToString(), status, StringComparison.OrdinalIgnoreCase));
+            rows = rows.Where(row => string.Equals(row.Status.ToString(), status, StringComparison.OrdinalIgnoreCase));
         }
 
         var filtered = rows.ToArray();
         var stats = $"""
             <div class='admin-stats'>
                 <div class='admin-stat'><b>{allRows.Length}</b><span>Кампаний</span></div>
-                <div class='admin-stat'><b>{allRows.Sum(row => row.Mailing.LastImportStats.Accepted)}</b><span>Получателей к отправке</span></div>
-                <div class='admin-stat'><b>{allRows.Count(row => row.Mailing.StatusRu.Contains("провер", StringComparison.OrdinalIgnoreCase))}</b><span>На проверке</span></div>
-                <div class='admin-stat'><b>{allRows.Count(row => row.Mailing.StatusRu.Contains("отправ", StringComparison.OrdinalIgnoreCase))}</b><span>В отправке</span></div>
+                <div class='admin-stat'><b>{allRows.Sum(row => row.AcceptedRecipients)}</b><span>Получателей к отправке</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => row.StatusRu.Contains("провер", StringComparison.OrdinalIgnoreCase))}</b><span>На проверке</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => row.StatusRu.Contains("отправ", StringComparison.OrdinalIgnoreCase))}</b><span>В отправке</span></div>
             </div>
             """;
         var statusOptions = string.Join(string.Empty, allRows
-            .Select(row => row.Mailing.Status.ToString())
+            .Select(row => row.Status.ToString())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
             .Select(value => Option(value, value, status)));
@@ -517,11 +516,7 @@ public static class AdminEndpoints
 
     private static string RecipientRow(AdminRecipientSummary row) => $"<tr><td>{H(row.Email)}</td><td><span class='admin-badge recipient-{H(row.StatusCode)}'>{H(row.StatusText)}</span></td><td>{row.MailingCount}</td><td>{row.OwnerCount}</td><td>{row.SentCount}</td><td>{FormatDate(row.LastMessageAt)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>Профиль</a></td></tr>";
 
-    private static string CampaignRow(AdminCampaignRow row)
-    {
-        var mailing = row.Mailing;
-        return $"<tr><td>{H(mailing.MessageDraft?.Subject ?? mailing.Subject)}</td><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(mailing.OwnerEmail)}'>{H(row.ClientName)}</a><br><span class='admin-muted'>{H(mailing.OwnerEmail)}</span></td><td><span class='admin-badge'>{H(mailing.StatusRu)}</span></td><td>{mailing.LastImportStats.Accepted}</td><td>{FormatMoney(mailing.LastImportStats.Accepted)}</td><td>{FormatDate(mailing.CreatedAt)}</td><td><a class='admin-link' href='/admin/campaigns/{mailing.Id}'>Открыть</a></td></tr>";
-    }
+    private static string CampaignRow(AdminMailingSummary row) => $"<tr><td>{H(row.DisplaySubject)}</td><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(row.OwnerEmail)}'>{H(row.ClientName)}</a><br><span class='admin-muted'>{H(row.OwnerEmail)}</span></td><td><span class='admin-badge'>{H(row.StatusRu)}</span></td><td>{row.AcceptedRecipients}</td><td>{FormatMoney(row.AcceptedRecipients)}</td><td>{FormatDate(row.CreatedAt)}</td><td><a class='admin-link' href='/admin/campaigns/{row.Id}'>Открыть</a></td></tr>";
 
     private static string CampaignTimeline(Mailing mailing, bool hasSendEvents)
     {
@@ -585,7 +580,6 @@ public static class AdminEndpoints
     }
 
     private sealed record AdminUserRow(UserAccount User, int MailingCount);
-    private sealed record AdminCampaignRow(Mailing Mailing, string ClientName);
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
