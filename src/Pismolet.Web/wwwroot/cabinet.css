@@ -164,6 +164,73 @@
   font-weight: 800;
 }
 
+.history-table {
+  display: grid;
+  gap: 0;
+}
+
+.history-table-head,
+.campaign-history-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.8fr) minmax(90px, 0.7fr) minmax(110px, 0.8fr) minmax(130px, 0.9fr) minmax(110px, 0.7fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.history-table-head {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  padding: 0 16px 10px;
+  text-transform: uppercase;
+}
+
+.campaign-history-row {
+  border-top: 1px solid var(--line);
+  padding: 16px;
+}
+
+.campaign-history-row:first-of-type {
+  border-top: 0;
+}
+
+.campaign-main {
+  display: grid;
+  gap: 5px;
+}
+
+.history-label {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.launch-stats {
+  margin: 18px 0;
+}
+
+.launch-grid {
+  align-items: start;
+}
+
+.send-wizard details {
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  .history-table-head {
+    display: none;
+  }
+
+  .campaign-history-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
+
 @media (max-width: 640px) {
   .issue-list li {
     grid-template-columns: 1fr;
