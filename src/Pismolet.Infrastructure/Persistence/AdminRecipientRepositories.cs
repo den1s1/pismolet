@@ -98,26 +98,25 @@ public sealed class EfAdminRecipientRepository(PismoletDbContext db) : IAdminRec
 
     private RecipientSnapshot[] LoadRecipients(string? normalizedEmail)
     {
-        var recipientRows = (from recipient in db.Recipients.AsNoTracking()
-                             join mailing in db.Mailings.AsNoTracking() on recipient.MailingId equals mailing.Id
-                             where recipient.Status == nameof(RecipientStatus.Accepted)
-                             select new
-                             {
-                                 recipient.NormalizedEmail,
-                                 mailing.Id,
-                                 mailing.OwnerEmail,
-                                 mailing.Subject,
-                                 mailing.StatusRu,
-                                 mailing.CreatedAt
-                             }).ToArray();
+        var query = from recipient in db.Recipients.AsNoTracking()
+                    join mailing in db.Mailings.AsNoTracking() on recipient.MailingId equals mailing.Id
+                    where recipient.Status == nameof(RecipientStatus.Accepted)
+                    select new
+                    {
+                        recipient.NormalizedEmail,
+                        mailing.Id,
+                        mailing.OwnerEmail,
+                        mailing.Subject,
+                        mailing.StatusRu,
+                        mailing.CreatedAt
+                    };
 
         if (!string.IsNullOrWhiteSpace(normalizedEmail))
         {
-            recipientRows = recipientRows
-                .Where(x => string.Equals(x.NormalizedEmail, normalizedEmail, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
+            query = query.Where(x => x.NormalizedEmail == normalizedEmail);
         }
 
+        var recipientRows = query.ToArray();
         var mailingIds = recipientRows.Select(x => x.Id).Distinct().ToArray();
         var acceptedCounts = db.Recipients
             .AsNoTracking()
