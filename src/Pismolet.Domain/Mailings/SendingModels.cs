@@ -102,7 +102,7 @@ public sealed record SendEvent(
     string OwnerEmail,
     string RecipientEmail,
     SendEventStatus Status,
-    SendSkipReason Reason,
+    SendSkipReason? Reason,
     string Provider,
     string? ProviderMessageId,
     int Attempt,
