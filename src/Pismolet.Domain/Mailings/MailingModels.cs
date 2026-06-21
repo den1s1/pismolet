@@ -213,7 +213,8 @@ public enum MailingStatus
     Sending,
     Sent,
     Failed,
-    Paused
+    Paused,
+    Blocked
 }
 
 public static class MailingStatusLabels
@@ -232,6 +233,7 @@ public static class MailingStatusLabels
         MailingStatus.Sent => "sent",
         MailingStatus.Failed => "failed",
         MailingStatus.Paused => "paused",
+        MailingStatus.Blocked => "blocked",
         MailingStatus.Priced => "priced",
         MailingStatus.Paid => "paid",
         _ => "draft"
@@ -253,6 +255,7 @@ public static class MailingStatusLabels
         MailingStatus.Sent => "Отправлено",
         MailingStatus.Failed => "Ошибка отправки",
         MailingStatus.Paused => "Приостановлено",
+        MailingStatus.Blocked => "Заблокировано администратором",
         _ => "Черновик"
     };
 
@@ -272,6 +275,7 @@ public static class MailingStatusLabels
         "Отправлено" => MailingStatus.Sent,
         "Ошибка отправки" => MailingStatus.Failed,
         "Приостановлено" => MailingStatus.Paused,
+        "Заблокировано администратором" => MailingStatus.Blocked,
         _ => MailingStatus.Draft
     };
 
