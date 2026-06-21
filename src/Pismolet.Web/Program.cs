@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Configuration;
 using Pismolet.Web.Endpoints;
 using Pismolet.Web.Infrastructure.DependencyInjection;
 
@@ -14,6 +16,8 @@ if (isRunningUnderTests)
     });
 }
 
+var adminEmails = ReadAdminEmails(builder.Configuration);
+
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -27,7 +31,16 @@ builder.Services
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AdminEndpoints.AdminPolicyName, policy => policy
+        .RequireAuthenticatedUser()
+        .RequireAssertion(context =>
+        {
+            var email = context.User.FindFirstValue(ClaimTypes.Email);
+            return !string.IsNullOrWhiteSpace(email) && adminEmails.Contains(email);
+        }));
+});
 builder.Services.AddPismoletWebServices(builder.Configuration);
 builder.Services.AddPismoletEfSendingStorage(builder.Configuration);
 
@@ -71,6 +84,30 @@ static bool IsRunningUnderTests() => AppDomain.CurrentDomain.GetAssemblies().Any
     var name = assembly.GetName().Name;
     return name is "testhost" || (name?.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase) ?? false);
 });
+
+static IReadOnlySet<string> ReadAdminEmails(IConfiguration configuration)
+{
+    var values = new List<string>();
+    values.AddRange(Split(configuration["Admin:AllowedEmails"]));
+    values.AddRange(Split(configuration["Admin:Emails"]));
+    values.AddRange(Split(configuration["Pismolet:AdminEmails"]));
+    values.AddRange(Split(configuration["PISMOLET_ADMIN_EMAILS"]));
+    values.AddRange(Split(Environment.GetEnvironmentVariable("PISMOLET_ADMIN_EMAILS")));
+
+    foreach (var child in configuration.GetSection("Admin:AllowedEmails").GetChildren())
+    {
+        values.AddRange(Split(child.Value));
+    }
+
+    return values
+        .Select(email => email.Trim().ToLowerInvariant())
+        .Where(email => !string.IsNullOrWhiteSpace(email))
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+}
+
+static IEnumerable<string> Split(string? value) => string.IsNullOrWhiteSpace(value)
+    ? Array.Empty<string>()
+    : value.Split([',', ';', '\n', '\r', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 public partial class Program
 {
