@@ -13,6 +13,10 @@ namespace Pismolet.Web.Endpoints;
 
 public static class DashboardEndpoints
 {
+    private const int MaxRecipientUploadBytes = 1024 * 1024;
+    private const int MaxManualAddressBytes = MaxRecipientUploadBytes;
+    private const int MaxManualAddressRows = RecipientImportService.MaxRows;
+
     public static IEndpointRouteBuilder MapDashboardEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/dashboard", (HttpContext http, IUserAccountService accounts, IMailingService mailings) =>
@@ -125,9 +129,18 @@ public static class DashboardEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", AddressStepWizard(mailing, "Загрузите CSV/XLSX-файл или вставьте адреса вручную."), authenticated: true));
         }
 
-        if (hasFile && file!.Length > 1024 * 1024)
+        if (hasFile && file!.Length > MaxRecipientUploadBytes)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", AddressStepWizard(mailing, "Файл слишком большой для dev-среза."), authenticated: true));
+        }
+
+        if (hasManualAddresses)
+        {
+            var manualError = ValidateManualAddresses(manualAddresses);
+            if (manualError is not null)
+            {
+                return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", AddressStepWizard(mailing, manualError), authenticated: true));
+            }
         }
 
         ImportRecipientsResult result;
@@ -138,7 +151,8 @@ public static class DashboardEndpoints
         }
         else
         {
-            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(ToManualCsv(manualAddresses)));
+            var manualCsv = ToManualCsv(manualAddresses);
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(manualCsv));
             result = await imports.ImportAsync(new ImportRecipientsCommand(email, id, "manual-addresses.csv", stream, ToRequestMetadata(http)));
         }
 
@@ -287,7 +301,7 @@ public static class DashboardEndpoints
       </label>
       <label class='manual-addresses'>
         <span>Или вставьте адреса вручную</span>
-        <small>Один адрес на строку. Дубликаты и отписавшиеся адреса будут исключены автоматически.</small>
+        <small>Один адрес на строку. Максимум 1000 строк и 1 МБ. Дубликаты и отписавшиеся адреса будут исключены автоматически.</small>
         <textarea name='manualAddresses' rows='12' placeholder='client@example.ru&#10;reader@example.com'></textarea>
       </label>
       <div class='actions wizard-actions'>
@@ -340,17 +354,33 @@ public static class DashboardEndpoints
 </section>";
     }
 
+    private static string? ValidateManualAddresses(string value)
+    {
+        if (Encoding.UTF8.GetByteCount(value) > MaxManualAddressBytes)
+        {
+            return "Ручная вставка слишком большая для dev-среза. Максимум 1 МБ.";
+        }
+
+        var rows = ManualAddressLines(value).Take(MaxManualAddressRows + 1).Count();
+        if (rows > MaxManualAddressRows)
+        {
+            return $"Ручная вставка содержит больше {MaxManualAddressRows} строк.";
+        }
+
+        return null;
+    }
+
     private static string ToManualCsv(string value)
     {
-        var lines = value
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => line.Trim())
-            .Where(line => !string.IsNullOrWhiteSpace(line));
-
-        return "email\n" + string.Join('\n', lines);
+        return "email\n" + string.Join('\n', ManualAddressLines(value));
     }
+
+    private static IEnumerable<string> ManualAddressLines(string value) => value
+        .Replace("\r\n", "\n", StringComparison.Ordinal)
+        .Replace('\r', '\n')
+        .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+        .Select(line => line.Trim())
+        .Where(line => !string.IsNullOrWhiteSpace(line));
 
     private static string DeclarationForm(Mailing? mailing, string? error)
     {
