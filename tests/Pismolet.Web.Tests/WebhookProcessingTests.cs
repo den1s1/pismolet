@@ -104,7 +104,16 @@ public sealed class WebhookProcessingTests
     {
         public void SendConfirmation(string to, string subject, string link) { }
 
-        public void AddMailingMessage(string to, string subject, string link) { }
+        public void AddMailingMessage(
+            string to,
+            string subject,
+            string link,
+            string? replyToAddress = null,
+            string? replyToken = null,
+            string? providerMessageId = null,
+            string? textBody = null) { }
+
+        public void AddForwardedReply(string to, string subject, string fromEmail, string textBody, string providerMessageId) { }
 
         public IReadOnlyCollection<FakeMail> GetOutbox() => Array.Empty<FakeMail>();
     }
