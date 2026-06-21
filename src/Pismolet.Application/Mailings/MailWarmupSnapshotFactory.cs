@@ -1,6 +1,16 @@
+using Pismolet.Web.Domain.Mailings;
+
 namespace Pismolet.Web.Application.Mailings;
 
-public sealed record MailWarmupAcceptedSend(string RecipientEmail, DateTimeOffset SentAt);
+public sealed record MailWarmupAcceptedSend(string RecipientEmail, DateTimeOffset SentAt)
+{
+    public static MailWarmupAcceptedSend? FromSendEvent(SendEvent sendEvent)
+    {
+        return sendEvent.Status == SendEventStatus.Accepted && sendEvent.AcceptedAt is { } acceptedAt
+            ? new MailWarmupAcceptedSend(sendEvent.RecipientEmail, acceptedAt)
+            : null;
+    }
+}
 
 public static class MailWarmupSnapshotFactory
 {
