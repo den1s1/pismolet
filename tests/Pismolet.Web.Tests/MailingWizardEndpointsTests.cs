@@ -84,8 +84,8 @@ public sealed class MailingWizardEndpointsTests
         Assert.Equal(1, mailing.LastImportStats.Duplicates);
         Assert.Equal(1, mailing.LastImportStats.Invalid);
         Assert.Equal(0, mailing.LastImportStats.GloballySuppressed);
-        Assert.Equal(1, mailing.Recipients.Count);
-        Assert.Single(mailing.Recipients, recipient => recipient.Status == RecipientStatus.Accepted);
+        var recipient = Assert.Single(mailing.Recipients);
+        Assert.Equal(RecipientStatus.Accepted, recipient.Status);
         Assert.NotNull(mailing.LastImportBatch);
         Assert.Equal(3, mailing.LastImportBatch.TotalRows);
         Assert.Equal(1, mailing.LastImportBatch.Accepted);
@@ -143,6 +143,91 @@ public sealed class MailingWizardEndpointsTests
         var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
         Assert.NotNull(mailing);
         Assert.Empty(mailing.Recipients);
+    }
+
+    [Fact]
+    public async Task Authenticated_user_can_open_message_wizard_step_after_declaration()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Wizard Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Message wizard campaign");
+        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+
+        var html = await client.GetStringAsync($"/mailings/{mailingId}/message");
+
+        Assert.Contains("2. Напишите письмо", html);
+        Assert.Contains("Превью письма", html);
+        Assert.Contains("name='senderName'", html);
+        Assert.Contains("name='body'", html);
+        Assert.Contains("Письмолёт автоматически добавит", html);
+        Assert.Contains("Служебный идентификатор рассылки", html);
+        Assert.DoesNotContain("Перейти к проверке и оплате", html);
+    }
+
+    [Fact]
+    public async Task Saving_message_preserves_draft_and_shows_preview()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Wizard Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Save message campaign");
+        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+        using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Библиотека №5",
+            ["subject"] = "Приглашаем на встречу",
+            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас.",
+            ["messageType"] = "Transactional"
+        });
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Письмо сохранено", html);
+        Assert.Contains("Перейти к проверке и оплате", html);
+        Assert.Contains("Библиотека №5", html);
+        Assert.Contains("Приглашаем на встречу", html);
+        Assert.Contains("Здравствуйте!", html);
+        Assert.Contains("Будем рады видеть вас.", html);
+        Assert.Contains("Почему вы получили это письмо", html);
+        Assert.Contains("/unsubscribe/example-token", html);
+
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing?.MessageDraft);
+        Assert.Equal("Библиотека №5", mailing.MessageDraft.SenderName);
+        Assert.Equal("Приглашаем на встречу", mailing.MessageDraft.Subject);
+        Assert.Equal("Здравствуйте!\n\nБудем рады видеть вас.", mailing.MessageDraft.Body);
+        Assert.Equal(MessageType.Transactional, mailing.MessageDraft.MessageType);
+    }
+
+    private static async Task ImportAcceptedAddress(HttpClient client, Guid mailingId)
+    {
+        using var content = new MultipartFormDataContent
+        {
+            { new StringContent("reader@example.test"), "manualAddresses" }
+        };
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/recipients", content);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private static async Task ConfirmBaseDeclaration(HttpClient client, Guid mailingId)
+    {
+        using var declarationForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["baseSource"] = "Customers",
+            ["baseLegality"] = "on",
+            ["messageType"] = "Transactional"
+        });
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/declaration", declarationForm);
+        Assert.True(response.IsSuccessStatusCode, $"Unexpected declaration response: {(int)response.StatusCode}");
     }
 
     private static WebApplicationFactory<Program> CreateFactory() =>
