@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using MailKit.Net.Smtp;
 using MailKit.Security;
+using Microsoft.Extensions.Logging;
 using MimeKit;
 using MimeKit.Utils;
 using Pismolet.Web.Application.Mailings;
@@ -22,21 +23,57 @@ public sealed record SmtpEmailProviderOptions(
     public const string ProviderName = "Smtp";
 }
 
-public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, PublicUrlOptions publicUrlOptions) : IEmailProviderAdapter
+public sealed class SmtpEmailProviderAdapter(
+    SmtpEmailProviderOptions options,
+    PublicUrlOptions publicUrlOptions,
+    ILogger<SmtpEmailProviderAdapter> logger) : IEmailProviderAdapter
 {
     public string ProviderName => SmtpEmailProviderOptions.ProviderName;
 
     public async Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
+        var transport = GetTransportName();
+        var recipientDomain = GetEmailDomain(message.Recipient.Email);
+        var fromDomain = GetEmailDomain(options.FromEmail);
+
+        logger.LogInformation(
+            "SMTP send started. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain} subjectLength={SubjectLength}",
+            transport,
+            options.Host,
+            options.Port,
+            fromDomain,
+            recipientDomain,
+            message.Subject?.Length ?? 0);
+
         try
         {
             var normalized = NormalizeMessage(message);
             var mime = BuildMimeMessage(normalized);
             await SendMimeMessageAsync(mime, cancellationToken);
-            return EmailProviderSendResult.Success(mime.MessageId ?? $"smtp-{Guid.NewGuid():N}");
+            var providerMessageId = mime.MessageId ?? $"smtp-{Guid.NewGuid():N}";
+
+            logger.LogInformation(
+                "SMTP send succeeded. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain} providerMessageId={ProviderMessageId}",
+                transport,
+                options.Host,
+                options.Port,
+                fromDomain,
+                recipientDomain,
+                providerMessageId);
+
+            return EmailProviderSendResult.Success(providerMessageId);
         }
         catch (Exception ex) when (ex is SmtpCommandException or SmtpProtocolException or IOException or InvalidOperationException or TimeoutException)
         {
+            logger.LogWarning(
+                ex,
+                "SMTP send failed. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain}",
+                transport,
+                options.Host,
+                options.Port,
+                fromDomain,
+                recipientDomain);
+
             return EmailProviderSendResult.Failure("smtp_send_failed", ex.Message);
         }
     }
@@ -53,6 +90,19 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
         {
             return EmailProviderSendResult.Failure("missing_forward_to", "Не указан адрес пересылки клиента.");
         }
+
+        var transport = GetTransportName();
+        var recipientDomain = GetEmailDomain(replyEvent.ForwardToEmailNormalized);
+        var fromDomain = GetEmailDomain(options.FromEmail);
+
+        logger.LogInformation(
+            "SMTP reply forward started. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain} replyEventId={ReplyEventId}",
+            transport,
+            options.Host,
+            options.Port,
+            fromDomain,
+            recipientDomain,
+            replyEvent.Id);
 
         try
         {
@@ -72,10 +122,32 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
             };
 
             await SendMimeMessageAsync(mime, cancellationToken);
-            return EmailProviderSendResult.Success(mime.MessageId ?? $"smtp-forward-{replyEvent.Id:N}");
+            var providerMessageId = mime.MessageId ?? $"smtp-forward-{replyEvent.Id:N}";
+
+            logger.LogInformation(
+                "SMTP reply forward succeeded. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain} replyEventId={ReplyEventId} providerMessageId={ProviderMessageId}",
+                transport,
+                options.Host,
+                options.Port,
+                fromDomain,
+                recipientDomain,
+                replyEvent.Id,
+                providerMessageId);
+
+            return EmailProviderSendResult.Success(providerMessageId);
         }
         catch (Exception ex) when (ex is SmtpCommandException or SmtpProtocolException or IOException or InvalidOperationException or TimeoutException)
         {
+            logger.LogWarning(
+                ex,
+                "SMTP reply forward failed. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain} replyEventId={ReplyEventId}",
+                transport,
+                options.Host,
+                options.Port,
+                fromDomain,
+                recipientDomain,
+                replyEvent.Id);
+
             return EmailProviderSendResult.Failure("smtp_forward_failed", ex.Message);
         }
     }
@@ -177,6 +249,37 @@ public sealed class SmtpEmailProviderAdapter(SmtpEmailProviderOptions options, P
         }
 
         return "pismolet.local";
+    }
+
+    private string GetTransportName()
+    {
+        var host = options.Host.Trim();
+        if (host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("::1", StringComparison.OrdinalIgnoreCase))
+        {
+            return "LocalSmtp";
+        }
+
+        return host.Contains("timeweb", StringComparison.OrdinalIgnoreCase)
+            ? "TimewebSmtp"
+            : "ExternalSmtp";
+    }
+
+    private static string GetEmailDomain(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return "unknown";
+        }
+
+        var at = email.LastIndexOf('@');
+        if (at < 0 || at >= email.Length - 1)
+        {
+            return "unknown";
+        }
+
+        return email[(at + 1)..].Trim().ToLowerInvariant();
     }
 
     private string ToAbsoluteUrl(string url)
