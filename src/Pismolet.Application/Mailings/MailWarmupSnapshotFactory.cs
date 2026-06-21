@@ -1,17 +1,16 @@
-using Pismolet.Web.Domain.Mailings;
-
 namespace Pismolet.Web.Application.Mailings;
+
+public sealed record MailWarmupAcceptedSend(string RecipientEmail, DateTimeOffset SentAt);
 
 public static class MailWarmupSnapshotFactory
 {
     public static MailWarmupLimitSnapshot Build(
-        IEnumerable<SendEvent> events,
+        IEnumerable<MailWarmupAcceptedSend> acceptedSends,
         string? recipientEmail,
         DateTimeOffset now)
     {
-        var acceptedEvents = events
-            .Where(x => x.Status == SendEventStatus.Accepted)
-            .Select(x => new SentEventSnapshot(x.RecipientEmail, x.UpdatedAt.ToUniversalTime()))
+        var acceptedEvents = acceptedSends
+            .Select(x => new SentEventSnapshot(x.RecipientEmail, x.SentAt.ToUniversalTime()))
             .Where(x => x.SentAt <= now.ToUniversalTime())
             .ToArray();
         var recipientDomain = GetEmailDomain(recipientEmail);
