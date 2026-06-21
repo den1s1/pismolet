@@ -1,10 +1,139 @@
+using System.Net;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Pismolet.Web.Application.Auth;
+using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Domain.Mailings;
+
 namespace Pismolet.Web.Tests;
 
 public sealed class PaymentWizardSmokeTests
 {
+    private const string OwnerEmail = "payment-smoke@example.test";
+
     [Fact]
-    public void Placeholder()
+    public async Task Payment_page_shows_cost_and_required_confirmations()
     {
-        Assert.True(true);
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory, "Payment smoke");
+        using var client = CreateAuthenticatedClient(factory);
+        await Prepare(client, mailingId);
+
+        var html = await client.GetStringAsync($"/mailings/{mailingId}/payment");
+
+        Assert.Contains("3. Проверка и оплата", html);
+        Assert.Contains("Расчёт стоимости", html);
+        Assert.Contains("Итого к оплате", html);
+        Assert.Contains("name='paymentBaseLegality'", html);
+        Assert.Contains("name='paymentBaseOwnership'", html);
+        Assert.Contains("Исключённые адреса", html);
+    }
+
+    [Fact]
+    public async Task Payment_start_requires_confirmations_and_then_sets_pending_status()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory, "Payment start");
+        using var client = CreateAuthenticatedClient(factory);
+        await Prepare(client, mailingId);
+
+        var blocked = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", new FormUrlEncodedContent(new Dictionary<string, string>()));
+        var blockedHtml = await blocked.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, blocked.StatusCode);
+        Assert.Contains("Подтвердите", blockedHtml);
+
+        var ok = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["paymentBaseLegality"] = "on",
+            ["paymentBaseOwnership"] = "on"
+        }));
+        var okHtml = await ok.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+        Assert.Contains("Тестовая оплата", okHtml);
+
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.Equal(MailingStatus.PaymentPending, mailing.Status);
+    }
+
+    private static async Task Prepare(HttpClient client, Guid mailingId)
+    {
+        await client.PostAsync($"/mailings/{mailingId}/recipients", new MultipartFormDataContent { { new StringContent("first@example.test\nwrong\nFIRST@example.test"), "manualAddresses" } });
+        await client.PostAsync($"/mailings/{mailingId}/declaration", new FormUrlEncodedContent(new Dictionary<string, string> { ["baseSource"] = "Customers", ["baseLegality"] = "on", ["messageType"] = "Transactional" }));
+        var message = await client.PostAsync($"/mailings/{mailingId}/message", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Sender",
+            ["subject"] = "Subject",
+            ["body"] = "Body",
+            ["messageType"] = "Transactional"
+        }));
+        Assert.Equal(HttpStatusCode.OK, message.StatusCode);
+    }
+
+    private static WebApplicationFactory<Program> CreateAuthorizedFactory() =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, _ => { });
+            });
+        });
+
+    private static HttpClient CreateAuthenticatedClient(WebApplicationFactory<Program> factory)
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
+        return client;
+    }
+
+    private static void SeedUser(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
+        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "Password123!", "Payment Smoke"), Request());
+        Assert.True(result.Ok, result.Error);
+    }
+
+    private static Guid SeedMailing(WebApplicationFactory<Program> factory, string subject)
+    {
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var result = mailings.CreateDraft(new CreateMailingCommand(OwnerEmail, subject), Request());
+        Assert.True(result.Ok, result.Error);
+        Assert.NotNull(result.Mailing);
+        return result.Mailing.Id;
+    }
+
+    private static RequestMetadata Request() => new("127.0.0.1", "payment-wizard-smoke-tests");
+
+    private sealed class TestAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        public const string SchemeName = "Test";
+        public const string EmailHeaderName = "X-Test-Email";
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var email = Request.Headers[EmailHeaderName].ToString();
+            if (string.IsNullOrWhiteSpace(email)) return Task.FromResult(AuthenticateResult.NoResult());
+            var claims = new[] { new Claim(ClaimTypes.NameIdentifier, email), new Claim(ClaimTypes.Email, email), new Claim(ClaimTypes.Name, email) };
+            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName)));
+        }
     }
 }
