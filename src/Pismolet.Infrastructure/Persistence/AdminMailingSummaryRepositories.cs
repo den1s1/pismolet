@@ -38,16 +38,14 @@ public sealed class EfAdminMailingSummaryRepository(PismoletDbContext db) : IAdm
             .Select(user => new { user.NormalizedEmail, user.DisplayName })
             .ToDictionary(user => user.NormalizedEmail, user => user.DisplayName, StringComparer.OrdinalIgnoreCase);
 
-        var latestBatchTimes = db.ImportBatches
+        var latestBatchMailingIds = db.ImportBatches
             .AsNoTracking()
-            .GroupBy(batch => batch.MailingId)
-            .Select(group => new { MailingId = group.Key, CreatedAt = group.Max(batch => batch.CreatedAt) })
+            .Select(batch => batch.MailingId)
+            .Distinct()
             .ToArray();
-
-        var latestBatchIds = latestBatchTimes.Select(batch => batch.MailingId).Distinct().ToArray();
         var latestBatchLookup = db.ImportBatches
             .AsNoTracking()
-            .Where(batch => latestBatchIds.Contains(batch.MailingId))
+            .Where(batch => latestBatchMailingIds.Contains(batch.MailingId))
             .ToArray()
             .GroupBy(batch => batch.MailingId)
             .ToDictionary(
@@ -61,8 +59,8 @@ public sealed class EfAdminMailingSummaryRepository(PismoletDbContext db) : IAdm
 
         return db.Mailings
             .AsNoTracking()
-            .OrderByDescending(mailing => mailing.CreatedAt)
             .ToArray()
+            .OrderByDescending(mailing => mailing.CreatedAt)
             .Select(mailing =>
             {
                 latestBatchLookup.TryGetValue(mailing.Id, out var batch);
