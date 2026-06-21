@@ -50,7 +50,7 @@ public sealed class HtmlRendererTests
 
         Assert.Contains("/assets/brand/logo-horizontal.svg", html);
         Assert.Contains("Создать рассылку", html);
-        Assert.Contains("Последние рассылки", html);
+        Assert.Contains("История рассылок", html);
         Assert.Contains("Тестовая рассылка", html);
         Assert.Contains("Черновик", html);
     }
