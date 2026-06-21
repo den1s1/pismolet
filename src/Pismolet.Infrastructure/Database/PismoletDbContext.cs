@@ -141,6 +141,7 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.HasIndex(x => new { x.MailingId, x.Status, x.CreatedAt });
             entity.HasIndex(x => new { x.MailingId, x.DeliveryStatus });
             entity.HasIndex(x => new { x.OwnerEmail, x.UpdatedAt });
+            entity.HasIndex(x => new { x.OwnerEmail, x.AcceptedAt });
             entity.Property(x => x.OwnerEmail).HasMaxLength(254).IsRequired();
             entity.Property(x => x.RecipientEmail).HasMaxLength(254).IsRequired();
             entity.Property(x => x.Status).HasMaxLength(40).IsRequired();
@@ -343,6 +344,7 @@ public sealed class SendEventEntity
     public string? LastDeliverySummary { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? AcceptedAt { get; set; }
 }
 
 public sealed class ProviderWebhookEventEntity
