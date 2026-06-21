@@ -28,6 +28,8 @@ public interface IMailingRepository
 
     IReadOnlyCollection<Mailing> ListForOwner(string ownerEmail);
 
+    IReadOnlyDictionary<string, int> CountByOwners(IEnumerable<string> ownerEmails);
+
     void Update(Mailing mailing);
 }
 
