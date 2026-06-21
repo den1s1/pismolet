@@ -29,7 +29,7 @@ public sealed class SmtpEmailProviderAdapter(
     PublicUrlOptions publicUrlOptions,
     ILogger<SmtpEmailProviderAdapter> logger) : IEmailProviderAdapter
 {
-    public string ProviderName => SmtpEmailProviderOptions.ProviderName;
+    public string ProviderName => GetTransportName();
 
     public async Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
@@ -62,7 +62,7 @@ public sealed class SmtpEmailProviderAdapter(
                 recipientDomain,
                 providerMessageId);
 
-            return EmailProviderSendResult.Success(providerMessageId);
+            return EmailProviderSendResult.Success(EnvelopeProviderPayload(providerMessageId));
         }
         catch (Exception ex) when (ex is SmtpCommandException or SmtpProtocolException or IOException or SocketException or InvalidOperationException or TimeoutException)
         {
@@ -75,7 +75,7 @@ public sealed class SmtpEmailProviderAdapter(
                 fromDomain,
                 recipientDomain);
 
-            return EmailProviderSendResult.Failure("smtp_send_failed", ex.Message);
+            return EmailProviderSendResult.Failure(EnvelopeProviderPayload("smtp_send_failed"), ex.Message);
         }
     }
 
@@ -135,7 +135,7 @@ public sealed class SmtpEmailProviderAdapter(
                 replyEvent.Id,
                 providerMessageId);
 
-            return EmailProviderSendResult.Success(providerMessageId);
+            return EmailProviderSendResult.Success(EnvelopeProviderPayload(providerMessageId));
         }
         catch (Exception ex) when (ex is SmtpCommandException or SmtpProtocolException or IOException or SocketException or InvalidOperationException or TimeoutException)
         {
@@ -149,7 +149,7 @@ public sealed class SmtpEmailProviderAdapter(
                 recipientDomain,
                 replyEvent.Id);
 
-            return EmailProviderSendResult.Failure("smtp_forward_failed", ex.Message);
+            return EmailProviderSendResult.Failure(EnvelopeProviderPayload("smtp_forward_failed"), ex.Message);
         }
     }
 
@@ -241,6 +241,8 @@ public sealed class SmtpEmailProviderAdapter(
         return port == 465 ? MailKit.Security.SecureSocketOptions.SslOnConnect : MailKit.Security.SecureSocketOptions.StartTlsWhenAvailable;
     }
 
+    private string EnvelopeProviderPayload(string payload) => $"{ProviderName}{SendEvent.ProviderEnvelopeSeparator}{payload}";
+
     private string GetMessageIdDomain()
     {
         var at = options.FromEmail.LastIndexOf('@');
@@ -283,132 +285,65 @@ public sealed class SmtpEmailProviderAdapter(
         return email[(at + 1)..].Trim().ToLowerInvariant();
     }
 
-    private string ToAbsoluteUrl(string url)
+    private string ToAbsoluteUrl(string relativeOrAbsolute)
     {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri) &&
-            (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps) &&
-            !string.IsNullOrWhiteSpace(absoluteUri.Host))
+        if (string.IsNullOrWhiteSpace(relativeOrAbsolute))
         {
-            return url;
+            return relativeOrAbsolute;
         }
 
-        var baseUrl = publicUrlOptions.PublicBaseUrl.Trim().TrimEnd('/');
-        var path = string.IsNullOrWhiteSpace(url) ? "/" : url.Trim();
-        if (!path.StartsWith('/'))
+        if (Uri.TryCreate(relativeOrAbsolute, UriKind.Absolute, out var absolute))
         {
-            path = "/" + path;
+            return absolute.ToString();
         }
 
-        return baseUrl + path;
+        var baseUrl = publicUrlOptions.BaseUrl.TrimEnd('/');
+        var path = relativeOrAbsolute.StartsWith('/') ? relativeOrAbsolute : $"/{relativeOrAbsolute}";
+        return $"{baseUrl}{path}";
     }
 
-    private static string ReplaceRelativeUrl(string body, string relativeUrl, string absoluteUrl)
+    private string ReplaceRelativeUrl(string text, string relative, string absolute)
     {
-        if (string.IsNullOrWhiteSpace(body) || string.IsNullOrWhiteSpace(relativeUrl) || relativeUrl == absoluteUrl)
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(relative) || string.IsNullOrWhiteSpace(absolute))
         {
-            return body;
+            return text;
         }
 
-        return body.Replace(relativeUrl, absoluteUrl, StringComparison.Ordinal);
+        return text.Replace(relative, absolute, StringComparison.Ordinal);
     }
 
-    private string ReplaceVisibleRelativeUnsubscribeLinks(string body)
+    private string ReplaceVisibleRelativeUnsubscribeLinks(string text)
     {
-        if (string.IsNullOrWhiteSpace(body))
-        {
-            return body;
-        }
-
-        var baseUrl = publicUrlOptions.PublicBaseUrl.Trim().TrimEnd('/');
-        var result = Regex.Replace(
-            body,
-            @"https?://localhost(?::\d+)?/unsubscribe/",
-            baseUrl + "/unsubscribe/",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
-        return Regex.Replace(
-            result,
-            @"(^|[\s:('""=])(/unsubscribe/)",
-            match => match.Groups[1].Value + baseUrl + "/unsubscribe/",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Multiline);
+        var absolute = ToAbsoluteUrl("/unsubscribe/");
+        return Regex.Replace(text, @"(?<!https://app\.pismolet\.ru)/unsubscribe/", absolute, RegexOptions.IgnoreCase);
     }
 
-    private static string KeepSingleVisibleUnsubscribeLink(string body, string unsubscribeUrl)
+    private static string KeepSingleVisibleUnsubscribeLink(string text, string unsubscribeUrl)
     {
-        if (string.IsNullOrWhiteSpace(body) || string.IsNullOrWhiteSpace(unsubscribeUrl))
+        if (string.IsNullOrWhiteSpace(unsubscribeUrl))
         {
-            return body;
+            return text;
         }
 
-        var lines = body.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
-        var result = new List<string>(lines.Length);
-        var kept = false;
-
-        foreach (var line in lines)
+        var first = text.IndexOf(unsubscribeUrl, StringComparison.Ordinal);
+        if (first < 0)
         {
-            if (line.Contains(unsubscribeUrl, StringComparison.OrdinalIgnoreCase))
-            {
-                if (kept)
-                {
-                    continue;
-                }
-
-                kept = true;
-            }
-
-            result.Add(line);
+            return text;
         }
 
-        return string.Join(Environment.NewLine, result).TrimEnd();
+        var second = text.IndexOf(unsubscribeUrl, first + unsubscribeUrl.Length, StringComparison.Ordinal);
+        return second < 0 ? text : text.Remove(second, unsubscribeUrl.Length).Insert(second, "ссылку выше");
     }
 
-    private static string BuildHtmlBody(string plainTextBody, string unsubscribeUrl)
+    private static string BuildHtmlBody(string plainText, string unsubscribeUrl)
     {
-        var lines = (plainTextBody ?? string.Empty)
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Split('\n');
-
-        var htmlLines = new List<string>(lines.Length);
-        foreach (var line in lines)
+        var html = WebUtility.HtmlEncode(plainText).Replace("\n", "<br>\n", StringComparison.Ordinal);
+        if (!string.IsNullOrWhiteSpace(unsubscribeUrl))
         {
-            if (IsVisibleUnsubscribeLine(line, unsubscribeUrl))
-            {
-                htmlLines.Add($"<p><a href=\"{HtmlAttributeEncode(unsubscribeUrl)}\">Отписаться</a> от всех рассылок через сервис Письмолёт.</p>");
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                htmlLines.Add("<br>");
-                continue;
-            }
-
-            htmlLines.Add($"<p>{WebUtility.HtmlEncode(line)}</p>");
+            var encodedUrl = WebUtility.HtmlEncode(unsubscribeUrl);
+            html = html.Replace(encodedUrl, $"<a href=\"{encodedUrl}\">Отписаться</a>", StringComparison.Ordinal);
         }
 
-        return "<!doctype html>" +
-               "<html><head><meta charset=\"utf-8\"></head>" +
-               "<body style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;\">" +
-               string.Join(Environment.NewLine, htmlLines) +
-               "</body></html>";
+        return $"<!doctype html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;\"><p>{html}</p></body></html>";
     }
-
-    private static bool IsVisibleUnsubscribeLine(string line, string unsubscribeUrl)
-    {
-        if (string.IsNullOrWhiteSpace(line))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(unsubscribeUrl) && line.Contains(unsubscribeUrl, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return line.Contains("/unsubscribe/", StringComparison.OrdinalIgnoreCase) &&
-               line.Contains("Отпис", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string HtmlAttributeEncode(string value) => WebUtility.HtmlEncode(value) ?? string.Empty;
 }
