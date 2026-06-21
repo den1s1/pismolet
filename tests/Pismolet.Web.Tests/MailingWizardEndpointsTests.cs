@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Domain.Mailings;
 
 namespace Pismolet.Web.Tests;
 
@@ -68,10 +69,45 @@ public sealed class MailingWizardEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Адреса проверены", html);
         Assert.Contains("Принято к отправке", html);
-        Assert.Contains("Дублей и ошибок", html);
+        Assert.Contains("<b>1</b><span>Принято к отправке</span>", html);
+        Assert.Contains("<b>2</b><span>Дублей и ошибок</span>", html);
         Assert.Contains("Ранее отписались", html);
         Assert.Contains("Перейти к следующему шагу", html);
         Assert.Contains($"/mailings/{mailingId}/declaration", html);
+
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.Equal(3, mailing.Recipients.Count);
+        Assert.Single(mailing.Recipients, recipient => recipient.Status == RecipientStatus.Accepted);
+        Assert.Single(mailing.Recipients, recipient => recipient.Status == RecipientStatus.Duplicate);
+        Assert.Single(mailing.Recipients, recipient => recipient.Status == RecipientStatus.Invalid);
+    }
+
+    [Fact]
+    public async Task Manual_address_import_rejects_oversized_input_before_import()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Wizard Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Oversized manual import campaign");
+        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+        using var content = new MultipartFormDataContent
+        {
+            { new StringContent(new string('a', 1024 * 1024 + 1)), "manualAddresses" }
+        };
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/recipients", content);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Ручная вставка слишком большая", html);
+
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.Empty(mailing.Recipients);
     }
 
     private static WebApplicationFactory<Program> CreateFactory() =>
