@@ -16,9 +16,22 @@ public sealed record MailWarmupLimitOptions(
             return DomainMailWarmupLimitOptions.FromGlobal(this);
         }
 
-        return DomainLimits.TryGetValue(domain.Trim().ToLowerInvariant(), out var limit)
-            ? limit.WithGlobalFallback(this)
-            : DomainMailWarmupLimitOptions.FromGlobal(this);
+        var normalizedDomain = domain.Trim().ToLowerInvariant();
+
+        if (DomainLimits.TryGetValue(normalizedDomain, out var directLimit))
+        {
+            return directLimit.WithGlobalFallback(this);
+        }
+
+        foreach (var entry in DomainLimits)
+        {
+            if (string.Equals(entry.Key.Trim(), normalizedDomain, StringComparison.OrdinalIgnoreCase))
+            {
+                return entry.Value.WithGlobalFallback(this);
+            }
+        }
+
+        return DomainMailWarmupLimitOptions.FromGlobal(this);
     }
 }
 
