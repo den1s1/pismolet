@@ -297,7 +297,7 @@ public sealed class SmtpEmailProviderAdapter(
             return absolute.ToString();
         }
 
-        var baseUrl = publicUrlOptions.BaseUrl.TrimEnd('/');
+        var baseUrl = publicUrlOptions.PublicBaseUrl.TrimEnd('/');
         var path = relativeOrAbsolute.StartsWith('/') ? relativeOrAbsolute : $"/{relativeOrAbsolute}";
         return $"{baseUrl}{path}";
     }
