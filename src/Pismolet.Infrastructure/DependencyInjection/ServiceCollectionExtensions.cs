@@ -57,7 +57,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRiskCheckService, RiskCheckService>();
         services.AddScoped<IMailingReviewService, MailingReviewService>();
         services.AddScoped<IModerationAdminService, ModerationAdminService>();
-        services.AddScoped<IMailingSendService, MailingSendService>();
+        services.AddScoped<MailingSendService>();
+        services.AddScoped<IMailingSendService, AdminGuardedMailingSendService>();
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
         services.AddScoped<IAdminOperationService, AdminOperationService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
