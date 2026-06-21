@@ -63,7 +63,7 @@ public sealed class ProfileEndpointsTests
 
         var html = await client.GetStringAsync("/payments");
 
-        Assert.Contains("Оплаты и счета", html);
+        Assert.Contains("Баланс и оплата рассылок", html);
         Assert.Contains("Owner campaign", html);
         Assert.DoesNotContain("Other campaign", html);
     }
@@ -137,7 +137,6 @@ public sealed class ProfileEndpointsTests
             var identity = new ClaimsIdentity(claims, SchemeName);
             var principal = new ClaimsPrincipal(identity);
             var ticket = new AuthenticationTicket(principal, SchemeName);
-
             return Task.FromResult(AuthenticateResult.Success(ticket));
         }
     }
