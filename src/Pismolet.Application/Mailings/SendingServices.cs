@@ -448,7 +448,7 @@ public sealed class MailingSendService(
         }
 
         var paused = sendEvents.ListByMailingId(mailing.Id)
-            .Where(x => x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.DailyLimit)
+            .Where(x => x.Status == SendEventStatus.Paused && x.Reason is SendSkipReason.DailyLimit or SendSkipReason.WarmupLimit)
             .OrderBy(x => x.CreatedAt)
             .Take(available)
             .ToArray();
@@ -519,7 +519,7 @@ public sealed class MailingSendService(
             if (!warmupDecision.IsAllowed)
             {
                 pausedByWarmup = true;
-                sendEvents.Save(sendEvent.MarkPaused(SendSkipReason.DailyLimit));
+                sendEvents.Save(sendEvent.MarkPaused(SendSkipReason.WarmupLimit));
                 auditLogger.Write(new AuditRecord(
                     DateTimeOffset.UtcNow,
                     mailing.OwnerEmail,
