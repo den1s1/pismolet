@@ -17,6 +17,10 @@ public sealed class InMemoryUserRepository : IUserRepository
 
     public UserAccount? FindByConfirmationToken(string token) => _users.Values.FirstOrDefault(user => user.ConfirmationToken == token);
 
+    public IReadOnlyCollection<UserAccount> ListAll() => _users.Values
+        .OrderBy(user => user.Email, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
     public void Update(UserAccount user) => _users[user.Email] = user;
 }
 
