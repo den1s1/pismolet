@@ -26,6 +26,8 @@ public interface IMailingRepository
 
     Mailing? GetForOwner(Guid id, string ownerEmail);
 
+    IReadOnlyCollection<Mailing> ListAll();
+
     IReadOnlyCollection<Mailing> ListForOwner(string ownerEmail);
 
     IReadOnlyDictionary<string, int> CountByOwners(IEnumerable<string> ownerEmails);
@@ -41,10 +43,47 @@ public interface IGlobalSuppressionRepository
 
     GlobalSuppression? GetByEmail(string normalizedEmail);
 
+    IReadOnlyCollection<GlobalSuppression> ListAll();
+
     GlobalSuppression AddOrGet(GlobalSuppression suppression);
 
     void Add(string normalizedEmail);
 }
+
+public interface IAdminRecipientRepository
+{
+    IReadOnlyCollection<AdminRecipientSummary> ListSummaries();
+
+    AdminRecipientProfile? GetProfile(string email);
+}
+
+public sealed record AdminRecipientSummary(
+    string Email,
+    string StatusCode,
+    string StatusText,
+    int MailingCount,
+    int OwnerCount,
+    int SentCount,
+    DateTimeOffset? FirstSeenAt,
+    DateTimeOffset? LastMessageAt,
+    DateTimeOffset? SuppressedAt,
+    GlobalSuppressionSource? SuppressionSource);
+
+public sealed record AdminRecipientProfile(
+    AdminRecipientSummary Summary,
+    IReadOnlyCollection<AdminRecipientOwnerSummary> Owners,
+    IReadOnlyCollection<AdminRecipientMailingSummary> Mailings);
+
+public sealed record AdminRecipientOwnerSummary(string OwnerEmail, int MailingCount);
+
+public sealed record AdminRecipientMailingSummary(
+    Guid MailingId,
+    string OwnerEmail,
+    string Subject,
+    MailingStatus Status,
+    int AcceptedRecipients,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? LastMessageAt);
 
 public interface IPaymentRepository
 {
