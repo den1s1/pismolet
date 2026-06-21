@@ -26,6 +26,8 @@ public interface IMailingRepository
 
     Mailing? GetForOwner(Guid id, string ownerEmail);
 
+    IReadOnlyCollection<Mailing> ListAll();
+
     IReadOnlyCollection<Mailing> ListForOwner(string ownerEmail);
 
     IReadOnlyDictionary<string, int> CountByOwners(IEnumerable<string> ownerEmails);
@@ -41,9 +43,18 @@ public interface IGlobalSuppressionRepository
 
     GlobalSuppression? GetByEmail(string normalizedEmail);
 
+    IReadOnlyCollection<GlobalSuppression> ListAll();
+
     GlobalSuppression AddOrGet(GlobalSuppression suppression);
 
     void Add(string normalizedEmail);
+}
+
+public interface IAdminMvpSettingsRepository
+{
+    AdminMvpSettings Get();
+
+    void Save(AdminMvpSettings settings);
 }
 
 public interface IAdminRecipientRepository
@@ -86,6 +97,8 @@ public interface IPaymentRepository
     Payment? GetByMailingId(Guid mailingId);
 
     Payment? GetByProviderOperationId(string providerOperationId);
+
+    IReadOnlyCollection<Payment> ListAll();
 
     void Save(Payment payment);
 }
@@ -145,6 +158,8 @@ public interface IProviderWebhookEventRepository
 
     IReadOnlyCollection<ProviderWebhookEvent> ListByMailingId(Guid mailingId);
 
+    IReadOnlyCollection<ProviderWebhookEvent> ListRecent(int limit);
+
     void Save(ProviderWebhookEvent webhookEvent);
 }
 
@@ -153,6 +168,8 @@ public interface IClientSuppressionRepository
     bool IsSuppressed(string clientId, string normalizedEmail);
 
     IReadOnlySet<string> GetSuppressedSet(string clientId, IEnumerable<string> normalizedEmails);
+
+    IReadOnlyCollection<ClientSuppression> ListRecent(int limit);
 
     ClientSuppression AddOrUpdate(ClientSuppression suppression);
 }
