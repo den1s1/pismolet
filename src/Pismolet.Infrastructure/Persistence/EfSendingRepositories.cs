@@ -26,16 +26,17 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
     public int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate)
     {
         var normalized = Normalize(ownerEmail);
-        var start = new DateTimeOffset(utcDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
-        var end = start.AddDays(1);
+        var targetDate = utcDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).Date;
 
         return db.SendEvents
             .AsNoTracking()
-            .Count(x =>
+            .Where(x =>
                 x.Status == SendEventStatus.Accepted.ToString() &&
                 x.OwnerEmail == normalized &&
-                x.AcceptedAt >= start &&
-                x.AcceptedAt < end);
+                x.AcceptedAt != null)
+            .Select(x => x.AcceptedAt!.Value)
+            .AsEnumerable()
+            .Count(acceptedAt => acceptedAt.UtcDateTime.Date == targetDate);
     }
 
     public void Save(SendEvent sendEvent)
@@ -153,5 +154,21 @@ public sealed class EfProviderWebhookEventRepository(PismoletDbContext db) : IPr
         CorrelationId = item.CorrelationId
     };
 
-    private static ProviderWebhookEvent ToDomain(ProviderWebhookEventEntity entity) => new(entity.Id, entity.Provider, entity.ProviderEventId, entity.ProviderMessageId, entity.MailingId, entity.ClientId, entity.RecipientEmailNormalized, Enum.TryParse<ProviderWebhookEventType>(entity.EventType, out var type) ? type : ProviderWebhookEventType.Unknown, entity.OccurredAt, entity.ReceivedAt, entity.RawPayloadHash, entity.RawPayloadStored, entity.ReasonCode, entity.ReasonMessage, Enum.TryParse<ProviderWebhookProcessingStatus>(entity.ProcessingStatus, out var status) ? status : ProviderWebhookProcessingStatus.IgnoredUnknown, entity.CorrelationId);
+    private static ProviderWebhookEvent ToDomain(ProviderWebhookEventEntity item) => new(
+        item.Id,
+        item.Provider,
+        item.ProviderEventId,
+        item.ProviderMessageId,
+        item.MailingId,
+        item.ClientId,
+        item.RecipientEmailNormalized,
+        Enum.TryParse<ProviderWebhookEventType>(item.EventType, out var type) ? type : ProviderWebhookEventType.Unknown,
+        item.OccurredAt,
+        item.ReceivedAt,
+        item.RawPayloadHash,
+        item.RawPayloadStored,
+        item.ReasonCode,
+        item.ReasonMessage,
+        Enum.TryParse<ProviderWebhookProcessingStatus>(item.ProcessingStatus, out var status) ? status : ProviderWebhookProcessingStatus.Failed,
+        item.CorrelationId);
 }
