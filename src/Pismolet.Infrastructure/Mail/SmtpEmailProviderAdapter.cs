@@ -29,6 +29,8 @@ public sealed class SmtpEmailProviderAdapter(
     PublicUrlOptions publicUrlOptions,
     ILogger<SmtpEmailProviderAdapter> logger) : IEmailProviderAdapter
 {
+    private const string FallbackPublicBaseUrl = "https://app.pismolet.ru";
+
     public string ProviderName => GetTransportName();
 
     public async Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken)
@@ -292,15 +294,46 @@ public sealed class SmtpEmailProviderAdapter(
             return relativeOrAbsolute;
         }
 
-        if (Uri.TryCreate(relativeOrAbsolute, UriKind.Absolute, out var absolute))
+        var value = relativeOrAbsolute.Trim();
+        if (Uri.TryCreate(value, UriKind.Absolute, out var absolute))
         {
-            return absolute.ToString();
+            if (IsHttpOrHttps(absolute))
+            {
+                return absolute.ToString();
+            }
+
+            value = string.IsNullOrWhiteSpace(absolute.PathAndQuery) ? absolute.AbsolutePath : absolute.PathAndQuery;
+            if (string.IsNullOrWhiteSpace(value) || value == "/")
+            {
+                return GetPublicBaseUrl();
+            }
         }
 
-        var baseUrl = publicUrlOptions.PublicBaseUrl.TrimEnd('/');
-        var path = relativeOrAbsolute.StartsWith('/') ? relativeOrAbsolute : $"/{relativeOrAbsolute}";
+        var baseUrl = GetPublicBaseUrl();
+        var path = value.StartsWith('/') ? value : $"/{value}";
         return $"{baseUrl}{path}";
     }
+
+    private string GetPublicBaseUrl()
+    {
+        var configured = publicUrlOptions.PublicBaseUrl?.Trim();
+        if (Uri.TryCreate(configured?.TrimEnd('/'), UriKind.Absolute, out var configuredUri) && IsHttpOrHttps(configuredUri))
+        {
+            return configuredUri.ToString().TrimEnd('/');
+        }
+
+        logger.LogWarning(
+            "Invalid public base URL for SMTP email links. configuredScheme={ConfiguredScheme} configuredLength={ConfiguredLength}. Falling back to {FallbackPublicBaseUrl}.",
+            Uri.TryCreate(configured, UriKind.Absolute, out var invalidUri) ? invalidUri.Scheme : "invalid",
+            configured?.Length ?? 0,
+            FallbackPublicBaseUrl);
+
+        return FallbackPublicBaseUrl;
+    }
+
+    private static bool IsHttpOrHttps(Uri uri) =>
+        uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+        uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
 
     private string ReplaceRelativeUrl(string text, string relative, string absolute)
     {
@@ -315,7 +348,11 @@ public sealed class SmtpEmailProviderAdapter(
     private string ReplaceVisibleRelativeUnsubscribeLinks(string text)
     {
         var absolute = ToAbsoluteUrl("/unsubscribe/");
-        return Regex.Replace(text, @"(?<!https://app\.pismolet\.ru)/unsubscribe/", absolute, RegexOptions.IgnoreCase);
+        return Regex.Replace(
+            text,
+            @"(^|[\s<>""'])/unsubscribe/",
+            match => $"{match.Groups[1].Value}{absolute}",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline);
     }
 
     private static string KeepSingleVisibleUnsubscribeLink(string text, string unsubscribeUrl)
