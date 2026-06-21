@@ -68,6 +68,37 @@ public sealed class MailWarmupLimitPolicyTests
     }
 
     [Fact]
+    public void Warmup_policy_returns_strictest_minimum_delay_when_global_and_domain_both_apply()
+    {
+        var now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
+        var options = new MailWarmupLimitOptions(
+            MaxPerMinute: 10,
+            MaxPerHour: 100,
+            MaxPerDay: 1000,
+            MinSecondsBetweenSends: 30,
+            DomainLimits: new Dictionary<string, DomainMailWarmupLimitOptions>
+            {
+                ["gmail.com"] = new(MinSecondsBetweenSends: 300)
+            });
+        var snapshot = new MailWarmupLimitSnapshot(
+            GlobalSentLastMinute: 0,
+            GlobalSentLastHour: 1,
+            GlobalSentToday: 1,
+            GlobalLastSentAt: now.AddSeconds(-10),
+            DomainLastSentAt: now.AddSeconds(-10));
+
+        var decision = MailWarmupLimitPolicy.Evaluate(
+            options,
+            snapshot,
+            "lead@gmail.com",
+            now);
+
+        Assert.False(decision.IsAllowed);
+        Assert.Equal("domain_min_delay", decision.Reason);
+        Assert.Equal(TimeSpan.FromSeconds(290), decision.RetryAfter);
+    }
+
+    [Fact]
     public void Warmup_policy_applies_domain_limit_override()
     {
         var now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
@@ -76,9 +107,9 @@ public sealed class MailWarmupLimitPolicyTests
             MaxPerHour: 100,
             MaxPerDay: 1000,
             MinSecondsBetweenSends: 0,
-            DomainLimits: new Dictionary<string, DomainMailWarmupLimitOptions>(StringComparer.OrdinalIgnoreCase)
+            DomainLimits: new Dictionary<string, DomainMailWarmupLimitOptions>
             {
-                ["gmail.com"] = new(MaxPerDay: 2)
+                ["Gmail.com"] = new(MaxPerDay: 2)
             });
         var snapshot = new MailWarmupLimitSnapshot(
             GlobalSentLastMinute: 0,
