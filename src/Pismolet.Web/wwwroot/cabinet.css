@@ -220,6 +220,242 @@
   margin-top: 18px;
 }
 
+.admin-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.admin-sidebar {
+  position: sticky;
+  top: 18px;
+  min-height: calc(100vh - 120px);
+  border-radius: 28px;
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 22px;
+  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.24);
+}
+
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.admin-brand span {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  background: #2563eb;
+}
+
+.admin-current {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.55);
+  margin: 22px 0;
+  padding: 14px;
+  display: grid;
+  gap: 4px;
+  word-break: break-word;
+}
+
+.admin-current small,
+.admin-muted {
+  color: #64748b;
+}
+
+.admin-current small {
+  color: #94a3b8;
+}
+
+.admin-nav,
+.admin-sidebar-links {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-nav-link,
+.admin-sidebar-links a {
+  border-radius: 14px;
+  color: #cbd5e1;
+  padding: 11px 12px;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.admin-nav-link.active,
+.admin-nav-link:hover,
+.admin-sidebar-links a:hover {
+  background: rgba(37, 99, 235, 0.18);
+  color: #fff;
+}
+
+.admin-sidebar-links {
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.admin-content {
+  min-width: 0;
+}
+
+.admin-panel {
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.admin-title-row,
+.admin-filters,
+.admin-profile-grid,
+.admin-stats {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-title-row {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.admin-stats {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 18px 0;
+}
+
+.admin-stat {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #f8fafc;
+  padding: 16px;
+}
+
+.admin-stat b {
+  display: block;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+}
+
+.admin-stat span,
+.admin-profile-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-filters {
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto auto;
+  align-items: end;
+  margin: 18px 0;
+}
+
+.admin-filters label,
+.admin-panel label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-button,
+.admin-export,
+.admin-link {
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.admin-button,
+.admin-export {
+  border: 0;
+  border-radius: 14px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  padding: 12px 16px;
+}
+
+.admin-button.danger {
+  background: #dc2626;
+}
+
+.admin-export {
+  background: #eef2ff;
+  color: #1d4ed8;
+}
+
+.admin-link {
+  color: #2563eb;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.admin-table th,
+.admin-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 13px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-table th {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #1d4ed8;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-profile-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 18px 0;
+}
+
+.admin-profile-grid div {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #f8fafc;
+  padding: 16px;
+}
+
+.admin-profile-grid b {
+  display: block;
+  margin-top: 6px;
+  word-break: break-word;
+}
+
 @media (max-width: 900px) {
   .history-table-head {
     display: none;
@@ -228,6 +464,17 @@
   .campaign-history-row {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .admin-shell,
+  .admin-title-row,
+  .admin-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar {
+    position: static;
+    min-height: auto;
   }
 }
 
