@@ -40,12 +40,32 @@ public sealed class InMemoryMailingRepository : IMailingRepository
             : null;
     }
 
-    public IReadOnlyCollection<Mailing> ListForOwner(string userEmail) => _items.Values
-        .Where(mailing => string.Equals(mailing.OwnerEmail, userEmail, StringComparison.OrdinalIgnoreCase))
-        .OrderByDescending(mailing => mailing.CreatedAt)
-        .ToArray();
+    public IReadOnlyCollection<Mailing> ListForOwner(string userEmail)
+    {
+        var normalized = Normalize(userEmail);
+        return _items.Values
+            .Where(mailing => string.Equals(mailing.OwnerEmail, normalized, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(mailing => mailing.CreatedAt)
+            .ToArray();
+    }
+
+    public IReadOnlyDictionary<string, int> CountByOwners(IEnumerable<string> ownerEmails)
+    {
+        var owners = ownerEmails
+            .Select(Normalize)
+            .Where(email => !string.IsNullOrWhiteSpace(email))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return owners.ToDictionary(
+            email => email,
+            email => _items.Values.Count(mailing => string.Equals(mailing.OwnerEmail, email, StringComparison.OrdinalIgnoreCase)),
+            StringComparer.OrdinalIgnoreCase);
+    }
 
     public void Update(Mailing mailing) => _items[mailing.Id] = mailing;
+
+    private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }
 
 public sealed class InMemoryGlobalSuppressionRepository : IGlobalSuppressionRepository
