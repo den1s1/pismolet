@@ -147,7 +147,7 @@ public static class HtmlRenderer
     public static string Payments(UserAccount user)
     {
         var mailings = user.Mailings.ToList();
-        var waiting = mailings.Where(m => m.Status is MailingStatus.Draft or MailingStatus.PaymentPending).ToList();
+        var waiting = mailings.Where(m => m.Status is MailingStatus.Draft or MailingStatus.MessagePrepared or MailingStatus.PaymentPending).ToList();
         var paid = mailings.Where(m => m.Status is MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired or MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Sent).ToList();
 
         return $"""
@@ -189,7 +189,7 @@ public static class HtmlRenderer
         </div>
         """;
 
-    public static string FakeMailer(IEnumerable<EmailMessage> messages)
+    public static string FakeMailer(IEnumerable<FakeMail> messages)
     {
         var list = messages.ToList();
         var rows = list.Count == 0
@@ -198,9 +198,9 @@ public static class HtmlRenderer
                 <div class='history-row'>
                     <div>
                         <b>{H(message.Subject)}</b><br>
-                        <span class='hint'>Кому: {H(message.Recipient.Email)}</span>
+                        <span class='hint'>Кому: {H(message.To)}</span>
                     </div>
-                    <a class='text-link' href='/dev/fake-mailer'>Открыть</a>
+                    <a class='text-link' href='{H(message.Link)}'>Открыть</a>
                 </div>
                 """));
 
