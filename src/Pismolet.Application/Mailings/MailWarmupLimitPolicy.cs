@@ -17,8 +17,9 @@ public static class MailWarmupLimitPolicy
             (domainLimit.MaxPerDay ?? 0, snapshot.DomainSentToday, "domain_daily_limit", TimeUntilNextUtcDay(now)),
             (domainLimit.MaxPerHour ?? 0, snapshot.DomainSentLastHour, "domain_hourly_limit", TimeSpan.FromHours(1)),
             (domainLimit.MaxPerMinute ?? 0, snapshot.DomainSentLastMinute, "domain_minute_limit", TimeSpan.FromMinutes(1)))
-            ?? DelayDecision("global_min_delay", snapshot.GlobalLastSentAt, options.MinSecondsBetweenSends, now)
-            ?? DelayDecision("domain_min_delay", snapshot.DomainLastSentAt, domainLimit.MinSecondsBetweenSends ?? options.MinSecondsBetweenSends, now)
+            ?? StrictestDelayDecision(
+                DelayDecision("global_min_delay", snapshot.GlobalLastSentAt, options.MinSecondsBetweenSends, now),
+                DelayDecision("domain_min_delay", snapshot.DomainLastSentAt, domainLimit.MinSecondsBetweenSends ?? options.MinSecondsBetweenSends, now))
             ?? MailWarmupLimitDecision.Allowed;
     }
 
@@ -33,6 +34,26 @@ public static class MailWarmupLimitPolicy
         }
 
         return null;
+    }
+
+    private static MailWarmupLimitDecision? StrictestDelayDecision(params MailWarmupLimitDecision?[] decisions)
+    {
+        MailWarmupLimitDecision? strictest = null;
+
+        foreach (var decision in decisions)
+        {
+            if (decision is null)
+            {
+                continue;
+            }
+
+            if (strictest is null || decision.RetryAfter > strictest.RetryAfter)
+            {
+                strictest = decision;
+            }
+        }
+
+        return strictest;
     }
 
     private static MailWarmupLimitDecision? DelayDecision(string reason, DateTimeOffset? lastSentAt, int minSecondsBetweenSends, DateTimeOffset now)
