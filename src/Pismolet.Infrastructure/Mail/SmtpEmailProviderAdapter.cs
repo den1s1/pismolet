@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -63,7 +64,7 @@ public sealed class SmtpEmailProviderAdapter(
 
             return EmailProviderSendResult.Success(providerMessageId);
         }
-        catch (Exception ex) when (ex is SmtpCommandException or SmtpProtocolException or IOException or InvalidOperationException or TimeoutException)
+        catch (Exception ex) when (ex is SmtpCommandException or SmtpProtocolException or IOException or SocketException or InvalidOperationException or TimeoutException)
         {
             logger.LogWarning(
                 ex,
@@ -136,7 +137,7 @@ public sealed class SmtpEmailProviderAdapter(
 
             return EmailProviderSendResult.Success(providerMessageId);
         }
-        catch (Exception ex) when (ex is SmtpCommandException or SmtpProtocolException or IOException or InvalidOperationException or TimeoutException)
+        catch (Exception ex) when (ex is SmtpCommandException or SmtpProtocolException or IOException or SocketException or InvalidOperationException or TimeoutException)
         {
             logger.LogWarning(
                 ex,
