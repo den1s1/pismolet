@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Infrastructure.Database;
@@ -34,6 +35,29 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
                 x.Status == SendEventStatus.Accepted.ToString() &&
                 x.OwnerEmail == normalized &&
                 x.AcceptedUtcDay == acceptedUtcDay);
+    }
+
+    public IReadOnlyCollection<MailWarmupAcceptedSend> ListAcceptedForWarmupWindow(string ownerEmail, DateTimeOffset sinceUtc)
+    {
+        var normalized = Normalize(ownerEmail);
+        var since = sinceUtc.ToUniversalTime();
+        var sinceUtcDay = ToAcceptedUtcDay(DateOnly.FromDateTime(since.UtcDateTime));
+
+        return db.SendEvents
+            .AsNoTracking()
+            .Where(x =>
+                x.Status == SendEventStatus.Accepted.ToString() &&
+                x.OwnerEmail == normalized &&
+                x.AcceptedAt != null &&
+                x.AcceptedUtcDay != null &&
+                x.AcceptedUtcDay >= sinceUtcDay)
+            .OrderBy(x => x.AcceptedUtcDay)
+            .ThenBy(x => x.AcceptedAt)
+            .Select(x => new { x.RecipientEmail, x.AcceptedAt })
+            .AsEnumerable()
+            .Where(x => x.AcceptedAt!.Value.ToUniversalTime() >= since)
+            .Select(x => new MailWarmupAcceptedSend(x.RecipientEmail, x.AcceptedAt!.Value.ToUniversalTime()))
+            .ToArray();
     }
 
     public void Save(SendEvent sendEvent)
