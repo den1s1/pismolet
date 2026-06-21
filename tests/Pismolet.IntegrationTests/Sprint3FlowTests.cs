@@ -160,7 +160,8 @@ public sealed class Sprint3FlowTests
         var import = await client.PostAsync($"/mailings/{mailingId}/recipients", multipart);
         Assert.Equal(HttpStatusCode.OK, import.StatusCode);
         var body = await import.Content.ReadAsStringAsync();
-        Assert.Contains("Принято адресов: 1", body);
+        Assert.Contains("Принято к отправке", body);
+        Assert.Contains("<b>1</b><span>Принято к отправке</span>", body);
 
         return mailingId;
     }
