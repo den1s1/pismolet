@@ -11,21 +11,23 @@ namespace Pismolet.Web.Endpoints;
 
 public static class AdminEndpoints
 {
+    public const string AdminPolicyName = "AdminOnly";
+
     public static IEndpointRouteBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin", ShowUsers).RequireAuthorization();
-        app.MapGet("/admin/users", ShowUsers).RequireAuthorization();
-        app.MapGet("/admin/users/{email}", ShowUserProfile).RequireAuthorization();
-        app.MapGet("/admin/recipients", (HttpContext http) => Placeholder(http, "Получатели", "Глобальные статусы получателей будут перенесены в следующем спринте.", "recipients")).RequireAuthorization();
-        app.MapGet("/admin/campaigns", (HttpContext http) => Placeholder(http, "Кампании", "Список кампаний и модерация будут расширены в следующем админском спринте.", "campaigns")).RequireAuthorization();
-        app.MapGet("/admin/payments", (HttpContext http) => Placeholder(http, "Оплаты", "Детальная история оплат появится после подключения биллинга.", "payments")).RequireAuthorization();
-        app.MapGet("/admin/settings", (HttpContext http) => Placeholder(http, "Настройки", "Здесь будут настройки лимитов, цен и правил модерации.", "settings")).RequireAuthorization();
-        app.MapGet("/admin/moderation", ShowQueue).RequireAuthorization();
-        app.MapGet("/admin/moderation/{reviewId:guid}", ShowReview).RequireAuthorization();
-        app.MapPost("/admin/moderation/{reviewId:guid}/approve", Approve).RequireAuthorization();
-        app.MapPost("/admin/moderation/{reviewId:guid}/reject", Reject).RequireAuthorization();
-        app.MapGet("/admin/limits", ShowLimits).RequireAuthorization();
-        app.MapPost("/admin/limits", UpdateLimit).RequireAuthorization();
+        app.MapGet("/admin", ShowUsers).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/users", ShowUsers).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/users/{email}", ShowUserProfile).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/recipients", (HttpContext http) => Placeholder(http, "Получатели", "Глобальные статусы получателей будут перенесены в следующем спринте.", "recipients")).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/campaigns", (HttpContext http) => Placeholder(http, "Кампании", "Список кампаний и модерация будут расширены в следующем админском спринте.", "campaigns")).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/payments", (HttpContext http) => Placeholder(http, "Оплаты", "Детальная история оплат появится после подключения биллинга.", "payments")).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/settings", (HttpContext http) => Placeholder(http, "Настройки", "Здесь будут настройки лимитов, цен и правил модерации.", "settings")).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/moderation", ShowQueue).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/moderation/{reviewId:guid}", ShowReview).RequireAuthorization(AdminPolicyName);
+        app.MapPost("/admin/moderation/{reviewId:guid}/approve", Approve).RequireAuthorization(AdminPolicyName);
+        app.MapPost("/admin/moderation/{reviewId:guid}/reject", Reject).RequireAuthorization(AdminPolicyName);
+        app.MapGet("/admin/limits", ShowLimits).RequireAuthorization(AdminPolicyName);
+        app.MapPost("/admin/limits", UpdateLimit).RequireAuthorization(AdminPolicyName);
         return app;
     }
 
@@ -34,9 +36,12 @@ public static class AdminEndpoints
         var adminEmail = CurrentEmail(http) ?? "admin@example.test";
         var search = http.Request.Query["q"].ToString().Trim();
         var status = http.Request.Query["status"].ToString().Trim();
-        var allRows = users.ListAll()
-            .Select(user => new AdminUserRow(user, mailings.ListForOwner(user.Email)))
-            .OrderBy(row => row.User.Email, StringComparer.OrdinalIgnoreCase)
+        var userList = users.ListAll()
+            .OrderBy(user => user.Email, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var mailingCounts = mailings.CountByOwners(userList.Select(user => user.Email));
+        var allRows = userList
+            .Select(user => new AdminUserRow(user, mailingCounts.GetValueOrDefault(user.Email)))
             .ToList();
 
         var rows = allRows.AsEnumerable();
@@ -61,7 +66,7 @@ public static class AdminEndpoints
                 <div class='admin-stat'><b>{allRows.Count}</b><span>Пользователей</span></div>
                 <div class='admin-stat'><b>{allRows.Count(row => row.User.EmailConfirmed)}</b><span>Email подтверждён</span></div>
                 <div class='admin-stat'><b>{allRows.Count(row => row.User.Profile.PremoderationRequired)}</b><span>На премодерации</span></div>
-                <div class='admin-stat'><b>{allRows.Sum(row => row.Mailings.Count)}</b><span>Кампаний всего</span></div>
+                <div class='admin-stat'><b>{allRows.Sum(row => row.MailingCount)}</b><span>Кампаний всего</span></div>
             </div>
             """;
 
@@ -154,7 +159,7 @@ public static class AdminEndpoints
                 return $"<tr><td>{item.Review.CreatedAt:yyyy-MM-dd HH:mm}</td><td>{H(mailing?.MessageDraft?.Subject ?? mailing?.Subject ?? "Без темы")}</td><td>{H(mailing?.OwnerEmail ?? "неизвестно")}</td><td>{H(reasons)}</td><td><a class='admin-link' href='/admin/moderation/{item.Review.Id}'>Открыть</a></td></tr>";
             }));
 
-        var body = $"<section class='admin-panel'><h1>Очередь модерации</h1><p class='admin-muted'>Доступ пока ограничен общей авторизацией. TODO: добавить роль администратора.</p><div class='admin-table-wrap'><table class='admin-table'><thead><tr><th>Дата</th><th>Тема</th><th>Клиент</th><th>Причины</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>";
+        var body = $"<section class='admin-panel'><h1>Очередь модерации</h1><p class='admin-muted'>Доступ ограничен администраторами из allowlist.</p><div class='admin-table-wrap'><table class='admin-table'><thead><tr><th>Дата</th><th>Тема</th><th>Клиент</th><th>Причины</th><th></th></tr></thead><tbody>{rows}</tbody></table></div></section>";
         return AdminHtml("Очередь модерации", CurrentEmail(http) ?? "admin@example.test", "campaigns", body);
     }
 
@@ -243,7 +248,7 @@ public static class AdminEndpoints
     private static string UserRow(AdminUserRow row)
     {
         var user = row.User;
-        return $"<tr><td>{H(user.Email)}</td><td>{H(user.DisplayName)}</td><td><span class='admin-badge'>{H(user.Profile.Status)}</span></td><td>{(user.EmailConfirmed ? "Подтверждён" : "Не подтверждён")}</td><td>{user.Profile.DailySendLimit}</td><td>{row.Mailings.Count}</td><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(user.Email)}'>Профиль</a></td></tr>";
+        return $"<tr><td>{H(user.Email)}</td><td>{H(user.DisplayName)}</td><td><span class='admin-badge'>{H(user.Profile.Status)}</span></td><td>{(user.EmailConfirmed ? "Подтверждён" : "Не подтверждён")}</td><td>{user.Profile.DailySendLimit}</td><td>{row.MailingCount}</td><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(user.Email)}'>Профиль</a></td></tr>";
     }
 
     private static string AdminShell(string adminEmail, string active, string content) => $"""
@@ -290,7 +295,7 @@ public static class AdminEndpoints
         return new RequestMetadata(ip, string.IsNullOrWhiteSpace(userAgent) ? "unknown" : userAgent);
     }
 
-    private sealed record AdminUserRow(UserAccount User, IReadOnlyCollection<Mailing> Mailings);
+    private sealed record AdminUserRow(UserAccount User, int MailingCount);
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
