@@ -9,8 +9,10 @@ public static class HtmlRenderer
 {
     public static IResult Html(string html) => Results.Content(html, "text/html; charset=utf-8");
 
-    public static string Page(string title, string body)
+    public static string Page(string title, string body, bool authenticated = false, bool showDevTools = false)
     {
+        var accountHtml = authenticated ? AccountMenu(showDevTools) : PublicNav();
+
         return $"""
             <!doctype html>
             <html lang='ru'>
@@ -27,20 +29,7 @@ public static class HtmlRenderer
                         <a class='brand' href='/' aria-label='Письмолёт - на главную'>
                             <img class='brand-logo' src='/assets/brand/logo-horizontal.svg' alt='Письмолёт'>
                         </a>
-                        <div class='account'>
-                            <div class='profile-menu'>
-                                <button class='profile-button' type='button' aria-haspopup='true'>Профиль ▾</button>
-                                <div class='profile-dropdown' role='menu'>
-                                    <a href='/mailings/new' role='menuitem'>Новая рассылка</a>
-                                    <a href='/dashboard' role='menuitem'>История</a>
-                                    <a href='/admin' role='menuitem'>Админка</a>
-                                    <a href='/dev/fake-mailer' role='menuitem'>Fake mailer</a>
-                                    <form method='post' action='/account/logout'>
-                                        <button type='submit'>Выйти</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
+                        {accountHtml}
                     </div>
                 </header>
                 <main class='page'>{body}</main>
@@ -130,6 +119,30 @@ public static class HtmlRenderer
         "<section class='panel'><h1>Fake mailer</h1>" +
         string.Join(string.Empty, messages.Select(x => $"<article class='mail'><b>{H(x.Subject)}</b><p>{H(x.To)}</p><a href='{H(x.Link)}'>{H(x.Link)}</a></article>")) +
         "</section>";
+
+    private static string PublicNav() =>
+        "<nav class='public-nav' aria-label='Навигация'><a href='/account/login'>Войти</a><a class='btn secondary' href='/account/register'>Регистрация</a></nav>";
+
+    private static string AccountMenu(bool showDevTools)
+    {
+        var devLink = showDevTools ? "<a href='/dev/fake-mailer' role='menuitem'>Fake mailer</a>" : string.Empty;
+        return $"""
+            <div class='account'>
+                <div class='profile-menu'>
+                    <button class='profile-button' type='button' aria-haspopup='true'>Профиль ▾</button>
+                    <div class='profile-dropdown' role='menu'>
+                        <a href='/mailings/new' role='menuitem'>Новая рассылка</a>
+                        <a href='/dashboard' role='menuitem'>История</a>
+                        <a href='/admin' role='menuitem'>Админка</a>
+                        {devLink}
+                        <form method='post' action='/account/logout'>
+                            <button type='submit'>Выйти</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            """;
+    }
 
     private static (string Url, string Text) DashboardAction(Mailing mailing)
     {
