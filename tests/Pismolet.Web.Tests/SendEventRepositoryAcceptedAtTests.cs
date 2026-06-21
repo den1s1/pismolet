@@ -23,10 +23,12 @@ public sealed class SendEventRepositoryAcceptedAtTests
         db.ChangeTracker.Clear();
 
         var loaded = repository.Get(mailingId, "lead@example.test");
+        var persistedEntity = db.SendEvents.AsNoTracking().Single(x => x.MailingId == mailingId && x.RecipientEmail == "lead@example.test");
 
         Assert.NotNull(loaded);
         Assert.Equal(acceptedAt, loaded!.AcceptedAt);
         Assert.Equal(acceptedAt.AddDays(1), loaded.UpdatedAt);
+        Assert.Equal(20260620, persistedEntity.AcceptedUtcDay);
     }
 
     [Fact]
