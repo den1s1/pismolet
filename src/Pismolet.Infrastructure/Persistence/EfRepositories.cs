@@ -238,6 +238,32 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
             .ToArray();
     }
 
+    public IReadOnlyDictionary<string, int> CountByOwners(IEnumerable<string> ownerEmails)
+    {
+        var normalized = ownerEmails
+            .Select(Normalize)
+            .Where(email => !string.IsNullOrWhiteSpace(email))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (normalized.Length == 0)
+        {
+            return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var counts = db.Mailings
+            .AsNoTracking()
+            .Where(x => normalized.Contains(x.OwnerEmail))
+            .GroupBy(x => x.OwnerEmail)
+            .Select(group => new { OwnerEmail = group.Key, Count = group.Count() })
+            .ToDictionary(x => x.OwnerEmail, x => x.Count, StringComparer.OrdinalIgnoreCase);
+
+        return normalized.ToDictionary(
+            email => email,
+            email => counts.GetValueOrDefault(email),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
     public void Update(Mailing mailing)
     {
         var entity = db.Mailings.FirstOrDefault(x => x.Id == mailing.Id);
