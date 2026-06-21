@@ -38,7 +38,7 @@ public sealed class InMemoryMailingRepository : IMailingRepository
 
     public IReadOnlyCollection<Mailing> ListForOwner(string userEmail) => _items.Values
         .Where(mailing => string.Equals(mailing.OwnerEmail, userEmail, StringComparison.OrdinalIgnoreCase))
-        .OrderByDescending(mailing.CreatedAt)
+        .OrderByDescending(mailing => mailing.CreatedAt)
         .ToArray();
 
     public void Update(Mailing mailing) => _items[mailing.Id] = mailing;
