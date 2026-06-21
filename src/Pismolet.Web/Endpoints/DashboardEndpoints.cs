@@ -246,7 +246,7 @@ public static class DashboardEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(mailing, renderer, result.Error), authenticated: true));
         }
 
-        return HtmlRenderer.Html(HtmlRenderer.Page("Письмо подготовлено", MessageForm(mailing, renderer, null), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Письмо подготовлено", MessageForm(mailing, renderer, null, saved: true), authenticated: true));
     }
 
     private static string NewMailingWizard() => @"
@@ -395,7 +395,7 @@ public static class DashboardEndpoints
         return $"<section class='card form-card'><h1>Подтверждение базы</h1><p class='muted'>{H(mailing.Subject)}</p>{alert}<p>Принято адресов: {stats.Accepted}. Дублей: {stats.Duplicates}. Невалидных: {stats.Invalid}.</p><form method='post' action='/mailings/{mailing.Id}/declaration'><label>Источник базы<select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label><label>Тип письма<select name='messageType'><option value='Transactional'>Информационное</option><option value='Advertising'>Рекламное</option></select></label><label><input type='checkbox' name='baseLegality'> Подтверждаю правомерность использования базы</label><label><input type='checkbox' name='advertisingConsent'> Для рекламного письма подтверждаю наличие рекламного согласия адресатов</label><div class='card'><strong>Текст декларации, версия {BaseDeclarationText.CurrentVersion}</strong><p>{H(BaseDeclarationText.Text)}</p></div><button class='button'>Подтвердить базу</button></form><p><a href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></p></section>";
     }
 
-    private static string MessageForm(Mailing? mailing, IMessageRenderingService renderer, string? error)
+    private static string MessageForm(Mailing? mailing, IMessageRenderingService renderer, string? error, bool saved = false)
     {
         if (mailing is null)
         {
@@ -404,12 +404,101 @@ public static class DashboardEndpoints
 
         var draft = mailing.MessageDraft;
         var preview = renderer.RenderPreview(mailing);
-        var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error'>{H(error)}</p>";
+        var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
+        var success = saved ? "<p class='notice'>Письмо сохранено. Проверьте превью и переходите к расчёту.</p>" : string.Empty;
+        var senderName = H(draft?.SenderName ?? string.Empty);
+        var messageSubject = H(draft?.Subject ?? mailing.Subject);
+        var bodyText = draft?.Body ?? string.Empty;
+        var previewSender = string.IsNullOrWhiteSpace(draft?.SenderName) ? "Письмолёт" : H(draft!.SenderName);
+        var previewSubject = string.IsNullOrWhiteSpace(draft?.Subject) ? H(mailing.Subject) : H(draft!.Subject);
+        var previewBody = string.IsNullOrWhiteSpace(bodyText)
+            ? "<p class='muted'>Сохраните текст письма, чтобы увидеть его в превью.</p>"
+            : $"<p>{ToHtmlText(bodyText)}</p>";
+        var reasonBlock = string.IsNullOrWhiteSpace(preview.ReasonBlock)
+            ? "Служебный блок с причиной получения и ссылкой отписки будет добавлен автоматически после сохранения письма."
+            : H(preview.ReasonBlock);
+        var serviceBlock = string.IsNullOrWhiteSpace(preview.ServiceIdentifier)
+            ? H($"Служебный идентификатор рассылки: {mailing.PublicId}")
+            : H(preview.ServiceIdentifier);
+        var unsubscribeUrl = string.IsNullOrWhiteSpace(preview.UnsubscribeUrl) ? "/unsubscribe/example-token" : H(preview.UnsubscribeUrl);
         var transactionalSelected = draft?.MessageType == MessageType.Advertising ? string.Empty : " selected";
         var advertisingSelected = draft?.MessageType == MessageType.Advertising ? " selected" : string.Empty;
-        var prepared = draft is null ? string.Empty : $"<section class='card'><h2>Preview служебных блоков</h2><pre>{H(preview.PlainText)}</pre><p><a class='button' href='/mailings/{mailing.Id}/payment'>Перейти к проверке и оплате</a></p></section>";
-        return $"<section class='card form-card'><h1>Редактор письма</h1><p class='muted'>{H(mailing.Subject)}</p>{alert}<form method='post' action='/mailings/{mailing.Id}/message'><label>Имя отправителя<input name='senderName' maxlength='80' required value='{H(draft?.SenderName ?? string.Empty)}'></label><label>Тема письма<input name='subject' maxlength='160' required value='{H(draft?.Subject ?? mailing.Subject)}'></label><label>Тип письма<select name='messageType'><option value='Transactional'{transactionalSelected}>Информационное</option><option value='Advertising'{advertisingSelected}>Рекламное</option></select></label><label>Текст письма<textarea name='body' rows='10' required>{H(draft?.Body ?? string.Empty)}</textarea></label><button class='button'>Сохранить письмо</button></form><p><a href='/mailings/{mailing.Id}/declaration'>Назад к подтверждению базы</a></p></section>{prepared}";
+        var continueAction = draft is null
+            ? "<button class='button'>Сохранить письмо</button>"
+            : $"<button class='button'>Сохранить письмо</button><a class='btn secondary' href='/mailings/{mailing.Id}/payment'>Перейти к проверке и оплате</a>";
+
+        return $@"
+<section class='wizard-shell'>
+  <div class='wizard-steps' aria-label='Шаги создания рассылки'>
+    <span class='wizard-step done'>Черновик</span>
+    <span class='wizard-step done'>1. Адреса</span>
+    <span class='wizard-step current'>2. Письмо</span>
+    <span class='wizard-step'>3. Проверка и оплата</span>
+  </div>
+  <section class='panel'>
+    <div class='topline'>
+      <div>
+        <p class='eyebrow'>Шаг 2 из 3</p>
+        <h1>2. Напишите письмо</h1>
+        <p class='muted'>{H(mailing.Subject)}</p>
+      </div>
+      <span class='badge warn'>Черновик письма</span>
+    </div>
+    {alert}
+    {success}
+    <div class='message-wizard-grid'>
+      <form method='post' action='/mailings/{mailing.Id}/message' class='form-grid message-editor-form'>
+        <div class='row write-row'>
+          <label class='write-field'>
+            <span class='field-title'>От кого <span class='required'>*</span></span>
+            <input name='senderName' maxlength='{MailingMessageDraft.MaxSenderNameLength}' required value='{senderName}' placeholder='Например: Библиотека №5'>
+            <span class='field-hint'>Получатели увидят это имя в письме.</span>
+          </label>
+          <label class='write-field'>
+            <span class='field-title'>Тип письма</span>
+            <select name='messageType'>
+              <option value='Transactional'{transactionalSelected}>Информационное</option>
+              <option value='Advertising'{advertisingSelected}>Рекламное</option>
+            </select>
+            <span class='field-hint'>Для рекламы нужна подтверждённая рекламная база.</span>
+          </label>
+        </div>
+        <label>Тема письма
+          <input name='subject' maxlength='{MailingMessageDraft.MaxSubjectLength}' required value='{messageSubject}' placeholder='Например: Приглашаем на встречу в субботу'>
+        </label>
+        <label>Текст письма
+          <textarea name='body' rows='12' required placeholder='Здравствуйте!&#10;&#10;Расскажите, почему вы пишете и что нужно сделать получателю.'>{H(bodyText)}</textarea>
+        </label>
+        <div class='notice warn'>Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки.</div>
+        <div class='actions'>
+          {continueAction}
+          <a class='btn ghost' href='/mailings/{mailing.Id}/declaration'>Назад к подтверждению базы</a>
+        </div>
+      </form>
+      <aside class='box message-preview-card'>
+        <h3>Превью письма</h3>
+        <div class='mail-preview'>
+          <div class='mail-preview-header'>От: <span>{previewSender}</span> &lt;info@pismolet.ru&gt;</div>
+          <div class='mail-preview-body'>
+            <h4>{previewSubject}</h4>
+            {previewBody}
+            <div class='unsubscribe'>
+              <p>{reasonBlock}</p>
+              <p>Отписаться: <code>{unsubscribeUrl}</code></p>
+              <p>{serviceBlock}</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+</section>";
     }
+
+    private static string ToHtmlText(string value) => H(value)
+        .Replace("\r\n", "\n", StringComparison.Ordinal)
+        .Replace("\r", "\n", StringComparison.Ordinal)
+        .Replace("\n", "<br>", StringComparison.Ordinal);
 
     private static string NextStep(Mailing mailing)
     {
