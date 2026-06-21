@@ -22,11 +22,11 @@ public sealed class MailWarmupSnapshotFactoryTests
         Assert.Equal(1, snapshot.GlobalSentLastMinute);
         Assert.Equal(3, snapshot.GlobalSentLastHour);
         Assert.Equal(4, snapshot.GlobalSentToday);
-        Assert.Equal(now.AddSeconds(-10), snapshot.GlobalLastSentAt);
+        Assert.Equal(now.AddSeconds(-10).ToUniversalTime(), snapshot.GlobalLastSentAt);
         Assert.Equal(1, snapshot.DomainSentLastMinute);
         Assert.Equal(2, snapshot.DomainSentLastHour);
         Assert.Equal(3, snapshot.DomainSentToday);
-        Assert.Equal(now.AddSeconds(-10), snapshot.DomainLastSentAt);
+        Assert.Equal(now.AddSeconds(-10).ToUniversalTime(), snapshot.DomainLastSentAt);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class MailWarmupSnapshotFactoryTests
         Assert.Equal(0, snapshot.GlobalSentLastMinute);
         Assert.Equal(2, snapshot.GlobalSentLastHour);
         Assert.Equal(1, snapshot.GlobalSentToday);
-        Assert.Equal(now.AddMinutes(-5), snapshot.GlobalLastSentAt);
+        Assert.Equal(now.AddMinutes(-5).ToUniversalTime(), snapshot.GlobalLastSentAt);
         Assert.Equal(1, snapshot.DomainSentToday);
     }
 
@@ -80,12 +80,12 @@ public sealed class MailWarmupSnapshotFactoryTests
         Assert.Equal(0, snapshot.GlobalSentLastMinute);
         Assert.Equal(0, snapshot.GlobalSentLastHour);
         Assert.Equal(0, snapshot.GlobalSentToday);
-        Assert.Equal(yesterdaySend, snapshot.GlobalLastSentAt);
+        Assert.Equal(yesterdaySend.ToUniversalTime(), snapshot.GlobalLastSentAt);
         Assert.Equal(0, snapshot.DomainSentToday);
-        Assert.Equal(yesterdaySend, snapshot.DomainLastSentAt);
+        Assert.Equal(yesterdaySend.ToUniversalTime(), snapshot.DomainLastSentAt);
     }
 
     private static MailWarmupAcceptedSend Send(string recipientEmail, DateTimeOffset sentAt) => new(
         recipientEmail.Trim().ToLowerInvariant(),
-        sentAt);
+        sentAt.ToUniversalTime());
 }
