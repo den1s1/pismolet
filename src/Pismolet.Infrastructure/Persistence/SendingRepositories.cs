@@ -29,8 +29,9 @@ public sealed class InMemorySendEventRepository : ISendEventRepository
 
     public int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate) => _items.Values.Count(x =>
         x.Status == SendEventStatus.Accepted &&
+        x.AcceptedAt is not null &&
         string.Equals(x.OwnerEmail, ownerEmail.Trim().ToLowerInvariant(), StringComparison.OrdinalIgnoreCase) &&
-        DateOnly.FromDateTime(x.UpdatedAt.UtcDateTime) == utcDate);
+        DateOnly.FromDateTime(x.AcceptedAt.Value.UtcDateTime) == utcDate);
 
     public void Save(SendEvent sendEvent) => _items[Key(sendEvent.MailingId, sendEvent.RecipientEmail)] = sendEvent;
 
