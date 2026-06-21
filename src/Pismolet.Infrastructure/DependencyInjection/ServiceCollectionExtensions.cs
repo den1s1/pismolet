@@ -78,6 +78,9 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IMailingRepository, InMemoryMailingRepository>();
             services.AddSingleton<IGlobalSuppressionRepository, InMemoryGlobalSuppressionRepository>();
             services.AddSingleton<IAdminRecipientRepository, InMemoryAdminRecipientRepository>();
+            services.AddSingleton<InMemoryAdminMailingSummaryRepository>();
+            services.AddSingleton<IAdminCampaignRepository>(sp => sp.GetRequiredService<InMemoryAdminMailingSummaryRepository>());
+            services.AddSingleton<IAdminPaymentRepository>(sp => sp.GetRequiredService<InMemoryAdminMailingSummaryRepository>());
             services.AddSingleton<IAuditLogger, InMemoryAuditLogger>();
             return services;
         }
@@ -90,6 +93,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMailingRepository, EfMailingRepository>();
         services.AddScoped<IGlobalSuppressionRepository, EfGlobalSuppressionRepository>();
         services.AddScoped<IAdminRecipientRepository, EfAdminRecipientRepository>();
+        services.AddScoped<EfAdminMailingSummaryRepository>();
+        services.AddScoped<IAdminCampaignRepository>(sp => sp.GetRequiredService<EfAdminMailingSummaryRepository>());
+        services.AddScoped<IAdminPaymentRepository>(sp => sp.GetRequiredService<EfAdminMailingSummaryRepository>());
         services.AddScoped<IProviderWebhookEventRepository, EfProviderWebhookEventRepository>();
         services.AddScoped<IClientSuppressionRepository, EfClientSuppressionRepository>();
         services.AddScoped<IReplyEventRepository, EfReplyEventRepository>();
