@@ -14,25 +14,37 @@ public sealed class DevSeedDataInitializer(
 
     public void Seed()
     {
+        suppressions.Add("unsubscribed@example.test");
+
         if (users.Exists(DemoEmail))
         {
             return;
         }
 
+        var recipients = new[]
+        {
+            Recipient.Accepted("ok@example.test", "ok@example.test"),
+            Recipient.Accepted("please-fail@example.test", "please-fail@example.test"),
+            Recipient.Accepted("temp@example.test", "temp@example.test"),
+            Recipient.Accepted("hard-bounce@example.test", "hard-bounce@example.test"),
+            Recipient.Accepted("complaint@example.test", "complaint@example.test")
+        };
+
         var mailing = Mailing
-            .Draft(DemoEmail, "Демо-рассылка")
+            .Draft(DemoEmail, "Демо-рассылка Sprint 11")
             .WithImportResult(
                 ImportBatch.Completed(
                     Guid.Empty,
-                    "demo.csv",
+                    "demo_recipients.csv",
                     ImportSourceFormat.Csv,
-                    new ImportStats(3, 2, 0, 1, 0),
-                    new[] { new RecipientImportIssue(4, "wrong-email", "Невалидный email") }),
-                new[]
-                {
-                    Recipient.Accepted("first@example.com", "first@example.com"),
-                    Recipient.Accepted("second@example.com", "second@example.com")
-                });
+                    new ImportStats(8, 5, 1, 1, 1),
+                    new[]
+                    {
+                        new RecipientImportIssue(7, "not-an-email", "Невалидный email"),
+                        new RecipientImportIssue(8, "ok@example.test", "Дубликат адреса"),
+                        new RecipientImportIssue(6, "unsubscribed@example.test", "Адрес уже отписан от рассылок сервиса")
+                    }),
+                recipients);
 
         var user = new UserAccount(
             DemoEmail,
@@ -45,6 +57,5 @@ public sealed class DevSeedDataInitializer(
 
         users.TryAdd(user);
         mailings.TryAdd(mailing);
-        suppressions.Add("unsubscribed@example.com");
     }
 }
