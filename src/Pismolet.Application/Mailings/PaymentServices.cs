@@ -4,6 +4,7 @@ using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Audit;
 using Pismolet.Web.Domain.Mailings;
+using Pismolet.Web.Domain.Users;
 
 namespace Pismolet.Web.Application.Mailings;
 
@@ -50,6 +51,7 @@ public sealed class MailingPricingService(IPriceSettingsRepository prices) : IMa
 
     public static void ValidateReadyForPayment(Mailing mailing)
     {
+        if (mailing.Status == MailingStatus.Blocked) throw new InvalidOperationException("Рассылка заблокирована администратором.");
         if (mailing.LastImportStats.Accepted <= 0 || mailing.Recipients.All(x => x.Status != RecipientStatus.Accepted)) throw new InvalidOperationException("Сначала загрузите адреса для рассылки.");
         if (mailing.Declaration is null || !mailing.Declaration.IsBaseLegalityConfirmed) throw new InvalidOperationException("Сначала подтвердите базу адресов.");
         if (mailing.MessageDraft is null) throw new InvalidOperationException("Сначала сохраните текст письма.");
@@ -71,7 +73,7 @@ public sealed class FakePaymentProvider : IPaymentProvider
     }
 }
 
-public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentRepository payments, IPriceSettingsRepository prices, IMailingPricingService pricing, IPaymentProvider provider, IEmailNormalizer emailNormalizer, IAuditLogger auditLogger) : IMailingPaymentService
+public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentRepository payments, IPriceSettingsRepository prices, IMailingPricingService pricing, IPaymentProvider provider, IUserRepository users, IEmailNormalizer emailNormalizer, IAuditLogger auditLogger) : IMailingPaymentService
 {
     public MailingPaymentResult GetPaymentReview(string userEmail, Guid mailingId, RequestMetadata request)
     {
@@ -83,6 +85,8 @@ public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentR
     {
         var mailing = GetOwnedMailing(userEmail, mailingId);
         if (mailing is null) return MailingPaymentResult.Failure("Рассылка не найдена.");
+        var blockError = ValidateNotBlocked(mailing);
+        if (!string.IsNullOrWhiteSpace(blockError)) return MailingPaymentResult.Failure(blockError);
 
         try
         {
@@ -120,6 +124,8 @@ public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentR
     {
         var mailing = GetOwnedMailing(userEmail, mailingId);
         if (mailing is null) return MailingPaymentResult.Failure("Рассылка не найдена.");
+        var blockError = ValidateNotBlocked(mailing);
+        if (!string.IsNullOrWhiteSpace(blockError)) return MailingPaymentResult.Failure(blockError);
         var payment = payments.GetByMailingId(mailingId);
         if (payment is null) return MailingPaymentResult.Failure("Сначала создайте оплату рассылки.");
 
@@ -140,6 +146,12 @@ public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentR
     {
         try { return MailingPaymentResult.Success(pricing.Calculate(mailing, payment)); }
         catch (InvalidOperationException ex) { return MailingPaymentResult.Failure(ex.Message); }
+    }
+
+    private string ValidateNotBlocked(Mailing mailing)
+    {
+        if (mailing.Status == MailingStatus.Blocked) return "Рассылка заблокирована администратором.";
+        return users.GetByEmail(mailing.OwnerEmail)?.Profile.IsBlocked == true ? "Клиент заблокирован администратором." : string.Empty;
     }
 
     private Mailing? GetOwnedMailing(string userEmail, Guid mailingId)
