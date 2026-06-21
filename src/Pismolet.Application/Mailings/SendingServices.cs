@@ -320,7 +320,8 @@ public sealed class MailingSendService(
     IInboundReplyTokenService replyTokens,
     IBackgroundMailingSendQueue queue,
     IAuditLogger auditLogger,
-    MailingSendOptions options) : IMailingSendService
+    MailingSendOptions options,
+    IMailWarmupSendGate warmupGate) : IMailingSendService
 {
     private const int MaxDailyLimit = 100000;
 
@@ -489,6 +490,7 @@ public sealed class MailingSendService(
             return;
         }
 
+        var pausedByWarmup = false;
         var batch = sendEvents.GetPendingBatch(mailing.Id, Math.Max(1, options.BatchSize));
         var suppressedSet = suppressions.GetSuppressedSet(batch.Select(x => x.RecipientEmail));
         var clientSuppressedSet = clientSuppressions.GetSuppressedSet(mailing.OwnerEmail, batch.Select(x => x.RecipientEmail));
@@ -513,6 +515,21 @@ public sealed class MailingSendService(
                 continue;
             }
 
+            var warmupDecision = warmupGate.Evaluate(mailing.OwnerEmail, sendEvent.RecipientEmail, DateTimeOffset.UtcNow);
+            if (!warmupDecision.IsAllowed)
+            {
+                pausedByWarmup = true;
+                sendEvents.Save(sendEvent.MarkPaused(SendSkipReason.DailyLimit));
+                auditLogger.Write(new AuditRecord(
+                    DateTimeOffset.UtcNow,
+                    mailing.OwnerEmail,
+                    "mailing_send_paused_by_warmup",
+                    "background",
+                    "background",
+                    $"mailingId={mailing.Id};eventId={sendEvent.Id};reason={warmupDecision.Reason};retryAfterSeconds={Math.Ceiling(warmupDecision.RetryAfter.TotalSeconds)}"));
+                break;
+            }
+
             var message = BuildEmailMessage(mailing, draft, sendEvent.RecipientEmail);
             var result = await provider.SendAsync(message, cancellationToken);
             if (result.Accepted && !string.IsNullOrWhiteSpace(result.ProviderMessageId))
@@ -528,6 +545,13 @@ public sealed class MailingSendService(
 
         var totalAccepted = mailing.Recipients.Count(x => x.Status == RecipientStatus.Accepted);
         var summary = sendEvents.GetSummary(mailing.Id, totalAccepted);
+        if (pausedByWarmup)
+        {
+            mailings.Update(mailing.WithStatus(MailingStatus.Paused));
+            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_paused_by_limit", "background", "background", $"mailingId={mailing.Id};paused={summary.PausedByLimit};pending={summary.Pending};source=warmup"));
+            return;
+        }
+
         if (summary.Pending > 0)
         {
             mailings.Update(mailing.WithStatus(MailingStatus.Sending));
