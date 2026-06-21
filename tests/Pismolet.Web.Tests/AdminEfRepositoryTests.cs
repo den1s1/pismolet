@@ -159,11 +159,18 @@ public sealed class AdminEfRepositoryTests
     private static PismoletDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<PismoletDbContext>()
-            .UseInMemoryDatabase($"admin-ef-tests-{Guid.NewGuid():N}")
+            .UseSqlite($"Data Source=file:admin-ef-tests-{Guid.NewGuid():N}?mode=memory&cache=shared")
             .Options;
 
         var db = new PismoletDbContext(options);
+        db.Database.OpenConnection();
         db.Database.EnsureCreated();
+
+        if (!string.Equals(db.Database.ProviderName, "Microsoft.EntityFrameworkCore.Sqlite", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Admin EF tests must use SQLite provider, actual provider is {db.Database.ProviderName}.");
+        }
+
         return db;
     }
 
