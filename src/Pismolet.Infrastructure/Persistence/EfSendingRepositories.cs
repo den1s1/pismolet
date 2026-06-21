@@ -52,10 +52,12 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
                 x.AcceptedUtcDay != null &&
                 x.AcceptedUtcDay >= sinceUtcDay)
             .OrderBy(x => x.AcceptedUtcDay)
-            .ThenBy(x => x.AcceptedAt)
+            .ThenBy(x => x.RecipientEmail)
             .Select(x => new { x.RecipientEmail, x.AcceptedAt })
             .AsEnumerable()
             .Where(x => x.AcceptedAt!.Value.ToUniversalTime() >= since)
+            .OrderBy(x => x.AcceptedAt!.Value.ToUniversalTime())
+            .ThenBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase)
             .Select(x => new MailWarmupAcceptedSend(x.RecipientEmail, x.AcceptedAt!.Value.ToUniversalTime()))
             .ToArray();
     }
