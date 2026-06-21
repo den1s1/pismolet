@@ -58,7 +58,7 @@ public sealed class InMemorySendEventRepository : ISendEventRepository
         var events = ListByMailingId(mailingId);
         var suppressed = events.Count(x => x.Status == SendEventStatus.Skipped && x.Reason == SendSkipReason.GlobalSuppression);
         var clientSuppressed = events.Count(x => x.Status == SendEventStatus.Skipped && x.Reason == SendSkipReason.ClientSuppression);
-        var pausedByLimit = events.Count(x => x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.DailyLimit);
+        var pausedByLimit = events.Count(x => x.Status == SendEventStatus.Paused && x.Reason is SendSkipReason.DailyLimit or SendSkipReason.WarmupLimit);
         var skippedOther = events.Count(x => x.Status == SendEventStatus.Skipped && x.Reason is not SendSkipReason.GlobalSuppression and not SendSkipReason.ClientSuppression);
         return new MailingSendSummary(
             mailingId,
@@ -230,5 +230,5 @@ public sealed class InMemoryReplyEventRepository : IReplyEventRepository
         if (Get(replyEventId) is { } item) Save(item.MarkBodyDeleted());
     }
 
-    private static string Key(string provider, string providerInboundEventId) => $"{provider.Trim().ToLowerInvariant()}:{providerInboundEventId.Trim().ToLowerInvariant()}";
+    private static string Key(string provider, string providerInboundEventId) => $"{provider.Trim().ToLowerInvariant()}:{providerEventId.Trim().ToLowerInvariant()}";
 }
