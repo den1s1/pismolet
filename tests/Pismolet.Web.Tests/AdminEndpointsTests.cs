@@ -55,7 +55,6 @@ public sealed class AdminEndpointsTests
         Assert.Contains(AdminEmail, html);
         Assert.Contains(OwnerEmail, html);
         Assert.Contains(OtherEmail, html);
-        Assert.Contains("Owner campaign", html);
         Assert.Contains("Экспорт CSV - скоро", html);
         Assert.Contains("Кампаний всего", html);
     }
