@@ -58,7 +58,8 @@ public sealed class AdminEfRepositoryTests
         Assert.True(first.HasMessageDraft);
 
         var second = campaignRows.Single(x => x.Id == secondMailingId);
-        Assert.Equal("owner2@example.test", second.ClientName);
+        Assert.Equal("owner2@example.test", second.OwnerEmail);
+        Assert.Equal("", second.ClientName);
         Assert.Equal("Без черновика", second.DisplaySubject);
         Assert.Equal(MailingStatus.Paid, second.Status);
         Assert.Equal(20, second.TotalRows);
