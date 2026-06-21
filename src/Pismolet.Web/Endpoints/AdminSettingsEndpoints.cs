@@ -9,7 +9,9 @@ public static class AdminSettingsEndpoints
 {
     public static IEndpointRouteBuilder MapAdminSettingsEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/admin/settings", ShowSettings).RequireAuthorization(AdminEndpoints.AdminPolicyName);
+        app.MapGet("/admin/settings", ShowSettings)
+            .RequireAuthorization(AdminEndpoints.AdminPolicyName)
+            .WithOrder(-1);
         app.MapPost("/admin/settings/billing", () => SettingsAction("billing")).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         app.MapPost("/admin/settings/limits", () => SettingsAction("limits")).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         app.MapPost("/admin/settings/moderation", () => SettingsAction("moderation")).RequireAuthorization(AdminEndpoints.AdminPolicyName);
