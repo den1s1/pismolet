@@ -41,7 +41,7 @@ public static class AdminPostfixDeliveryEndpoints
             var result = reader.ReadNewLines();
             return Html("Postfix delivery log", BuildResult(result));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             var body = $"""
                 <section class='admin-panel'>
