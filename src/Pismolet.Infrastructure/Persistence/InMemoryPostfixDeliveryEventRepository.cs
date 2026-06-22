@@ -10,16 +10,27 @@ public sealed class InMemoryPostfixDeliveryEventRepository : IPostfixDeliveryEve
 
     public PostfixDeliveryEvent AddIfNotExists(PostfixDeliveryEvent deliveryEvent)
     {
-        var key = BuildKey(deliveryEvent.QueueId, deliveryEvent.RecipientEmail);
+        var occurredAt = deliveryEvent.OccurredAt.ToUniversalTime();
+        var key = BuildPreciseKey(deliveryEvent.QueueId, deliveryEvent.RecipientEmail, deliveryEvent.Status, occurredAt);
         var item = deliveryEvent with
         {
             QueueId = PostfixDeliveryEvent.NormalizeQueueId(deliveryEvent.QueueId),
-            RecipientEmail = PostfixDeliveryEvent.NormalizeEmail(deliveryEvent.RecipientEmail)
+            RecipientEmail = PostfixDeliveryEvent.NormalizeEmail(deliveryEvent.RecipientEmail),
+            OccurredAt = occurredAt
         };
         return _items.GetOrAdd(key, item);
     }
 
-    public PostfixDeliveryEvent? GetByQueueIdAndRecipient(string queueId, string recipientEmail) => _items.GetValueOrDefault(BuildKey(queueId, recipientEmail));
+    public PostfixDeliveryEvent? GetByQueueIdAndRecipient(string queueId, string recipientEmail)
+    {
+        var normalizedQueueId = PostfixDeliveryEvent.NormalizeQueueId(queueId);
+        var normalizedRecipient = PostfixDeliveryEvent.NormalizeEmail(recipientEmail);
+        return _items.Values
+            .Where(x => string.Equals(x.QueueId, normalizedQueueId, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(x.RecipientEmail, normalizedRecipient, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.OccurredAt)
+            .FirstOrDefault();
+    }
 
     public IReadOnlyCollection<PostfixDeliveryEvent> ListRecent(int limit) => _items.Values
         .OrderByDescending(x => x.OccurredAt)
@@ -36,5 +47,5 @@ public sealed class InMemoryPostfixDeliveryEventRepository : IPostfixDeliveryEve
             .ToArray();
     }
 
-    private static string BuildKey(string queueId, string recipientEmail) => $"{PostfixDeliveryEvent.NormalizeQueueId(queueId)}::{PostfixDeliveryEvent.NormalizeEmail(recipientEmail)}";
+    private static string BuildPreciseKey(string queueId, string recipientEmail, PostfixDeliveryEventStatus status, DateTimeOffset occurredAt) => $"{PostfixDeliveryEvent.NormalizeQueueId(queueId)}::{PostfixDeliveryEvent.NormalizeEmail(recipientEmail)}::{status}::{occurredAt.UtcTicks}";
 }
