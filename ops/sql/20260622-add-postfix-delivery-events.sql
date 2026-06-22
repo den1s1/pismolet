@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS postfix_delivery_events (
     "CreatedAt" timestamp with time zone NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "IX_postfix_delivery_events_QueueId_RecipientEmail"
-    ON postfix_delivery_events ("QueueId", "RecipientEmail");
+CREATE UNIQUE INDEX IF NOT EXISTS "IX_postfix_delivery_events_QueueId_RecipientEmail_Status_OccurredAt"
+    ON postfix_delivery_events ("QueueId", "RecipientEmail", "Status", "OccurredAt");
 
 CREATE INDEX IF NOT EXISTS "IX_postfix_delivery_events_OccurredAt"
     ON postfix_delivery_events ("OccurredAt");
