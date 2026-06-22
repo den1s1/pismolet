@@ -114,7 +114,11 @@ public sealed record SendEvent(
     DeliveryStatus DeliveryStatus = DeliveryStatus.NotReported,
     DateTimeOffset? LastDeliveryEventAt = null,
     string? LastDeliverySummary = null,
-    DateTimeOffset? AcceptedAt = null)
+    DateTimeOffset? AcceptedAt = null,
+    string? TrackingToken = null,
+    DateTimeOffset? FirstOpenedAt = null,
+    DateTimeOffset? LastOpenedAt = null,
+    int OpenCount = 0)
 {
     public const string FakeProvider = "FakeEmail";
     public const string ProviderEnvelopeSeparator = "::";
@@ -132,7 +136,8 @@ public sealed record SendEvent(
         null,
         null,
         DateTimeOffset.UtcNow,
-        DateTimeOffset.UtcNow);
+        DateTimeOffset.UtcNow,
+        TrackingToken: NewTrackingToken());
 
     public SendEvent MarkPaused(SendSkipReason reason) => this with
     {
@@ -162,7 +167,8 @@ public sealed record SendEvent(
             ErrorCode = null,
             ErrorMessage = null,
             UpdatedAt = now,
-            AcceptedAt = AcceptedAt ?? now
+            AcceptedAt = AcceptedAt ?? now,
+            TrackingToken = string.IsNullOrWhiteSpace(TrackingToken) ? NewTrackingToken() : TrackingToken
         };
     }
 
@@ -177,6 +183,18 @@ public sealed record SendEvent(
             Attempt = Attempt + 1,
             ErrorCode = resolved.Payload,
             ErrorMessage = errorMessage,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    public SendEvent MarkOpened(DateTimeOffset openedAt)
+    {
+        var openedAtUtc = openedAt.ToUniversalTime();
+        return this with
+        {
+            FirstOpenedAt = FirstOpenedAt ?? openedAtUtc,
+            LastOpenedAt = openedAtUtc,
+            OpenCount = OpenCount + 1,
             UpdatedAt = DateTimeOffset.UtcNow
         };
     }
@@ -205,6 +223,8 @@ public sealed record SendEvent(
     public SendEvent ResetForResume() => Status == SendEventStatus.Paused && Reason is SendSkipReason.DailyLimit or SendSkipReason.WarmupLimit
         ? this with { Status = SendEventStatus.Pending, Reason = SendSkipReason.None, UpdatedAt = DateTimeOffset.UtcNow }
         : this;
+
+    public static string NewTrackingToken() => Guid.NewGuid().ToString("N");
 
     private static (string? Provider, string Payload) ResolveProviderEnvelope(string payload)
     {
