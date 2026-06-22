@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Pismolet.Web.Infrastructure.Database;
 
 [Table("postfix_delivery_events")]
-[Index(nameof(QueueId), nameof(RecipientEmail), IsUnique = true)]
+[Index(nameof(QueueId), nameof(RecipientEmail), nameof(Status), nameof(OccurredAt), IsUnique = true)]
 [Index(nameof(OccurredAt))]
 [Index(nameof(RecipientEmail), nameof(OccurredAt))]
 [Index(nameof(DeliveryStatus), nameof(OccurredAt))]
