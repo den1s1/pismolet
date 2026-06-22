@@ -116,18 +116,14 @@ public sealed class SmtpTransportLoggingTests
             SecureSocketOptions: "None",
             TimeoutSeconds: 1);
 
-        var publicUrlOptionsType = typeof(SmtpEmailProviderAdapter)
-            .GetConstructors()
-            .Single()
-            .GetParameters()[1]
-            .ParameterType;
-        var publicUrlOptions = Activator.CreateInstance(publicUrlOptionsType, "https://app.pismolet.ru")!;
+        var publicUrlOptions = new PublicUrlOptions("https://app.pismolet.ru");
 
         return (SmtpEmailProviderAdapter)Activator.CreateInstance(
             typeof(SmtpEmailProviderAdapter),
             options,
             publicUrlOptions,
-            logger)!;
+            logger,
+            null)!;
     }
 
     private static string InvokeTransportName(SmtpEmailProviderAdapter adapter)
@@ -145,7 +141,7 @@ public sealed class SmtpTransportLoggingTests
     private static string InvokeHtmlBody(string plainText, string unsubscribeUrl, string? trackingPixelUrl)
     {
         var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildHtmlBody", BindingFlags.Static | BindingFlags.NonPublic)!;
-        return (string)method.Invoke(null, new object?[] { plainText, unsubscribeUrl, trackingPixelUrl })!;
+        return (string)method.Invoke(null, new object?[] { plainText, unsubscribeUrl, trackingPixelUrl, null })!;
     }
 
     private sealed class SilentLogger<T> : ILogger<T>
@@ -167,7 +163,7 @@ public sealed class SmtpTransportLoggingTests
 
         public string RenderedText => string.Join("\n", _entries.Select(x => x.RenderedMessage + " " + string.Join(" ", x.State.Select(item => item.Value))));
 
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state) where TState state : notnull => null;
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
@@ -176,12 +172,5 @@ public sealed class SmtpTransportLoggingTests
             var values = state as IReadOnlyList<KeyValuePair<string, object?>> ?? Array.Empty<KeyValuePair<string, object?>>();
             _entries.Add(new LogEntry(logLevel, formatter(state, exception), values.ToArray()));
         }
-    }
-
-    private sealed record LogEntry(LogLevel LogLevel, string RenderedMessage, IReadOnlyList<KeyValuePair<string, object?>> State)
-    {
-        public string Message => RenderedMessage;
-
-        public object? Value(string key) => State.FirstOrDefault(x => string.Equals(x.Key, key, StringComparison.Ordinal)).Value;
     }
 }
