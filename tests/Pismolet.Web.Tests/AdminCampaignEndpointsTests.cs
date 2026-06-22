@@ -12,6 +12,8 @@ using Microsoft.Extensions.Options;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Application.Persistence;
+using Pismolet.Web.Domain.Mailings;
 
 namespace Pismolet.Web.Tests;
 
@@ -59,6 +61,27 @@ public sealed class AdminCampaignEndpointsTests
         Assert.Contains("Повторно проверить письмо", html);
         Assert.Contains("Вернуть на модерацию", html);
         Assert.Contains("Отменить кампанию", html);
+    }
+
+    [Fact]
+    public async Task Admin_campaign_profile_shows_open_analytics_without_read_wording()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Campaign Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Open analytics campaign");
+        SeedOpenedSendEvent(factory, mailingId, "opened@example.test");
+        using var client = CreateAuthenticatedClient(factory, AdminEmail);
+
+        var html = await client.GetStringAsync($"/admin/campaigns/{mailingId}");
+
+        Assert.Contains("Открытия", html);
+        Assert.Contains("Открыто, получателей", html);
+        Assert.Contains("Открытий всего", html);
+        Assert.Contains("Последнее открытие", html);
+        Assert.Contains("opened@example.test", html);
+        Assert.Contains(">Да<", html);
+        Assert.DoesNotContain("Прочитано", html);
+        Assert.DoesNotContain("прочитано", html);
     }
 
     [Fact]
@@ -121,6 +144,18 @@ public sealed class AdminCampaignEndpointsTests
         Assert.True(result.Ok, result.Error);
         Assert.NotNull(result.Mailing);
         return result.Mailing.Id;
+    }
+
+    private static void SeedOpenedSendEvent(WebApplicationFactory<Program> factory, Guid mailingId, string recipientEmail)
+    {
+        using var scope = factory.Services.CreateScope();
+        var sends = scope.ServiceProvider.GetRequiredService<ISendEventRepository>();
+        var sendEvent = SendEvent
+            .Pending(mailingId, OwnerEmail, recipientEmail)
+            .MarkAccepted($"LocalSmtp{SendEvent.ProviderEnvelopeSeparator}{Guid.NewGuid():N}")
+            .MarkOpened(new DateTimeOffset(2026, 6, 22, 10, 45, 0, TimeSpan.Zero));
+
+        sends.Save(sendEvent);
     }
 
     private static RequestMetadata Request() => new("127.0.0.1", "admin-campaign-endpoint-tests");
