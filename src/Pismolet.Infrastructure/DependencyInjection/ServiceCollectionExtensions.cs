@@ -70,6 +70,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailWebhookProcessingService, EmailWebhookProcessingService>();
         services.AddScoped<IInboundReplyMatchingService, InboundReplyMatchingService>();
         services.AddScoped<IInboundReplyProcessingService, InboundReplyProcessingService>();
+        services.AddScoped<PostfixDeliveryLogIngestionService>();
         services.AddScoped<DevSeedDataInitializer>();
 
         var provider = configuration["Persistence:Provider"] ?? configuration["Pismolet:Persistence"] ?? "Postgres";
@@ -179,50 +180,45 @@ public static class ServiceCollectionExtensions
                 MaxPerDay: ReadNullableInt(child, "MaxPerDay", 0, 100000),
                 MinSecondsBetweenSends: ReadNullableInt(child, "MinSecondsBetweenSends", 0, 86400));
 
-            if (limit.MaxPerMinute is null
-                && limit.MaxPerHour is null
-                && limit.MaxPerDay is null
-                && limit.MinSecondsBetweenSends is null)
-            {
-                continue;
-            }
-
             limits[domain] = limit;
         }
 
         return limits.Count == 0 ? null : limits;
     }
 
-    private static string NormalizeWarmupDomainKey(string key)
-    {
-        var domain = key.Trim().ToLowerInvariant();
-        if (domain.Length == 0)
-        {
-            return string.Empty;
-        }
+    private static string NormalizeWarmupDomainKey(string key) => key.Replace("__", ".", StringComparison.Ordinal).Replace('_', '.').Trim().ToLowerInvariant();
 
-        return domain.Contains('.') ? domain : domain.Replace('_', '.');
+    private static int ReadBatchSize(IConfiguration configuration) => ReadInt(configuration, "Sending:BatchSize", 100, 1, 5000);
+
+    private static int ReadTokenLifetimeDays(IConfiguration configuration) => ReadInt(configuration, "Unsubscribe:TokenLifetimeDays", 3650, 1, 36500);
+
+    private static int ReadInboundTokenLifetimeDays(IConfiguration configuration) => ReadInt(configuration, "InboundReplies:TokenLifetimeDays", 3650, 1, 36500);
+
+    private static int ReadInt(IConfiguration configuration, string key, int fallback, int min, int max)
+    {
+        var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
+        return int.TryParse(value, out var parsed) ? Math.Clamp(parsed, min, max) : fallback;
     }
 
-    private static string Required(IConfiguration configuration, string key, string envName)
+    private static int? ReadNullableInt(IConfigurationSection section, string key, int min, int max) => int.TryParse(section[key], out var parsed)
+        ? Math.Clamp(parsed, min, max)
+        : null;
+
+    private static string Required(IConfiguration configuration, string key, string envKey)
     {
-        var value = configuration[key] ?? Environment.GetEnvironmentVariable(envName);
-        if (string.IsNullOrWhiteSpace(value)) throw new InvalidOperationException($"Задайте настройку {key}.");
+        var value = configuration[key] ?? configuration[envKey] ?? Environment.GetEnvironmentVariable(envKey);
+        if (string.IsNullOrWhiteSpace(value)) throw new InvalidOperationException($"Не задан обязательный параметр {key}.");
         return value;
     }
 
-    private static int ReadBatchSize(IConfiguration configuration) => int.TryParse(configuration["Sending:BatchSize"], out var value) ? Math.Clamp(value, 1, 1000) : 100;
-
-    private static string ReadPublicBaseUrl(IConfiguration configuration)
+    private static Uri ReadPublicBaseUrl(IConfiguration configuration)
     {
-        var raw = configuration["App:PublicBaseUrl"] ?? configuration["Pismolet:PublicBaseUrl"] ?? configuration["PISMOLET_PUBLIC_BASE_URL"] ?? Environment.GetEnvironmentVariable("PISMOLET_PUBLIC_BASE_URL") ?? PublicUrlOptions.DevelopmentDefault.PublicBaseUrl;
-        raw = raw.Trim().TrimEnd('/');
-        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri) || string.IsNullOrWhiteSpace(uri.Scheme) || string.IsNullOrWhiteSpace(uri.Host)) throw new InvalidOperationException("Задайте корректный публичный URL приложения в App:PublicBaseUrl.");
-        return raw;
+        var raw = configuration["PublicBaseUrl"]
+            ?? configuration["App:PublicBaseUrl"]
+            ?? configuration["Pismolet:PublicBaseUrl"]
+            ?? configuration["PISMOLET_PUBLIC_BASE_URL"]
+            ?? Environment.GetEnvironmentVariable("PISMOLET_PUBLIC_BASE_URL")
+            ?? "http://localhost";
+        return PublicUrlOptions.NormalizeHttpBaseUrl(raw, "http://localhost");
     }
-
-    private static int ReadTokenLifetimeDays(IConfiguration configuration) => int.TryParse(configuration["Unsubscribe:TokenLifetimeDays"], out var value) ? Math.Clamp(value, 1, 365) : 90;
-    private static int ReadInboundTokenLifetimeDays(IConfiguration configuration) => int.TryParse(configuration["InboundReplies:TokenLifetimeDays"], out var value) ? Math.Clamp(value, 1, 365) : 180;
-    private static int ReadInt(IConfiguration configuration, string key, int fallback, int min, int max) => int.TryParse(configuration[key], out var value) ? Math.Clamp(value, min, max) : fallback;
-    private static int? ReadNullableInt(IConfiguration configuration, string key, int min, int max) => int.TryParse(configuration[key], out var value) ? Math.Clamp(value, min, max) : null;
 }
