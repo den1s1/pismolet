@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(new InboundReplyTokenOptions(configuration["InboundReplies:Secret"] ?? configuration["PISMOLET_INBOUND_REPLY_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_INBOUND_REPLY_SECRET") ?? InboundReplyTokenOptions.DevelopmentDefault.Secret, configuration["InboundReplies:Domain"] ?? InboundReplyTokenOptions.DevelopmentDefault.InboundDomain, TimeSpan.FromDays(ReadInboundTokenLifetimeDays(configuration))));
         services.AddSingleton(new InboundReplyOptions(ReadInt(configuration, "InboundReplies:BodyRetentionDays", 14, 1, 60), ReadInt(configuration, "InboundReplies:MaxStoredBodyChars", 12000, 0, 16000), ReadInt(configuration, "InboundReplies:ForwardBatchSize", 50, 1, 500)));
         services.AddSingleton(ReadMailWarmupLimitOptions(configuration));
+        services.AddSingleton(ReadPostfixDeliveryLogReaderOptions(configuration));
         services.AddSingleton<IMailWarmupThrottle, MailWarmupThrottle>();
         services.AddScoped<IMailWarmupSendGate, MailWarmupSendGate>();
         services.AddSingleton<IUnsubscribeTokenService, SignedUnsubscribeTokenService>();
@@ -71,6 +72,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IInboundReplyMatchingService, InboundReplyMatchingService>();
         services.AddScoped<IInboundReplyProcessingService, InboundReplyProcessingService>();
         services.AddScoped<PostfixDeliveryLogIngestionService>();
+        services.AddScoped<PostfixDeliveryLogReaderService>();
         services.AddScoped<DevSeedDataInitializer>();
 
         var provider = configuration["Persistence:Provider"] ?? configuration["Pismolet:Persistence"] ?? "Postgres";
@@ -186,6 +188,24 @@ public static class ServiceCollectionExtensions
         return limits.Count == 0 ? null : limits;
     }
 
+    private static PostfixDeliveryLogReaderOptions ReadPostfixDeliveryLogReaderOptions(IConfiguration configuration)
+    {
+        var logPath = configuration["PostfixDelivery:LogPath"]
+            ?? configuration["PostfixDelivery__LogPath"]
+            ?? configuration["PISMOLET_POSTFIX_DELIVERY_LOG_PATH"]
+            ?? Environment.GetEnvironmentVariable("PISMOLET_POSTFIX_DELIVERY_LOG_PATH")
+            ?? PostfixDeliveryLogReaderOptions.ProductionDefault.LogPath;
+        var cursorPath = configuration["PostfixDelivery:CursorPath"]
+            ?? configuration["PostfixDelivery__CursorPath"]
+            ?? configuration["PISMOLET_POSTFIX_DELIVERY_CURSOR_PATH"]
+            ?? Environment.GetEnvironmentVariable("PISMOLET_POSTFIX_DELIVERY_CURSOR_PATH")
+            ?? PostfixDeliveryLogReaderOptions.ProductionDefault.CursorPath;
+        var year = ReadInt(configuration, "PostfixDelivery:Year", DateTimeOffset.UtcNow.Year, 2000, 2100);
+        var utcOffsetMinutes = ReadInt(configuration, "PostfixDelivery:UtcOffsetMinutes", 0, -1440, 1440);
+        var startAtEndWhenCursorMissing = ReadBool(configuration, "PostfixDelivery:StartAtEndWhenCursorMissing", true);
+        return new PostfixDeliveryLogReaderOptions(logPath, cursorPath, year, TimeSpan.FromMinutes(utcOffsetMinutes), startAtEndWhenCursorMissing);
+    }
+
     private static string NormalizeWarmupDomainKey(string key) => key.Replace("__", ".", StringComparison.Ordinal).Replace('_', '.').Trim().ToLowerInvariant();
 
     private static int ReadBatchSize(IConfiguration configuration) => ReadInt(configuration, "Sending:BatchSize", 100, 1, 5000);
@@ -198,6 +218,12 @@ public static class ServiceCollectionExtensions
     {
         var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
         return int.TryParse(value, out var parsed) ? Math.Clamp(parsed, min, max) : fallback;
+    }
+
+    private static bool ReadBool(IConfiguration configuration, string key, bool fallback)
+    {
+        var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
+        return bool.TryParse(value, out var parsed) ? parsed : fallback;
     }
 
     private static int? ReadNullableInt(IConfigurationSection section, string key, int min, int max) => int.TryParse(section[key], out var parsed)
