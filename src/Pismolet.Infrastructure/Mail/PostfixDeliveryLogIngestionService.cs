@@ -8,20 +8,22 @@ public sealed record PostfixDeliveryLogIngestionResult(
     int Stored,
     int Ignored,
     int MatchedSendEvents,
-    int UpdatedSendEvents)
+    int UpdatedSendEvents,
+    int ClientSuppressions)
 {
     public int Total => Parsed + Ignored;
 }
 
 public sealed class PostfixDeliveryLogIngestionService(
     IPostfixDeliveryEventRepository repository,
-    ISendEventRepository sendEvents)
+    ISendEventRepository sendEvents,
+    IClientSuppressionRepository clientSuppressions)
 {
     public PostfixDeliveryLogIngestionResult IngestText(string text, int year, TimeSpan utcOffset)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            return new PostfixDeliveryLogIngestionResult(0, 0, 0, 0, 0);
+            return new PostfixDeliveryLogIngestionResult(0, 0, 0, 0, 0, 0);
         }
 
         return IngestLines(
@@ -37,6 +39,7 @@ public sealed class PostfixDeliveryLogIngestionService(
         var ignored = 0;
         var matchedSendEvents = 0;
         var updatedSendEvents = 0;
+        var clientSuppressionCount = 0;
 
         foreach (var line in lines)
         {
@@ -63,27 +66,37 @@ public sealed class PostfixDeliveryLogIngestionService(
                 stored++;
             }
 
-            if (ApplyToSendEvent(saved))
+            var application = ApplyToSendEvent(saved);
+            if (application.Matched)
             {
                 matchedSendEvents++;
+            }
+
+            if (application.Updated)
+            {
                 updatedSendEvents++;
+            }
+
+            if (application.Suppressed)
+            {
+                clientSuppressionCount++;
             }
         }
 
-        return new PostfixDeliveryLogIngestionResult(parsed, stored, ignored, matchedSendEvents, updatedSendEvents);
+        return new PostfixDeliveryLogIngestionResult(parsed, stored, ignored, matchedSendEvents, updatedSendEvents, clientSuppressionCount);
     }
 
-    private bool ApplyToSendEvent(PostfixDeliveryEvent deliveryEvent)
+    private DeliveryApplicationResult ApplyToSendEvent(PostfixDeliveryEvent deliveryEvent)
     {
         if (deliveryEvent.DeliveryStatus is DeliveryStatus.NotReported or DeliveryStatus.Unknown)
         {
-            return false;
+            return DeliveryApplicationResult.Empty;
         }
 
         var sendEvent = sendEvents.GetByProviderMessageId(deliveryEvent.QueueId);
         if (sendEvent is null)
         {
-            return false;
+            return DeliveryApplicationResult.Empty;
         }
 
         var updated = sendEvent.ApplyDeliveryStatus(
@@ -91,12 +104,30 @@ public sealed class PostfixDeliveryLogIngestionService(
             deliveryEvent.OccurredAt,
             BuildSummary(deliveryEvent));
 
-        if (updated == sendEvent)
+        var statusUpdated = updated != sendEvent;
+        if (statusUpdated)
+        {
+            sendEvents.Save(updated);
+        }
+
+        var suppressed = SuppressHardBounceRecipient(updated);
+        return new DeliveryApplicationResult(true, statusUpdated, suppressed);
+    }
+
+    private bool SuppressHardBounceRecipient(SendEvent sendEvent)
+    {
+        if (sendEvent.DeliveryStatus != DeliveryStatus.HardBounce)
         {
             return false;
         }
 
-        sendEvents.Save(updated);
+        var suppression = ClientSuppression.FromHardBounce(
+            sendEvent.OwnerEmail,
+            sendEvent.RecipientEmail,
+            sendEvent.MailingId,
+            sendEvent.ProviderMessageId);
+
+        clientSuppressions.AddOrUpdate(suppression);
         return true;
     }
 
@@ -117,4 +148,9 @@ public sealed class PostfixDeliveryLogIngestionService(
         PostfixDeliveryLogStatus.Expired => PostfixDeliveryEventStatus.Expired,
         _ => PostfixDeliveryEventStatus.Unknown
     };
+
+    private readonly record struct DeliveryApplicationResult(bool Matched, bool Updated, bool Suppressed)
+    {
+        public static DeliveryApplicationResult Empty { get; } = new(false, false, false);
+    }
 }
