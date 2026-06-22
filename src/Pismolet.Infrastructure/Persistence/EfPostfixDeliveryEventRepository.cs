@@ -11,15 +11,17 @@ public sealed class EfPostfixDeliveryEventRepository(PismoletDbContext db) : IPo
     {
         var queueId = PostfixDeliveryEvent.NormalizeQueueId(deliveryEvent.QueueId);
         var recipientEmail = PostfixDeliveryEvent.NormalizeEmail(deliveryEvent.RecipientEmail);
+        var status = deliveryEvent.Status.ToString();
+        var occurredAt = deliveryEvent.OccurredAt.ToUniversalTime();
         var existing = db.Set<PostfixDeliveryEventEntity>()
             .AsNoTracking()
-            .FirstOrDefault(x => x.QueueId == queueId && x.RecipientEmail == recipientEmail);
+            .FirstOrDefault(x => x.QueueId == queueId && x.RecipientEmail == recipientEmail && x.Status == status && x.OccurredAt == occurredAt);
         if (existing is not null)
         {
             return ToDomain(existing);
         }
 
-        var entity = ToEntity(deliveryEvent with { QueueId = queueId, RecipientEmail = recipientEmail });
+        var entity = ToEntity(deliveryEvent with { QueueId = queueId, RecipientEmail = recipientEmail, OccurredAt = occurredAt });
         db.Set<PostfixDeliveryEventEntity>().Add(entity);
         db.SaveChanges();
         return ToDomain(entity);
@@ -31,7 +33,9 @@ public sealed class EfPostfixDeliveryEventRepository(PismoletDbContext db) : IPo
         var normalizedRecipient = PostfixDeliveryEvent.NormalizeEmail(recipientEmail);
         return db.Set<PostfixDeliveryEventEntity>()
             .AsNoTracking()
-            .FirstOrDefault(x => x.QueueId == normalizedQueueId && x.RecipientEmail == normalizedRecipient) is { } entity
+            .Where(x => x.QueueId == normalizedQueueId && x.RecipientEmail == normalizedRecipient)
+            .OrderByDescending(x => x.OccurredAt)
+            .FirstOrDefault() is { } entity
                 ? ToDomain(entity)
                 : null;
     }
