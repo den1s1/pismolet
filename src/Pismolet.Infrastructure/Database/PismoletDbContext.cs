@@ -14,6 +14,8 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
     public DbSet<AuditRecordEntity> AuditRecords => Set<AuditRecordEntity>();
     public DbSet<GlobalSuppressionEntity> GlobalSuppressions => Set<GlobalSuppressionEntity>();
     public DbSet<SendEventEntity> SendEvents => Set<SendEventEntity>();
+    public DbSet<TrackedLinkEntity> TrackedLinks => Set<TrackedLinkEntity>();
+    public DbSet<ClickEventEntity> ClickEvents => Set<ClickEventEntity>();
     public DbSet<ProviderWebhookEventEntity> ProviderWebhookEvents => Set<ProviderWebhookEventEntity>();
     public DbSet<ClientSuppressionEntity> ClientSuppressions => Set<ClientSuppressionEntity>();
     public DbSet<ReplyEventEntity> ReplyEvents => Set<ReplyEventEntity>();
@@ -155,6 +157,35 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.Property(x => x.ErrorMessage).HasMaxLength(1000);
             entity.Property(x => x.DeliveryStatus).HasMaxLength(40).IsRequired();
             entity.Property(x => x.LastDeliverySummary).HasMaxLength(1000);
+            entity.HasOne<MailingEntity>().WithMany().HasForeignKey(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TrackedLinkEntity>(entity =>
+        {
+            entity.ToTable("tracked_links");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.MailingId);
+            entity.HasIndex(x => x.Token).IsUnique();
+            entity.HasIndex(x => new { x.MailingId, x.RecipientEmail });
+            entity.Property(x => x.RecipientEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.Token).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.OriginalUrl).HasMaxLength(2048).IsRequired();
+            entity.HasOne<MailingEntity>().WithMany().HasForeignKey(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ClickEventEntity>(entity =>
+        {
+            entity.ToTable("click_events");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.TrackedLinkId);
+            entity.HasIndex(x => new { x.MailingId, x.ClickedAt });
+            entity.HasIndex(x => new { x.MailingId, x.RecipientEmail });
+            entity.Property(x => x.RecipientEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.Token).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.OriginalUrl).HasMaxLength(2048).IsRequired();
+            entity.Property(x => x.IpHash).HasMaxLength(64);
+            entity.Property(x => x.UserAgentHash).HasMaxLength(64);
+            entity.HasOne<TrackedLinkEntity>().WithMany().HasForeignKey(x => x.TrackedLinkId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<MailingEntity>().WithMany().HasForeignKey(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -353,6 +384,33 @@ public sealed class SendEventEntity
     public DateTimeOffset? FirstOpenedAt { get; set; }
     public DateTimeOffset? LastOpenedAt { get; set; }
     public int OpenCount { get; set; }
+}
+
+public sealed class TrackedLinkEntity
+{
+    public Guid Id { get; set; }
+    public Guid MailingId { get; set; }
+    public string RecipientEmail { get; set; } = string.Empty;
+    public string Token { get; set; } = string.Empty;
+    public string OriginalUrl { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTimeOffset? FirstClickedAt { get; set; }
+    public DateTimeOffset? LastClickedAt { get; set; }
+    public int ClickCount { get; set; }
+}
+
+public sealed class ClickEventEntity
+{
+    public Guid Id { get; set; }
+    public Guid TrackedLinkId { get; set; }
+    public Guid MailingId { get; set; }
+    public string RecipientEmail { get; set; } = string.Empty;
+    public string Token { get; set; } = string.Empty;
+    public string OriginalUrl { get; set; } = string.Empty;
+    public DateTimeOffset ClickedAt { get; set; }
+    public string? IpHash { get; set; }
+    public string? UserAgentHash { get; set; }
 }
 
 public sealed class ProviderWebhookEventEntity
