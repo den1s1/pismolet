@@ -7,7 +7,7 @@ namespace Pismolet.Web.Tests;
 public sealed class PostfixDeliveryEventRepositoryTests
 {
     [Fact]
-    public void In_memory_postfix_repository_keeps_events_idempotent_by_queue_and_recipient()
+    public void In_memory_postfix_repository_keeps_exact_events_idempotent()
     {
         var repository = new InMemoryPostfixDeliveryEventRepository();
         var occurredAt = DateTimeOffset.Parse("2026-06-22T13:44:23+00:00");
@@ -29,6 +29,20 @@ public sealed class PostfixDeliveryEventRepositoryTests
         Assert.Equal("ABCDEF1234", savedFirst.QueueId);
         Assert.Equal("user@example.com", savedFirst.RecipientEmail);
         Assert.Single(repository.ListRecent(10));
+    }
+
+    [Fact]
+    public void In_memory_postfix_repository_keeps_deferred_and_sent_for_same_queue_recipient()
+    {
+        var repository = new InMemoryPostfixDeliveryEventRepository();
+        repository.AddIfNotExists(PostfixDeliveryEvent.FromParsed("AAAA", "user@example.com", PostfixDeliveryEventStatus.Deferred, DeliveryStatus.SoftBounce, "4.4.1", null, null, DateTimeOffset.Parse("2026-06-22T10:00:00+00:00")));
+        repository.AddIfNotExists(PostfixDeliveryEvent.FromParsed("AAAA", "user@example.com", PostfixDeliveryEventStatus.Sent, DeliveryStatus.Delivered, "2.0.0", null, null, DateTimeOffset.Parse("2026-06-22T10:05:00+00:00")));
+
+        var events = repository.ListByRecipient("USER@example.com", 10).ToArray();
+
+        Assert.Equal(2, events.Length);
+        Assert.Equal(PostfixDeliveryEventStatus.Sent, events[0].Status);
+        Assert.Equal(PostfixDeliveryEventStatus.Deferred, events[1].Status);
     }
 
     [Fact]
