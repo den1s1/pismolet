@@ -21,7 +21,27 @@ public sealed record PostfixDeliveryLogEvent(
     string? Dsn,
     string? Relay,
     string? Diagnostic,
-    DateTimeOffset OccurredAt);
+    DateTimeOffset OccurredAt)
+{
+    public PostfixDeliveryEvent ToDomainEvent() => PostfixDeliveryEvent.FromParsed(
+        QueueId,
+        RecipientEmail,
+        ToDomainStatus(Status),
+        DeliveryStatus,
+        Dsn,
+        Relay,
+        Diagnostic,
+        OccurredAt);
+
+    private static PostfixDeliveryEventStatus ToDomainStatus(PostfixDeliveryLogStatus status) => status switch
+    {
+        PostfixDeliveryLogStatus.Sent => PostfixDeliveryEventStatus.Sent,
+        PostfixDeliveryLogStatus.Deferred => PostfixDeliveryEventStatus.Deferred,
+        PostfixDeliveryLogStatus.Bounced => PostfixDeliveryEventStatus.Bounced,
+        PostfixDeliveryLogStatus.Expired => PostfixDeliveryEventStatus.Expired,
+        _ => PostfixDeliveryEventStatus.Unknown
+    };
+}
 
 public static partial class PostfixDeliveryLogParser
 {
