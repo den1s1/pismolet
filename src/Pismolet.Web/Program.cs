@@ -65,6 +65,7 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAdminCampaignOpenAnalytics();
+app.UseAdminCampaignClickAnalytics();
 
 app.MapHomeEndpoints();
 app.MapAccountEndpoints();
