@@ -54,8 +54,8 @@ public sealed class SmtpEmailProviderAdapter(
         {
             var normalized = NormalizeMessage(message);
             var mime = BuildMimeMessage(normalized);
-            await SendMimeMessageAsync(mime, cancellationToken);
-            var providerMessageId = mime.MessageId ?? $"smtp-{Guid.NewGuid():N}";
+            var smtpResponse = await SendMimeMessageAsync(mime, cancellationToken);
+            var providerMessageId = PostfixQueueIdExtractor.TryExtract(smtpResponse) ?? mime.MessageId ?? $"smtp-{Guid.NewGuid():N}";
 
             logger.LogInformation(
                 "SMTP send succeeded. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain} providerMessageId={ProviderMessageId}",
@@ -126,8 +126,8 @@ public sealed class SmtpEmailProviderAdapter(
                     string.IsNullOrWhiteSpace(replyEvent.BodyTextStored) ? "[Тело ответа уже удалено или не сохранялось]" : replyEvent.BodyTextStored)
             };
 
-            await SendMimeMessageAsync(mime, cancellationToken);
-            var providerMessageId = mime.MessageId ?? $"smtp-forward-{replyEvent.Id:N}";
+            var smtpResponse = await SendMimeMessageAsync(mime, cancellationToken);
+            var providerMessageId = PostfixQueueIdExtractor.TryExtract(smtpResponse) ?? mime.MessageId ?? $"smtp-forward-{replyEvent.Id:N}";
 
             logger.LogInformation(
                 "SMTP reply forward succeeded. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain} replyEventId={ReplyEventId} providerMessageId={ProviderMessageId}",
@@ -223,7 +223,7 @@ public sealed class SmtpEmailProviderAdapter(
         return mime;
     }
 
-    private async Task SendMimeMessageAsync(MimeMessage message, CancellationToken cancellationToken)
+    private async Task<string?> SendMimeMessageAsync(MimeMessage message, CancellationToken cancellationToken)
     {
         using var client = new SmtpClient { Timeout = Math.Max(1, options.TimeoutSeconds) * 1000 };
         await client.ConnectAsync(options.Host, options.Port, ParseSecureSocketOptions(options.SecureSocketOptions, options.Port), cancellationToken);
@@ -233,8 +233,9 @@ public sealed class SmtpEmailProviderAdapter(
             await client.AuthenticateAsync(options.Username, options.Password, cancellationToken);
         }
 
-        await client.SendAsync(message, cancellationToken);
+        var smtpResponse = await client.SendAsync(message, cancellationToken);
         await client.DisconnectAsync(true, cancellationToken);
+        return smtpResponse;
     }
 
     private static SecureSocketOptions ParseSecureSocketOptions(string value, int port)
