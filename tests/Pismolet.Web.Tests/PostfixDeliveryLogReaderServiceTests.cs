@@ -73,7 +73,8 @@ public sealed class PostfixDeliveryLogReaderServiceTests
         TestPaths paths,
         InMemoryPostfixDeliveryEventRepository repository,
         bool startAtEndWhenCursorMissing,
-        ISendEventRepository? sendEvents = null)
+        ISendEventRepository? sendEvents = null,
+        IClientSuppressionRepository? clientSuppressions = null)
     {
         var options = new PostfixDeliveryLogReaderOptions(
             paths.LogPath,
@@ -81,7 +82,10 @@ public sealed class PostfixDeliveryLogReaderServiceTests
             2026,
             TimeSpan.Zero,
             startAtEndWhenCursorMissing);
-        var ingestion = new PostfixDeliveryLogIngestionService(repository, sendEvents ?? new FakeSendEventRepository());
+        var ingestion = new PostfixDeliveryLogIngestionService(
+            repository,
+            sendEvents ?? new FakeSendEventRepository(),
+            clientSuppressions ?? new FakeClientSuppressionRepository());
         return new PostfixDeliveryLogReaderService(options, ingestion);
     }
 
@@ -131,5 +135,55 @@ public sealed class PostfixDeliveryLogReaderServiceTests
         public MailingSendSummary GetSummary(Guid mailingId, int totalAcceptedRecipients) => MailingSendSummary.Empty(mailingId, totalAcceptedRecipients);
 
         private static string Normalize(string email) => email.Trim().ToLowerInvariant();
+    }
+
+    private sealed class FakeClientSuppressionRepository : IClientSuppressionRepository
+    {
+        private readonly List<ClientSuppression> _items = new();
+
+        public bool IsSuppressed(string clientId, string normalizedEmail) => _items.Any(x =>
+            string.Equals(x.ClientId, Normalize(clientId), StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(x.EmailNormalized, Normalize(normalizedEmail), StringComparison.OrdinalIgnoreCase));
+
+        public IReadOnlySet<string> GetSuppressedSet(string clientId, IEnumerable<string> normalizedEmails)
+        {
+            var normalizedClientId = Normalize(clientId);
+            var emails = normalizedEmails.Select(Normalize).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return _items
+                .Where(x => string.Equals(x.ClientId, normalizedClientId, StringComparison.OrdinalIgnoreCase) && emails.Contains(x.EmailNormalized))
+                .Select(x => x.EmailNormalized)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+
+        public IReadOnlyCollection<ClientSuppression> ListRecent(int limit) => _items
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(Math.Max(1, limit))
+            .ToArray();
+
+        public ClientSuppression AddOrUpdate(ClientSuppression suppression)
+        {
+            var normalized = suppression with
+            {
+                ClientId = Normalize(suppression.ClientId),
+                EmailNormalized = Normalize(suppression.EmailNormalized)
+            };
+
+            var index = _items.FindIndex(x =>
+                string.Equals(x.ClientId, normalized.ClientId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(x.EmailNormalized, normalized.EmailNormalized, StringComparison.OrdinalIgnoreCase));
+
+            if (index >= 0)
+            {
+                var touched = _items[index].Touch(normalized.SourceMailingId, normalized.SourceProviderMessageId);
+                _items[index] = touched;
+                return touched;
+            }
+
+            _items.Add(normalized);
+            return normalized;
+        }
+
+        private static string Normalize(string value) => value.Trim().ToLowerInvariant();
     }
 }
