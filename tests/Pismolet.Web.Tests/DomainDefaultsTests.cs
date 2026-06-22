@@ -1,3 +1,4 @@
+using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Domain.Users;
 using Xunit;
 
@@ -14,5 +15,18 @@ public sealed class DomainDefaultsTests
         Assert.Equal(1000, profile.DailySendLimit);
         Assert.Equal(10000, profile.TotalSendLimit);
         Assert.True(profile.PremoderationRequired);
+    }
+
+    [Fact]
+    public void Send_event_tracking_token_is_stable_for_mailing_and_recipient()
+    {
+        var mailingId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+
+        var first = SendEvent.BuildTrackingToken(mailingId, "USER@Example.COM");
+        var second = SendEvent.BuildTrackingToken(mailingId, "user@example.com");
+
+        Assert.Equal(first, second);
+        Assert.Equal(64, first.Length);
+        Assert.DoesNotContain("@", first);
     }
 }
