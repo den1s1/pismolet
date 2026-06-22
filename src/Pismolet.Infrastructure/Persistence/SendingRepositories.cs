@@ -15,6 +15,10 @@ public sealed class InMemorySendEventRepository : ISendEventRepository
         !string.IsNullOrWhiteSpace(x.ProviderMessageId) &&
         string.Equals(x.ProviderMessageId.Trim(), providerMessageId.Trim(), StringComparison.OrdinalIgnoreCase));
 
+    public SendEvent? GetByTrackingToken(string trackingToken) => _items.Values.FirstOrDefault(x =>
+        !string.IsNullOrWhiteSpace(x.TrackingToken) &&
+        string.Equals(x.TrackingToken.Trim(), trackingToken.Trim(), StringComparison.OrdinalIgnoreCase));
+
     public IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId) => _items.Values
         .Where(x => x.MailingId == mailingId)
         .OrderBy(x => x.CreatedAt)
