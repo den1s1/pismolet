@@ -18,31 +18,31 @@ public static class SendEndpoints
         return app;
     }
 
-    private static IResult ShowSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies)
+    private static IResult ShowSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.GetState(email, id);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Запуск рассылки", SendPage(result, replies.GetSummary(id), null), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Запуск рассылки", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), null), authenticated: true));
     }
 
-    private static IResult StartSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies)
+    private static IResult StartSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.StartSending(email, id, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), result.Ok ? "Отправка поставлена в очередь." : result.Error), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), result.Ok ? "Отправка поставлена в очередь." : result.Error), authenticated: true));
     }
 
-    private static IResult ResumeSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies)
+    private static IResult ResumeSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.ResumeSending(email, id, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error), authenticated: true));
     }
 
-    private static string SendPage(MailingSendResult result, ReplySummary replySummary, string? message)
+    private static string SendPage(MailingSendResult result, ReplySummary replySummary, IReadOnlyCollection<TrackedLink> trackedLinks, string? message)
     {
         if (result.State is null)
         {
@@ -57,6 +57,17 @@ public static class SendEndpoints
         var lastOpenedAt = state.Events
             .Where(x => x.LastOpenedAt is not null)
             .Select(x => x.LastOpenedAt)
+            .OrderByDescending(x => x)
+            .FirstOrDefault();
+        var clickedRecipients = trackedLinks
+            .Where(x => x.FirstClickedAt is not null)
+            .Select(x => x.RecipientEmail)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        var totalClicks = trackedLinks.Sum(x => x.ClickCount);
+        var lastClickedAt = trackedLinks
+            .Where(x => x.LastClickedAt is not null)
+            .Select(x => x.LastClickedAt)
             .OrderByDescending(x => x)
             .FirstOrDefault();
         var launched = result.Ok && !string.IsNullOrWhiteSpace(message) && message.Contains("поставлен", StringComparison.OrdinalIgnoreCase);
@@ -91,9 +102,20 @@ public static class SendEndpoints
         var openNote = totalOpens == 0
             ? "<p class='muted'>Открытия появятся после загрузки картинок в письме. Метрика показывает открытие HTML-письма, а не гарантированное прочтение.</p>"
             : string.Empty;
+        var clickNote = totalClicks == 0
+            ? "<p class='muted'>Переходы по ссылкам появятся после клика по отслеживаемой http/https ссылке в HTML-письме.</p>"
+            : string.Empty;
         var replyStatus = replySummary.TotalReplies == 0
             ? "Ответов пока нет."
             : $"Получено ответов: {replySummary.TotalReplies}. Последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC, статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}";
+
+        var clickRows = trackedLinks.Count == 0
+            ? "<tr><td colspan='5'>Отслеживаемые ссылки пока не созданы.</td></tr>"
+            : string.Join(string.Empty, trackedLinks
+                .OrderByDescending(x => x.LastClickedAt ?? x.CreatedAt)
+                .ThenBy(x => x.RecipientEmail)
+                .Take(20)
+                .Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(ShortUrl(x.OriginalUrl))}</td><td>{x.ClickCount}</td><td>{FormatDate(x.FirstClickedAt)}</td><td>{FormatDate(x.LastClickedAt)}</td></tr>"));
 
         var devRows = state.Events.Count == 0
             ? "<tr><td colspan='7'>Событий отправки пока нет.</td></tr>"
@@ -123,6 +145,7 @@ public static class SendEndpoints
                   <div class='stat'><b>{summary.Pending}</b><span>Писем в очереди</span></div>
                   <div class='stat'><b>{summary.TotalAcceptedRecipients}</b><span>Оплачено писем</span></div>
                   <div class='stat'><b>{openedRecipients}</b><span>Открыто сейчас</span></div>
+                  <div class='stat'><b>{clickedRecipients}</b><span>Кликнувшие сейчас</span></div>
                   <div class='stat'><b>{replySummary.TotalReplies}</b><span>Ответов сейчас</span></div>
                 </div>
                 <div class='payment-grid launch-grid'>
@@ -132,15 +155,17 @@ public static class SendEndpoints
                     {action}
                   </section>
                   <section class='box'>
-                    <h2>Доставка, открытия и ответы</h2>
+                    <h2>Доставка, открытия, клики и ответы</h2>
                     {deliveryNote}
                     {openNote}
-                    <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Принято провайдером</td><td>{summary.ProviderAccepted}</td></tr><tr><td>Доставлено</td><td>{summary.Delivered}</td></tr><tr><td>Открыто, получателей</td><td>{openedRecipients}</td></tr><tr><td>Открытий всего</td><td>{totalOpens}</td></tr><tr><td>Последнее открытие</td><td>{FormatDate(lastOpenedAt)}</td></tr><tr><td>Временная ошибка</td><td>{summary.SoftBounced}</td></tr><tr><td>Постоянная ошибка</td><td>{summary.HardBounced}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr><tr><td>Отклонено</td><td>{summary.Rejected}</td></tr></tbody></table>
+                    {clickNote}
+                    <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Принято провайдером</td><td>{summary.ProviderAccepted}</td></tr><tr><td>Доставлено</td><td>{summary.Delivered}</td></tr><tr><td>Открыто, получателей</td><td>{openedRecipients}</td></tr><tr><td>Открытий всего</td><td>{totalOpens}</td></tr><tr><td>Последнее открытие</td><td>{FormatDate(lastOpenedAt)}</td></tr><tr><td>Кликнувшие получатели</td><td>{clickedRecipients}</td></tr><tr><td>Кликов всего</td><td>{totalClicks}</td></tr><tr><td>Последнее нажатие</td><td>{FormatDate(lastClickedAt)}</td></tr><tr><td>Временная ошибка</td><td>{summary.SoftBounced}</td></tr><tr><td>Постоянная ошибка</td><td>{summary.HardBounced}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr><tr><td>Отклонено</td><td>{summary.Rejected}</td></tr></tbody></table>
                     <h3>Ответы получателей</h3>
                     <p>{replyStatus}</p>
                     <p class='muted'>Ответы пересылаются клиенту на email отправителя. Личный кабинет показывает только счётчик и статус пересылки, без inbox и без raw provider payload.</p>
                   </section>
                 </div>
+                <details open><summary>Переходы по ссылкам</summary><table><thead><tr><th>Email</th><th>Ссылка</th><th>Кликов</th><th>Первый клик</th><th>Последний клик</th></tr></thead><tbody>{clickRows}</tbody></table></details>
                 <details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Открыто</th><th>Открытий</th><th>Последнее открытие</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details>
                 <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a></div>
               </section>
@@ -164,6 +189,8 @@ public static class SendEndpoints
         var at = email.IndexOf('@');
         return at <= 1 ? email : $"{email[..1]}***{email[at..]}";
     }
+
+    private static string ShortUrl(string url) => url.Length <= 80 ? url : url[..77] + "...";
 
     private static string FormatDate(DateTimeOffset? value) => value is null ? "-" : value.Value.ToString("yyyy-MM-dd HH:mm");
 
