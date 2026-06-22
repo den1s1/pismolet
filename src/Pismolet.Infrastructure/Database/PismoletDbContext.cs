@@ -138,6 +138,7 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.HasIndex(x => x.MailingId);
             entity.HasIndex(x => new { x.MailingId, x.RecipientEmail }).IsUnique();
             entity.HasIndex(x => x.ProviderMessageId);
+            entity.HasIndex(x => x.TrackingToken).IsUnique();
             entity.HasIndex(x => new { x.MailingId, x.Status, x.CreatedAt });
             entity.HasIndex(x => new { x.MailingId, x.DeliveryStatus });
             entity.HasIndex(x => new { x.OwnerEmail, x.UpdatedAt });
@@ -149,6 +150,7 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.Property(x => x.Reason).HasMaxLength(80).IsRequired();
             entity.Property(x => x.Provider).HasMaxLength(80).IsRequired();
             entity.Property(x => x.ProviderMessageId).HasMaxLength(240);
+            entity.Property(x => x.TrackingToken).HasMaxLength(64);
             entity.Property(x => x.ErrorCode).HasMaxLength(120);
             entity.Property(x => x.ErrorMessage).HasMaxLength(1000);
             entity.Property(x => x.DeliveryStatus).HasMaxLength(40).IsRequired();
@@ -347,6 +349,10 @@ public sealed class SendEventEntity
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? AcceptedAt { get; set; }
     public int? AcceptedUtcDay { get; set; }
+    public string? TrackingToken { get; set; }
+    public DateTimeOffset? FirstOpenedAt { get; set; }
+    public DateTimeOffset? LastOpenedAt { get; set; }
+    public int OpenCount { get; set; }
 }
 
 public sealed class ProviderWebhookEventEntity
