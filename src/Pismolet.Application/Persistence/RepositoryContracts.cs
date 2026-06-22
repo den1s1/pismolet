@@ -1,39 +1,16 @@
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Domain.Mailings;
-using Pismolet.Web.Domain.Users;
+using Pismolet.Web.Domain.Moderation;
 
 namespace Pismolet.Web.Application.Persistence;
 
 public interface IUserRepository
 {
-    bool Exists(string email);
+    UserAccount? Get(string email);
 
-    bool TryAdd(UserAccount user);
+    UserAccount? GetByConfirmationToken(string token);
 
-    UserAccount? GetByEmail(string email);
-
-    UserAccount? FindByConfirmationToken(string token);
-
-    IReadOnlyCollection<UserAccount> ListAll();
-
-    void Update(UserAccount user);
-}
-
-public interface IMailingRepository
-{
-    bool TryAdd(Mailing mailing);
-
-    Mailing? Get(Guid id);
-
-    Mailing? GetForOwner(Guid id, string ownerEmail);
-
-    IReadOnlyCollection<Mailing> ListAll();
-
-    IReadOnlyCollection<Mailing> ListForOwner(string ownerEmail);
-
-    IReadOnlyDictionary<string, int> CountByOwners(IEnumerable<string> ownerEmails);
-
-    void Update(Mailing mailing);
+    void Save(UserAccount user);
 }
 
 public interface IGlobalSuppressionRepository
@@ -42,80 +19,68 @@ public interface IGlobalSuppressionRepository
 
     IReadOnlySet<string> GetSuppressedSet(IEnumerable<string> normalizedEmails);
 
-    GlobalSuppression? GetByEmail(string normalizedEmail);
+    void Add(GlobalSuppression suppression);
 
-    IReadOnlyCollection<GlobalSuppression> ListAll();
+    GlobalSuppression? Get(string normalizedEmail);
 
-    GlobalSuppression AddOrGet(GlobalSuppression suppression);
-
-    void Add(string normalizedEmail);
+    IReadOnlyCollection<GlobalSuppression> ListRecent(int limit);
 }
 
-public interface IAdminMvpSettingsRepository
+public interface IMailingRepository
 {
-    AdminMvpSettings Get();
+    Mailing? Get(Guid id);
 
-    void Save(AdminMvpSettings settings);
+    Mailing? GetByPublicId(string publicId);
+
+    IReadOnlyCollection<Mailing> ListByOwner(string ownerEmail);
+
+    void Save(Mailing mailing);
 }
 
-public interface IAdminRecipientRepository
+public interface IImportBatchRepository
 {
-    IReadOnlyCollection<AdminRecipientSummary> ListSummaries();
+    ImportBatch? Get(Guid id);
 
-    AdminRecipientProfile? GetProfile(string email);
+    ImportBatch? GetLatestForMailing(Guid mailingId);
+
+    IReadOnlyCollection<ImportBatch> ListByMailing(Guid mailingId);
+
+    void Save(ImportBatch batch);
 }
 
-public sealed record AdminRecipientSummary(
-    string Email,
-    string StatusCode,
-    string StatusText,
-    int MailingCount,
-    int OwnerCount,
-    int SentCount,
-    DateTimeOffset? FirstSeenAt,
-    DateTimeOffset? LastMessageAt,
-    DateTimeOffset? SuppressedAt,
-    GlobalSuppressionSource? SuppressionSource);
-
-public sealed record AdminRecipientProfile(
-    AdminRecipientSummary Summary,
-    IReadOnlyCollection<AdminRecipientOwnerSummary> Owners,
-    IReadOnlyCollection<AdminRecipientMailingSummary> Mailings);
-
-public sealed record AdminRecipientOwnerSummary(string OwnerEmail, int MailingCount);
-
-public sealed record AdminRecipientMailingSummary(
-    Guid MailingId,
-    string OwnerEmail,
-    string Subject,
-    MailingStatus Status,
-    int AcceptedRecipients,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset? LastMessageAt);
-
-public interface IPaymentRepository
+public interface IRecipientRepository
 {
-    Payment? GetByMailingId(Guid mailingId);
+    IReadOnlyCollection<Recipient> ListByMailing(Guid mailingId);
 
-    Payment? GetByProviderOperationId(string providerOperationId);
+    IReadOnlyCollection<Recipient> ListAcceptedByMailing(Guid mailingId);
 
-    IReadOnlyCollection<Payment> ListAll();
-
-    void Save(Payment payment);
+    void ReplaceForBatch(Guid mailingId, Guid importBatchId, IReadOnlyCollection<Recipient> recipients);
 }
 
-public interface IPriceSettingsRepository
+public interface IImportIssueRepository
 {
-    PriceSettings GetActive();
+    IReadOnlyCollection<ImportIssue> ListByBatch(Guid importBatchId);
 
-    void Save(PriceSettings settings);
+    void ReplaceForBatch(Guid importBatchId, IReadOnlyCollection<ImportIssue> issues);
 }
 
-public interface IRiskCheckRepository
+public interface IMailingDeclarationRepository
 {
-    RiskCheckResult? GetByMailingId(Guid mailingId);
+    MailingDeclaration? Get(Guid mailingId);
 
-    void Save(RiskCheckResult result);
+    void Save(MailingDeclaration declaration);
+}
+
+public interface IMailingMessageDraftRepository
+{
+    MailingMessageDraft? Get(Guid mailingId);
+
+    void Save(MailingMessageDraft draft);
+}
+
+public interface IAuditLogger
+{
+    void Log(AuditRecord record);
 }
 
 public interface IModerationReviewRepository
@@ -141,6 +106,8 @@ public interface ISendEventRepository
     SendEvent? Get(Guid mailingId, string recipientEmail);
 
     SendEvent? GetByProviderMessageId(string providerMessageId);
+
+    SendEvent? GetByTrackingToken(string trackingToken);
 
     IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId);
 
