@@ -64,6 +64,7 @@ if (app.Environment.IsDevelopment() && !isRunningUnderTests)
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAdminCampaignOpenAnalytics();
 
 app.MapHomeEndpoints();
 app.MapAccountEndpoints();
