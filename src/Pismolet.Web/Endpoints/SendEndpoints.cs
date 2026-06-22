@@ -52,6 +52,16 @@ public static class SendEndpoints
         var state = result.State;
         var mailing = state.Mailing;
         var summary = state.Summary;
+        var deliveredRecipients = CountDeliveryStatus(state.Events, "Delivered");
+        var softBouncedRecipients = CountDeliveryStatus(state.Events, "SoftBounce");
+        var hardBouncedRecipients = CountDeliveryStatus(state.Events, "HardBounce");
+        var rejectedRecipients = CountDeliveryStatus(state.Events, "Rejected");
+        var notReportedRecipients = CountDeliveryStatus(state.Events, "NotReported");
+        var lastDeliveryEventAt = state.Events
+            .Where(x => x.LastDeliveryEventAt is not null)
+            .Select(x => x.LastDeliveryEventAt)
+            .OrderByDescending(x => x)
+            .FirstOrDefault();
         var openedRecipients = state.Events.Count(x => x.FirstOpenedAt is not null);
         var totalOpens = state.Events.Sum(x => x.OpenCount);
         var lastOpenedAt = state.Events
@@ -96,8 +106,8 @@ public static class SendEndpoints
             _ => "<p class='muted'>Отправка будет доступна после оплаты и одобрения рассылки.</p>"
         };
 
-        var deliveryNote = summary.ProviderAccepted + summary.Delivered + summary.SoftBounced + summary.HardBounced + summary.Complaints + summary.Rejected == 0
-            ? "<p class='muted'>Ожидаем статус доставки от провайдера.</p>"
+        var deliveryNote = deliveredRecipients + softBouncedRecipients + hardBouncedRecipients + rejectedRecipients == 0
+            ? "<p class='muted'>Ожидаем статус доставки от почтового сервера.</p>"
             : string.Empty;
         var openNote = totalOpens == 0
             ? "<p class='muted'>Открытия появятся после загрузки картинок в письме. Метрика показывает открытие HTML-письма, а не гарантированное прочтение.</p>"
@@ -109,6 +119,14 @@ public static class SendEndpoints
             ? "Ответов пока нет."
             : $"Получено ответов: {replySummary.TotalReplies}. Последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC, статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}";
 
+        var deliveryRows = state.Events.Count == 0
+            ? "<tr><td colspan='4'>Событий доставки пока нет.</td></tr>"
+            : string.Join(string.Empty, state.Events
+                .OrderByDescending(x => x.LastDeliveryEventAt ?? x.CreatedAt)
+                .ThenBy(x => x.RecipientEmail)
+                .Take(50)
+                .Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{FormatDate(x.LastDeliveryEventAt)}</td><td>{H(ShortText(x.LastDeliverySummary))}</td></tr>"));
+
         var clickRows = trackedLinks.Count == 0
             ? "<tr><td colspan='5'>Отслеживаемые ссылки пока не созданы.</td></tr>"
             : string.Join(string.Empty, trackedLinks
@@ -118,8 +136,8 @@ public static class SendEndpoints
                 .Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(ShortUrl(x.OriginalUrl))}</td><td>{x.ClickCount}</td><td>{FormatDate(x.FirstClickedAt)}</td><td>{FormatDate(x.LastClickedAt)}</td></tr>"));
 
         var devRows = state.Events.Count == 0
-            ? "<tr><td colspan='7'>Событий отправки пока нет.</td></tr>"
-            : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{(x.FirstOpenedAt is null ? "Нет" : "Да")}</td><td>{x.OpenCount}</td><td>{FormatDate(x.LastOpenedAt)}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
+            ? "<tr><td colspan='8'>Событий отправки пока нет.</td></tr>"
+            : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{FormatDate(x.LastDeliveryEventAt)}</td><td>{(x.FirstOpenedAt is null ? "Нет" : "Да")}</td><td>{x.OpenCount}</td><td>{FormatDate(x.LastOpenedAt)}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
 
         return $"""
             <section class='wizard-shell send-wizard'>
@@ -144,6 +162,7 @@ public static class SendEndpoints
                 <div class='stats launch-stats'>
                   <div class='stat'><b>{summary.Pending}</b><span>Писем в очереди</span></div>
                   <div class='stat'><b>{summary.TotalAcceptedRecipients}</b><span>Оплачено писем</span></div>
+                  <div class='stat'><b>{deliveredRecipients}</b><span>Доставлено сейчас</span></div>
                   <div class='stat'><b>{openedRecipients}</b><span>Открыто сейчас</span></div>
                   <div class='stat'><b>{clickedRecipients}</b><span>Кликнувшие сейчас</span></div>
                   <div class='stat'><b>{replySummary.TotalReplies}</b><span>Ответов сейчас</span></div>
@@ -159,14 +178,15 @@ public static class SendEndpoints
                     {deliveryNote}
                     {openNote}
                     {clickNote}
-                    <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Принято провайдером</td><td>{summary.ProviderAccepted}</td></tr><tr><td>Доставлено</td><td>{summary.Delivered}</td></tr><tr><td>Открыто, получателей</td><td>{openedRecipients}</td></tr><tr><td>Открытий всего</td><td>{totalOpens}</td></tr><tr><td>Последнее открытие</td><td>{FormatDate(lastOpenedAt)}</td></tr><tr><td>Кликнувшие получатели</td><td>{clickedRecipients}</td></tr><tr><td>Кликов всего</td><td>{totalClicks}</td></tr><tr><td>Последнее нажатие</td><td>{FormatDate(lastClickedAt)}</td></tr><tr><td>Временная ошибка</td><td>{summary.SoftBounced}</td></tr><tr><td>Постоянная ошибка</td><td>{summary.HardBounced}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr><tr><td>Отклонено</td><td>{summary.Rejected}</td></tr></tbody></table>
+                    <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Доставлено</td><td>{deliveredRecipients}</td></tr><tr><td>Временная ошибка</td><td>{softBouncedRecipients}</td></tr><tr><td>Постоянная ошибка</td><td>{hardBouncedRecipients}</td></tr><tr><td>Отклонено</td><td>{rejectedRecipients}</td></tr><tr><td>Не сообщено</td><td>{notReportedRecipients}</td></tr><tr><td>Последнее событие доставки</td><td>{FormatDate(lastDeliveryEventAt)}</td></tr><tr><td>Открыто, получателей</td><td>{openedRecipients}</td></tr><tr><td>Открытий всего</td><td>{totalOpens}</td></tr><tr><td>Последнее открытие</td><td>{FormatDate(lastOpenedAt)}</td></tr><tr><td>Кликнувшие получатели</td><td>{clickedRecipients}</td></tr><tr><td>Кликов всего</td><td>{totalClicks}</td></tr><tr><td>Последнее нажатие</td><td>{FormatDate(lastClickedAt)}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr></tbody></table>
                     <h3>Ответы получателей</h3>
                     <p>{replyStatus}</p>
                     <p class='muted'>Ответы пересылаются клиенту на email отправителя. Личный кабинет показывает только счётчик и статус пересылки, без inbox и без raw provider payload.</p>
                   </section>
                 </div>
+                <details open><summary>Доставка по получателям</summary><table><thead><tr><th>Email</th><th>Доставка</th><th>Последнее событие</th><th>Причина</th></tr></thead><tbody>{deliveryRows}</tbody></table></details>
                 <details open><summary>Переходы по ссылкам</summary><table><thead><tr><th>Email</th><th>Ссылка</th><th>Кликов</th><th>Первый клик</th><th>Последний клик</th></tr></thead><tbody>{clickRows}</tbody></table></details>
-                <details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Открыто</th><th>Открытий</th><th>Последнее открытие</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details>
+                <details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Последнее событие доставки</th><th>Открыто</th><th>Открытий</th><th>Последнее открытие</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details>
                 <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a></div>
               </section>
             </section>
@@ -184,6 +204,8 @@ public static class SendEndpoints
         return "<p class='muted'>Достигнут дневной лимит отправки. Продолжение возможно после смены дня или изменения лимита администратором.</p>";
     }
 
+    private static int CountDeliveryStatus(IEnumerable<SendEvent> events, string status) => events.Count(x => string.Equals(x.DeliveryStatus.ToString(), status, StringComparison.Ordinal));
+
     private static string MaskEmail(string email)
     {
         var at = email.IndexOf('@');
@@ -191,6 +213,10 @@ public static class SendEndpoints
     }
 
     private static string ShortUrl(string url) => url.Length <= 80 ? url : url[..77] + "...";
+
+    private static string ShortText(string? text) => string.IsNullOrWhiteSpace(text)
+        ? ""
+        : text.Length <= 160 ? text : text[..157] + "...";
 
     private static string FormatDate(DateTimeOffset? value) => value is null ? "-" : value.Value.ToString("yyyy-MM-dd HH:mm");
 
