@@ -44,6 +44,11 @@ public sealed class SendingWizardSmokeTests
         Assert.Contains("Открыто сейчас", html);
         Assert.Contains("Открытий всего", html);
         Assert.Contains("Последнее открытие", html);
+        Assert.Contains("Кликнувшие сейчас", html);
+        Assert.Contains("Кликнувшие получатели", html);
+        Assert.Contains("Кликов всего", html);
+        Assert.Contains("Последнее нажатие", html);
+        Assert.Contains("Переходы по ссылкам", html);
         Assert.Contains("Ответов сейчас", html);
         Assert.DoesNotContain("Прочитано", html, StringComparison.OrdinalIgnoreCase);
     }
