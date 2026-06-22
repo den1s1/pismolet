@@ -10,7 +10,7 @@ public sealed class MailWarmupSendGateTests
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
 
     [Fact]
-    public void Send_gate_blocks_using_repository_history()
+    public void Send_gate_does_not_block_on_minimum_delay_history()
     {
         var sendEvents = new InMemorySendEventRepository();
         sendEvents.Save(AcceptedEvent("owner@example.test", "sent@gmail.com", acceptedAt: Now.AddSeconds(-10), updatedAt: Now));
@@ -22,9 +22,9 @@ public sealed class MailWarmupSendGateTests
 
         var decision = gate.Evaluate("owner@example.test", "target@gmail.com", Now);
 
-        Assert.False(decision.IsAllowed);
-        Assert.Equal("global_min_delay", decision.Reason);
-        Assert.Equal(TimeSpan.FromSeconds(20), decision.RetryAfter);
+        Assert.True(decision.IsAllowed);
+        Assert.Equal("allowed", decision.Reason);
+        Assert.Equal(TimeSpan.Zero, decision.RetryAfter);
     }
 
     [Fact]
