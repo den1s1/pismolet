@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Mailings;
@@ -18,31 +19,34 @@ public static class SendEndpoints
         return app;
     }
 
-    private static IResult ShowSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks)
+    private static IResult ShowSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.GetState(email, id);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Запуск рассылки", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), null), authenticated: true));
+        var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
+        return HtmlRenderer.Html(HtmlRenderer.Page("Запуск рассылки", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, null), authenticated: true));
     }
 
-    private static IResult StartSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks)
+    private static IResult StartSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.StartSending(email, id, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), result.Ok ? "Отправка поставлена в очередь." : result.Error), authenticated: true));
+        var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
+        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Отправка поставлена в очередь." : result.Error), authenticated: true));
     }
 
-    private static IResult ResumeSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks)
+    private static IResult ResumeSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.ResumeSending(email, id, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error), authenticated: true));
+        var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
+        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error), authenticated: true));
     }
 
-    private static string SendPage(MailingSendResult result, ReplySummary replySummary, IReadOnlyCollection<TrackedLink> trackedLinks, string? message)
+    private static string SendPage(MailingSendResult result, ReplySummary replySummary, IReadOnlyCollection<TrackedLink> trackedLinks, ClientSuppressionPreview suppressionPreview, string? message)
     {
         if (result.State is null)
         {
@@ -138,6 +142,7 @@ public static class SendEndpoints
         var devRows = state.Events.Count == 0
             ? "<tr><td colspan='8'>Событий отправки пока нет.</td></tr>"
             : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{FormatDate(x.LastDeliveryEventAt)}</td><td>{(x.FirstOpenedAt is null ? "Нет" : "Да")}</td><td>{x.OpenCount}</td><td>{FormatDate(x.LastOpenedAt)}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
+        var clientSuppressionBlock = ClientSuppressionPreviewBlock(suppressionPreview);
 
         return $"""
             <section class='wizard-shell send-wizard'>
@@ -159,6 +164,7 @@ public static class SendEndpoints
                 </div>
                 {alert}
                 <div class='notice warn'>Отправка идёт постепенно. Сервис ставит письма в очередь, соблюдает дневные лимиты и исключает отписавшихся получателей перед отправкой.</div>
+                {clientSuppressionBlock}
                 <div class='stats launch-stats'>
                   <div class='stat'><b>{summary.Pending}</b><span>Писем в очереди</span></div>
                   <div class='stat'><b>{summary.TotalAcceptedRecipients}</b><span>Оплачено писем</span></div>
@@ -193,6 +199,72 @@ public static class SendEndpoints
             """;
     }
 
+    private static ClientSuppressionPreview BuildClientSuppressionPreview(MailingSendResult result, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
+    {
+        if (result.State is null)
+        {
+            return ClientSuppressionPreview.Empty;
+        }
+
+        var mailing = result.State.Mailing;
+        var acceptedRecipients = mailing.Recipients
+            .Where(x => x.Status == RecipientStatus.Accepted)
+            .Select(x => emailNormalizer.Normalize(x.Email))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (acceptedRecipients.Length == 0)
+        {
+            return ClientSuppressionPreview.Empty;
+        }
+
+        var suppressedSet = clientSuppressions.GetSuppressedSet(mailing.OwnerEmail, acceptedRecipients);
+        if (suppressedSet.Count == 0)
+        {
+            return ClientSuppressionPreview.Empty;
+        }
+
+        var recentByEmail = clientSuppressions.ListRecent(10000)
+            .Where(x => string.Equals(x.ClientId, mailing.OwnerEmail, StringComparison.OrdinalIgnoreCase))
+            .Where(x => suppressedSet.Contains(x.EmailNormalized))
+            .GroupBy(x => x.EmailNormalized, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.OrderByDescending(y => y.LastSeenAt).First(), StringComparer.OrdinalIgnoreCase);
+
+        var items = suppressedSet
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .Select(email => recentByEmail.TryGetValue(email, out var suppression)
+                ? new ClientSuppressionPreviewItem(email, suppression.Reason.ToString(), suppression.LastSeenAt, suppression.SourceProviderMessageId)
+                : new ClientSuppressionPreviewItem(email, "ClientSuppression", null, null))
+            .ToArray();
+
+        return new ClientSuppressionPreview(items);
+    }
+
+    private static string ClientSuppressionPreviewBlock(ClientSuppressionPreview preview)
+    {
+        if (preview.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var rows = string.Join(string.Empty, preview.Items
+            .Take(50)
+            .Select(x => $"<tr><td>{H(MaskEmail(x.EmailNormalized))}</td><td>{H(SuppressionReasonRu(x.Reason))}</td><td>{FormatDate(x.LastSeenAt)}</td><td>{H(x.SourceProviderMessageId ?? "-")}</td></tr>"));
+        var hidden = preview.Count > 50
+            ? $"<p class='muted'>Показаны первые 50 адресов из {preview.Count}.</p>"
+            : string.Empty;
+
+        return $"""
+            <details class='notice warn' open>
+              <summary>Перед отправкой будет исключено адресов: {preview.Count}</summary>
+              <p>Эти адреса находятся в suppression list клиента и не будут отправлены повторно. Обычно причина - постоянная ошибка доставки, например HardBounce.</p>
+              <table><thead><tr><th>Email</th><th>Причина</th><th>Последний раз</th><th>ProviderMessageId</th></tr></thead><tbody>{rows}</tbody></table>
+              {hidden}
+            </details>
+            """;
+    }
+
     private static string PauseNote(IReadOnlyCollection<SendEvent> events)
     {
         var paused = events.Where(x => x.Status == SendEventStatus.Paused).ToArray();
@@ -212,6 +284,13 @@ public static class SendEndpoints
         return at <= 1 ? email : $"{email[..1]}***{email[at..]}";
     }
 
+    private static string SuppressionReasonRu(string reason) => reason switch
+    {
+        nameof(ClientSuppressionReason.HardBounce) => "Постоянная ошибка доставки (HardBounce)",
+        nameof(ClientSuppressionReason.ManualBlock) => "Ручная блокировка",
+        _ => "Исключён для этого клиента"
+    };
+
     private static string ShortUrl(string url) => url.Length <= 80 ? url : url[..77] + "...";
 
     private static string ShortText(string? text) => string.IsNullOrWhiteSpace(text)
@@ -230,4 +309,13 @@ public static class SendEndpoints
     }
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
+
+    private sealed record ClientSuppressionPreview(IReadOnlyCollection<ClientSuppressionPreviewItem> Items)
+    {
+        public static ClientSuppressionPreview Empty { get; } = new(Array.Empty<ClientSuppressionPreviewItem>());
+
+        public int Count => Items.Count;
+    }
+
+    private sealed record ClientSuppressionPreviewItem(string EmailNormalized, string Reason, DateTimeOffset? LastSeenAt, string? SourceProviderMessageId);
 }
