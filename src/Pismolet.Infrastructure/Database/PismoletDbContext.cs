@@ -16,6 +16,7 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
     public DbSet<SendEventEntity> SendEvents => Set<SendEventEntity>();
     public DbSet<TrackedLinkEntity> TrackedLinks => Set<TrackedLinkEntity>();
     public DbSet<ClickEventEntity> ClickEvents => Set<ClickEventEntity>();
+    public DbSet<PostfixDeliveryEventEntity> PostfixDeliveryEvents => Set<PostfixDeliveryEventEntity>();
     public DbSet<ProviderWebhookEventEntity> ProviderWebhookEvents => Set<ProviderWebhookEventEntity>();
     public DbSet<ClientSuppressionEntity> ClientSuppressions => Set<ClientSuppressionEntity>();
     public DbSet<ReplyEventEntity> ReplyEvents => Set<ReplyEventEntity>();
