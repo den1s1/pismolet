@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IModerationReviewRepository, InMemoryModerationReviewRepository>();
         services.AddSingleton<IModerationActionLogRepository, InMemoryModerationActionLogRepository>();
         services.AddSingleton<ISendEventRepository, InMemorySendEventRepository>();
+        services.AddSingleton<IClickTrackingRepository, InMemoryClickTrackingRepository>();
         services.AddSingleton<IProviderWebhookEventRepository, InMemoryProviderWebhookEventRepository>();
         services.AddSingleton<IClientSuppressionRepository, InMemoryClientSuppressionRepository>();
         services.AddSingleton<IReplyEventRepository, InMemoryReplyEventRepository>();
@@ -86,12 +87,12 @@ public static class ServiceCollectionExtensions
 
         var connectionString = configuration.GetConnectionString("PismoletDb") ?? configuration.GetConnectionString("Pismolet") ?? configuration["PISMOLET_CONNECTION_STRING"] ?? Environment.GetEnvironmentVariable("PISMOLET_CONNECTION_STRING");
         if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("Для Postgres задайте строку подключения PismoletDb.");
-
         services.AddDbContext<PismoletDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IMailingRepository, EfMailingRepository>();
         services.AddScoped<IGlobalSuppressionRepository, EfGlobalSuppressionRepository>();
         services.AddScoped<ISendEventRepository, EfSendEventRepository>();
+        services.AddScoped<IClickTrackingRepository, EfClickTrackingRepository>();
         services.AddScoped<IAdminRecipientRepository, EfAdminRecipientRepository>();
         services.AddScoped<EfAdminMailingSummaryRepository>();
         services.AddScoped<IAdminCampaignRepository>(sp => sp.GetRequiredService<EfAdminMailingSummaryRepository>());
