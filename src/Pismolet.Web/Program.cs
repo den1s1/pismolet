@@ -86,6 +86,7 @@ app.MapAdminEndpoints();
 app.MapAdminPaymentEndpoints();
 app.MapAdminSettingsEndpoints();
 app.MapAdminPostfixDeliveryEndpoints();
+app.MapAdminPostfixDeliverySettingsEndpoints();
 app.MapAdminSprint10Endpoints();
 app.MapUnsubscribeEndpoints();
 app.MapOpenTrackingEndpoints();
