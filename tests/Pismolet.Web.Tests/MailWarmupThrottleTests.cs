@@ -49,7 +49,7 @@ public sealed class MailWarmupThrottleTests
     }
 
     [Fact]
-    public void Throttle_uses_strictest_delay_from_snapshot_and_policy()
+    public void Throttle_does_not_block_on_minimum_delay_from_snapshot_and_policy()
     {
         var throttle = new MailWarmupThrottle();
         var options = new MailWarmupLimitOptions(
@@ -68,8 +68,8 @@ public sealed class MailWarmupThrottleTests
 
         var decision = throttle.Evaluate(options, acceptedSends, "target@gmail.com", Now);
 
-        Assert.False(decision.IsAllowed);
-        Assert.Equal("domain_min_delay", decision.Reason);
-        Assert.Equal(TimeSpan.FromSeconds(290), decision.RetryAfter);
+        Assert.True(decision.IsAllowed);
+        Assert.Equal("allowed", decision.Reason);
+        Assert.Equal(TimeSpan.Zero, decision.RetryAfter);
     }
 }
