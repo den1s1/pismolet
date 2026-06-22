@@ -41,8 +41,11 @@ public sealed class SendingWizardSmokeTests
         Assert.Contains("Отправка идёт постепенно", html);
         Assert.Contains("Писем в очереди", html);
         Assert.Contains("Оплачено писем", html);
-        Assert.Contains("Жалоб сейчас", html);
+        Assert.Contains("Открыто сейчас", html);
+        Assert.Contains("Открытий всего", html);
+        Assert.Contains("Последнее открытие", html);
         Assert.Contains("Ответов сейчас", html);
+        Assert.DoesNotContain("Прочитано", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
