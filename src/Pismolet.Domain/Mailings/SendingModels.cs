@@ -272,74 +272,67 @@ public sealed record ProviderWebhookEvent(
     string ProviderEventId,
     string? ProviderMessageId,
     Guid? MailingId,
-    string? RecipientEmail,
+    string? ClientId,
+    string? RecipientEmailNormalized,
     ProviderWebhookEventType EventType,
     DateTimeOffset OccurredAt,
+    DateTimeOffset ReceivedAt,
+    string RawPayloadHash,
+    string? RawPayloadStored,
     string? ReasonCode,
     string? ReasonMessage,
     ProviderWebhookProcessingStatus ProcessingStatus,
-    string RawPayload,
-    DateTimeOffset CreatedAt)
+    Guid CorrelationId)
 {
-    public static ProviderWebhookEvent New(
-        string provider,
-        string providerEventId,
-        string? providerMessageId,
-        Guid? mailingId,
-        string? recipientEmail,
-        ProviderWebhookEventType eventType,
-        DateTimeOffset occurredAt,
-        string? reasonCode,
-        string? reasonMessage,
-        string rawPayload) => new(
-        Guid.NewGuid(),
-        provider.Trim(),
-        providerEventId.Trim(),
-        string.IsNullOrWhiteSpace(providerMessageId) ? null : providerMessageId.Trim(),
-        mailingId,
-        string.IsNullOrWhiteSpace(recipientEmail) ? null : recipientEmail.Trim().ToLowerInvariant(),
-        eventType,
-        occurredAt.ToUniversalTime(),
-        string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim(),
-        string.IsNullOrWhiteSpace(reasonMessage) ? null : reasonMessage.Trim(),
-        ProviderWebhookProcessingStatus.Unmatched,
-        rawPayload,
-        DateTimeOffset.UtcNow);
-
-    public ProviderWebhookEvent MarkProcessed() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.Processed };
-
-    public ProviderWebhookEvent MarkIgnoredDuplicate() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.IgnoredDuplicate };
-
-    public ProviderWebhookEvent MarkIgnoredUnknown() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.IgnoredUnknown };
-
-    public ProviderWebhookEvent MarkUnmatched() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.Unmatched };
-
-    public ProviderWebhookEvent MarkFailed() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.Failed };
+    public ProviderWebhookEvent WithProcessingStatus(ProviderWebhookProcessingStatus status) => this with { ProcessingStatus = status };
 }
 
 public sealed record ClientSuppression(
     Guid Id,
-    string OwnerEmail,
-    string RecipientEmail,
+    string ClientId,
+    string EmailNormalized,
     ClientSuppressionReason Reason,
-    string Source,
-    DateTimeOffset CreatedAt)
+    Guid? SourceMailingId,
+    string? SourceProviderMessageId,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset LastSeenAt)
 {
-    public static ClientSuppression New(string ownerEmail, string recipientEmail, ClientSuppressionReason reason, string source) => new(
+    public static ClientSuppression FromHardBounce(string clientId, string emailNormalized, Guid? sourceMailingId, string? providerMessageId) => new(
         Guid.NewGuid(),
-        ownerEmail.Trim().ToLowerInvariant(),
-        recipientEmail.Trim().ToLowerInvariant(),
-        reason,
-        source.Trim(),
+        clientId.Trim().ToLowerInvariant(),
+        emailNormalized.Trim().ToLowerInvariant(),
+        ClientSuppressionReason.HardBounce,
+        sourceMailingId,
+        providerMessageId,
+        DateTimeOffset.UtcNow,
         DateTimeOffset.UtcNow);
+
+    public ClientSuppression Touch(Guid? sourceMailingId, string? providerMessageId) => this with
+    {
+        SourceMailingId = SourceMailingId ?? sourceMailingId,
+        SourceProviderMessageId = SourceProviderMessageId ?? providerMessageId,
+        LastSeenAt = DateTimeOffset.UtcNow
+    };
 }
 
 public sealed record MailingSendSummary(
-    int TotalAcceptedRecipients,
+    Guid MailingId,
     int AcceptedForSending,
-    int Pending,
     int Sent,
     int Failed,
     int Suppressed,
     int ClientSuppressed,
-    int PausedByLimit);
+    int PausedByLimit,
+    int SkippedOther,
+    int Pending,
+    int TotalAcceptedRecipients,
+    int ProviderAccepted = 0,
+    int Delivered = 0,
+    int SoftBounced = 0,
+    int HardBounced = 0,
+    int Complaints = 0,
+    int Rejected = 0,
+    int UnknownDelivery = 0)
+{
+    public static MailingSendSummary Empty(Guid mailingId, int totalAcceptedRecipients = 0) => new(mailingId, 0, 0, 0, 0, 0, 0, 0, 0, totalAcceptedRecipients);
+}
