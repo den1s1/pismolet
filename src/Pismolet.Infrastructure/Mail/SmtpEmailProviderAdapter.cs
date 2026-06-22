@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using MimeKit;
 using MimeKit.Utils;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Mailings;
 
 namespace Pismolet.Web.Infrastructure.Mail;
@@ -27,7 +28,8 @@ public sealed record SmtpEmailProviderOptions(
 public sealed class SmtpEmailProviderAdapter(
     SmtpEmailProviderOptions options,
     PublicUrlOptions publicUrlOptions,
-    ILogger<SmtpEmailProviderAdapter> logger) : IEmailProviderAdapter
+    ILogger<SmtpEmailProviderAdapter> logger,
+    IClickTrackingRepository? clickTracking = null) : IEmailProviderAdapter
 {
     private const string FallbackPublicBaseUrl = "https://app.pismolet.ru";
 
@@ -184,6 +186,7 @@ public sealed class SmtpEmailProviderAdapter(
         textBody = ReplaceVisibleRelativeUnsubscribeLinks(textBody);
         textBody = KeepSingleVisibleUnsubscribeLink(textBody, unsubscribeUrl);
         var trackingPixelUrl = BuildTrackingPixelUrl(message);
+        var clickTrackingUrlFactory = BuildClickTrackingUrlFactory(message);
 
         mime.From.Add(new MailboxAddress(displayName, options.FromEmail));
         mime.To.Add(MailboxAddress.Parse(message.Recipient.Email));
@@ -214,7 +217,7 @@ public sealed class SmtpEmailProviderAdapter(
         var body = new BodyBuilder
         {
             TextBody = textBody,
-            HtmlBody = BuildHtmlBody(textBody, unsubscribeUrl, trackingPixelUrl)
+            HtmlBody = BuildHtmlBody(textBody, unsubscribeUrl, trackingPixelUrl, clickTrackingUrlFactory)
         };
         mime.Body = body.ToMessageBody();
         return mime;
@@ -379,9 +382,36 @@ public sealed class SmtpEmailProviderAdapter(
         return ToAbsoluteUrl($"/t/open/{token}.gif");
     }
 
-    private static string BuildHtmlBody(string plainText, string unsubscribeUrl, string? trackingPixelUrl)
+    private Func<string, string?>? BuildClickTrackingUrlFactory(EmailMessage message)
+    {
+        if (clickTracking is null)
+        {
+            return null;
+        }
+
+        return originalUrl =>
+        {
+            try
+            {
+                var trackedLink = clickTracking.AddOrGet(TrackedLink.Create(message.MailingId, message.Recipient.Email, originalUrl));
+                return ToAbsoluteUrl($"/t/click/{trackedLink.Token}");
+            }
+            catch (ArgumentException ex)
+            {
+                logger.LogWarning(ex, "Skipped click tracking link. mailingId={MailingId} recipientDomain={RecipientDomain}", message.MailingId, GetEmailDomain(message.Recipient.Email));
+                return null;
+            }
+        };
+    }
+
+    private static string BuildHtmlBody(string plainText, string unsubscribeUrl, string? trackingPixelUrl, Func<string, string?>? clickTrackingUrlFactory = null)
     {
         var html = WebUtility.HtmlEncode(plainText).Replace("\n", "<br>\n", StringComparison.Ordinal);
+        if (clickTrackingUrlFactory is not null)
+        {
+            html = EmailClickTrackingHtmlRewriter.RewriteHtmlEncodedPlainTextLinks(html, unsubscribeUrl, clickTrackingUrlFactory);
+        }
+
         if (!string.IsNullOrWhiteSpace(unsubscribeUrl))
         {
             var encodedUrl = WebUtility.HtmlEncode(unsubscribeUrl);
