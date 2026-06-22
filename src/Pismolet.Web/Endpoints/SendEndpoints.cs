@@ -52,6 +52,13 @@ public static class SendEndpoints
         var state = result.State;
         var mailing = state.Mailing;
         var summary = state.Summary;
+        var openedRecipients = state.Events.Count(x => x.FirstOpenedAt is not null);
+        var totalOpens = state.Events.Sum(x => x.OpenCount);
+        var lastOpenedAt = state.Events
+            .Where(x => x.LastOpenedAt is not null)
+            .Select(x => x.LastOpenedAt)
+            .OrderByDescending(x => x)
+            .FirstOrDefault();
         var launched = result.Ok && !string.IsNullOrWhiteSpace(message) && message.Contains("поставлен", StringComparison.OrdinalIgnoreCase);
         var title = launched ? "Рассылка запущена" : mailing.Status switch
         {
@@ -81,13 +88,16 @@ public static class SendEndpoints
         var deliveryNote = summary.ProviderAccepted + summary.Delivered + summary.SoftBounced + summary.HardBounced + summary.Complaints + summary.Rejected == 0
             ? "<p class='muted'>Ожидаем статус доставки от провайдера.</p>"
             : string.Empty;
+        var openNote = totalOpens == 0
+            ? "<p class='muted'>Открытия появятся после загрузки картинок в письме. Метрика показывает открытие HTML-письма, а не гарантированное прочтение.</p>"
+            : string.Empty;
         var replyStatus = replySummary.TotalReplies == 0
             ? "Ответов пока нет."
             : $"Получено ответов: {replySummary.TotalReplies}. Последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC, статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}";
 
         var devRows = state.Events.Count == 0
-            ? "<tr><td colspan='5'>Событий отправки пока нет.</td></tr>"
-            : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{H(x.Reason == SendSkipReason.None ? "" : x.Reason.ToString())}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
+            ? "<tr><td colspan='7'>Событий отправки пока нет.</td></tr>"
+            : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{(x.FirstOpenedAt is null ? "Нет" : "Да")}</td><td>{x.OpenCount}</td><td>{FormatDate(x.LastOpenedAt)}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
 
         return $"""
             <section class='wizard-shell send-wizard'>
@@ -112,7 +122,7 @@ public static class SendEndpoints
                 <div class='stats launch-stats'>
                   <div class='stat'><b>{summary.Pending}</b><span>Писем в очереди</span></div>
                   <div class='stat'><b>{summary.TotalAcceptedRecipients}</b><span>Оплачено писем</span></div>
-                  <div class='stat'><b>{summary.Complaints}</b><span>Жалоб сейчас</span></div>
+                  <div class='stat'><b>{openedRecipients}</b><span>Открыто сейчас</span></div>
                   <div class='stat'><b>{replySummary.TotalReplies}</b><span>Ответов сейчас</span></div>
                 </div>
                 <div class='payment-grid launch-grid'>
@@ -122,15 +132,16 @@ public static class SendEndpoints
                     {action}
                   </section>
                   <section class='box'>
-                    <h2>Доставка и ответы</h2>
+                    <h2>Доставка, открытия и ответы</h2>
                     {deliveryNote}
-                    <table><thead><tr><th>Статус доставки</th><th>Значение</th></tr></thead><tbody><tr><td>Принято провайдером</td><td>{summary.ProviderAccepted}</td></tr><tr><td>Доставлено</td><td>{summary.Delivered}</td></tr><tr><td>Временная ошибка</td><td>{summary.SoftBounced}</td></tr><tr><td>Постоянная ошибка</td><td>{summary.HardBounced}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr><tr><td>Отклонено</td><td>{summary.Rejected}</td></tr></tbody></table>
+                    {openNote}
+                    <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Принято провайдером</td><td>{summary.ProviderAccepted}</td></tr><tr><td>Доставлено</td><td>{summary.Delivered}</td></tr><tr><td>Открыто, получателей</td><td>{openedRecipients}</td></tr><tr><td>Открытий всего</td><td>{totalOpens}</td></tr><tr><td>Последнее открытие</td><td>{FormatDate(lastOpenedAt)}</td></tr><tr><td>Временная ошибка</td><td>{summary.SoftBounced}</td></tr><tr><td>Постоянная ошибка</td><td>{summary.HardBounced}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr><tr><td>Отклонено</td><td>{summary.Rejected}</td></tr></tbody></table>
                     <h3>Ответы получателей</h3>
                     <p>{replyStatus}</p>
                     <p class='muted'>Ответы пересылаются клиенту на email отправителя. Личный кабинет показывает только счётчик и статус пересылки, без inbox и без raw provider payload.</p>
                   </section>
                 </div>
-                <details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Причина</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details>
+                <details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Открыто</th><th>Открытий</th><th>Последнее открытие</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details>
                 <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a></div>
               </section>
             </section>
@@ -153,6 +164,8 @@ public static class SendEndpoints
         var at = email.IndexOf('@');
         return at <= 1 ? email : $"{email[..1]}***{email[at..]}";
     }
+
+    private static string FormatDate(DateTimeOffset? value) => value is null ? "-" : value.Value.ToString("yyyy-MM-dd HH:mm");
 
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
 
