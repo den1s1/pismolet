@@ -157,6 +157,21 @@ public interface ISendEventRepository
     MailingSendSummary GetSummary(Guid mailingId, int totalAcceptedRecipients);
 }
 
+public interface IClickTrackingRepository
+{
+    TrackedLink AddOrGet(TrackedLink trackedLink);
+
+    TrackedLink? GetByToken(string token);
+
+    IReadOnlyCollection<TrackedLink> ListLinksByMailingId(Guid mailingId);
+
+    IReadOnlyCollection<ClickEvent> ListEventsByMailingId(Guid mailingId, int limit);
+
+    void SaveLink(TrackedLink trackedLink);
+
+    void AddEvent(ClickEvent clickEvent);
+}
+
 public interface IProviderWebhookEventRepository
 {
     ProviderWebhookEvent? GetByProviderEventId(string provider, string providerEventId);
