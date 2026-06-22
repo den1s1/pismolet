@@ -144,6 +144,13 @@ public sealed class SmtpTransportLoggingTests
         return (string)method.Invoke(null, new object?[] { plainText, unsubscribeUrl, trackingPixelUrl, null })!;
     }
 
+    private sealed record LogEntry(LogLevel LogLevel, string Message, IReadOnlyList<KeyValuePair<string, object?>> State)
+    {
+        public string RenderedMessage => Message;
+
+        public object? Value(string key) => State.FirstOrDefault(x => x.Key == key).Value;
+    }
+
     private sealed class SilentLogger<T> : ILogger<T>
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
