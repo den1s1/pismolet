@@ -85,6 +85,25 @@ public sealed class AdminCampaignEndpointsTests
     }
 
     [Fact]
+    public async Task Admin_campaign_profile_shows_click_analytics()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Campaign Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Click analytics campaign");
+        SeedClickedLink(factory, mailingId, "clicked@example.test", "https://example.org/page?utm=test");
+        using var client = CreateAuthenticatedClient(factory, AdminEmail);
+
+        var html = await client.GetStringAsync($"/admin/campaigns/{mailingId}");
+
+        Assert.Contains("Переходы по ссылкам", html);
+        Assert.Contains("Кликнувшие получатели", html);
+        Assert.Contains("Кликов всего", html);
+        Assert.Contains("Последнее нажатие", html);
+        Assert.Contains("clicked@example.test", html);
+        Assert.Contains("https://example.org/page?utm=test", html);
+    }
+
+    [Fact]
     public async Task Admin_campaign_pause_action_redirects_back_to_profile_with_status_message()
     {
         using var factory = CreateAuthorizedFactory();
@@ -156,6 +175,18 @@ public sealed class AdminCampaignEndpointsTests
             .MarkOpened(new DateTimeOffset(2026, 6, 22, 10, 45, 0, TimeSpan.Zero));
 
         sends.Save(sendEvent);
+    }
+
+    private static void SeedClickedLink(WebApplicationFactory<Program> factory, Guid mailingId, string recipientEmail, string originalUrl)
+    {
+        using var scope = factory.Services.CreateScope();
+        var clicks = scope.ServiceProvider.GetRequiredService<IClickTrackingRepository>();
+        var link = clicks.AddOrGet(TrackedLink.Create(mailingId, recipientEmail, originalUrl));
+        var clickedAt = new DateTimeOffset(2026, 6, 22, 13, 44, 0, TimeSpan.Zero);
+        var updated = link.MarkClicked(clickedAt);
+
+        clicks.SaveLink(updated);
+        clicks.AddEvent(ClickEvent.Create(updated, clickedAt, "ip", "ua"));
     }
 
     private static RequestMetadata Request() => new("127.0.0.1", "admin-campaign-endpoint-tests");
