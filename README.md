@@ -21,6 +21,10 @@ Smoke/demo flow использует только fake payment и fake email pro
 - [`docs/llm_agent_guide.md`](docs/llm_agent_guide.md) — правила для LLM-агентов и опасные зоны.
 - [`docs/mvp_acceptance.md`](docs/mvp_acceptance.md) — критерии приёмки MVP и известные ограничения.
 
+Post-MVP / production планы:
+
+- [`docs/open_tracking_plan.md`](docs/open_tracking_plan.md) — план внедрения аналитики открытий писем.
+
 Demo-файлы:
 
 - [`docs/examples/demo_recipients.csv`](docs/examples/demo_recipients.csv) — основной CSV для happy path.
