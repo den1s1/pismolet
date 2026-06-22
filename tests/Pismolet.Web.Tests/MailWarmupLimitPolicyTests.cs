@@ -47,7 +47,7 @@ public sealed class MailWarmupLimitPolicyTests
     }
 
     [Fact]
-    public void Warmup_policy_enforces_default_minimum_delay_between_sends()
+    public void Warmup_policy_does_not_block_on_default_minimum_delay_between_sends()
     {
         var now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
         var snapshot = new MailWarmupLimitSnapshot(
@@ -62,13 +62,13 @@ public sealed class MailWarmupLimitPolicyTests
             "lead@example.test",
             now);
 
-        Assert.False(decision.IsAllowed);
-        Assert.Equal("global_min_delay", decision.Reason);
-        Assert.Equal(TimeSpan.FromSeconds(20), decision.RetryAfter);
+        Assert.True(decision.IsAllowed);
+        Assert.Equal("allowed", decision.Reason);
+        Assert.Equal(TimeSpan.Zero, decision.RetryAfter);
     }
 
     [Fact]
-    public void Warmup_policy_returns_strictest_minimum_delay_when_global_and_domain_both_apply()
+    public void Warmup_policy_does_not_block_on_domain_minimum_delay_between_sends()
     {
         var now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
         var options = new MailWarmupLimitOptions(
@@ -93,9 +93,9 @@ public sealed class MailWarmupLimitPolicyTests
             "lead@gmail.com",
             now);
 
-        Assert.False(decision.IsAllowed);
-        Assert.Equal("domain_min_delay", decision.Reason);
-        Assert.Equal(TimeSpan.FromSeconds(290), decision.RetryAfter);
+        Assert.True(decision.IsAllowed);
+        Assert.Equal("allowed", decision.Reason);
+        Assert.Equal(TimeSpan.Zero, decision.RetryAfter);
     }
 
     [Fact]
