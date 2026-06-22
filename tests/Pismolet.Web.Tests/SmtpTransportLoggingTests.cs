@@ -163,7 +163,7 @@ public sealed class SmtpTransportLoggingTests
 
         public string RenderedText => string.Join("\n", _entries.Select(x => x.RenderedMessage + " " + string.Join(" ", x.State.Select(item => item.Value))));
 
-        public IDisposable? BeginScope<TState>(TState state) where TState state : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
