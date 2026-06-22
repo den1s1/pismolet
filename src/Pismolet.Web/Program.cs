@@ -77,6 +77,7 @@ app.MapAdminPaymentEndpoints();
 app.MapAdminSettingsEndpoints();
 app.MapAdminSprint10Endpoints();
 app.MapUnsubscribeEndpoints();
+app.MapOpenTrackingEndpoints();
 app.MapWebhookEndpoints();
 app.MapInboundReplyEndpoints();
 
