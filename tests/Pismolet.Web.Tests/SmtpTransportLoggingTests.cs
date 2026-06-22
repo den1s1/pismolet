@@ -76,6 +76,32 @@ public sealed class SmtpTransportLoggingTests
         Assert.DoesNotContain("sender@pismolet.ru", logger.RenderedText, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void Smtp_html_body_includes_open_tracking_pixel_when_url_is_present()
+    {
+        var html = InvokeHtmlBody(
+            "Здравствуйте\nОтписаться: https://app.pismolet.ru/unsubscribe/test",
+            "https://app.pismolet.ru/unsubscribe/test",
+            "https://app.pismolet.ru/t/open/tracking-token.gif");
+
+        Assert.Contains("<img src=\"https://app.pismolet.ru/t/open/tracking-token.gif\"", html, StringComparison.Ordinal);
+        Assert.Contains("width=\"1\"", html, StringComparison.Ordinal);
+        Assert.Contains("height=\"1\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("file://", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Smtp_html_body_omits_open_tracking_pixel_when_url_is_missing()
+    {
+        var html = InvokeHtmlBody(
+            "Здравствуйте",
+            "https://app.pismolet.ru/unsubscribe/test",
+            null);
+
+        Assert.DoesNotContain("/t/open/", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<img", html, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static SmtpEmailProviderAdapter CreateAdapter(string host) => CreateAdapter(host, new SilentLogger<SmtpEmailProviderAdapter>());
 
     private static SmtpEmailProviderAdapter CreateAdapter(string host, ILogger<SmtpEmailProviderAdapter> logger, int port = 25)
@@ -114,6 +140,12 @@ public sealed class SmtpTransportLoggingTests
     {
         var method = typeof(SmtpEmailProviderAdapter).GetMethod("GetEmailDomain", BindingFlags.Static | BindingFlags.NonPublic)!;
         return (string)method.Invoke(null, new object?[] { email })!;
+    }
+
+    private static string InvokeHtmlBody(string plainText, string unsubscribeUrl, string? trackingPixelUrl)
+    {
+        var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildHtmlBody", BindingFlags.Static | BindingFlags.NonPublic)!;
+        return (string)method.Invoke(null, new object?[] { plainText, unsubscribeUrl, trackingPixelUrl })!;
     }
 
     private sealed class SilentLogger<T> : ILogger<T>
