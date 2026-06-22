@@ -211,14 +211,27 @@ public static class ServiceCollectionExtensions
         return value;
     }
 
-    private static Uri ReadPublicBaseUrl(IConfiguration configuration)
+    private static string ReadPublicBaseUrl(IConfiguration configuration)
     {
         var raw = configuration["PublicBaseUrl"]
             ?? configuration["App:PublicBaseUrl"]
             ?? configuration["Pismolet:PublicBaseUrl"]
             ?? configuration["PISMOLET_PUBLIC_BASE_URL"]
             ?? Environment.GetEnvironmentVariable("PISMOLET_PUBLIC_BASE_URL")
-            ?? "http://localhost";
-        return PublicUrlOptions.NormalizeHttpBaseUrl(raw, "http://localhost");
+            ?? PublicUrlOptions.DevelopmentDefault.PublicBaseUrl;
+        return NormalizeHttpBaseUrl(raw, PublicUrlOptions.DevelopmentDefault.PublicBaseUrl);
+    }
+
+    private static string NormalizeHttpBaseUrl(string? raw, string fallback)
+    {
+        var value = string.IsNullOrWhiteSpace(raw) ? fallback : raw.Trim();
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+            !string.IsNullOrWhiteSpace(uri.Host))
+        {
+            return value.TrimEnd('/');
+        }
+
+        return fallback.TrimEnd('/');
     }
 }
