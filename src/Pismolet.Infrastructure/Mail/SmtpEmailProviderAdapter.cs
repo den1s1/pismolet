@@ -183,6 +183,7 @@ public sealed class SmtpEmailProviderAdapter(
         var textBody = ReplaceRelativeUrl(message.PlainTextBody, message.UnsubscribeUrl, unsubscribeUrl);
         textBody = ReplaceVisibleRelativeUnsubscribeLinks(textBody);
         textBody = KeepSingleVisibleUnsubscribeLink(textBody, unsubscribeUrl);
+        var trackingPixelUrl = BuildTrackingPixelUrl(message);
 
         mime.From.Add(new MailboxAddress(displayName, options.FromEmail));
         mime.To.Add(MailboxAddress.Parse(message.Recipient.Email));
@@ -213,7 +214,7 @@ public sealed class SmtpEmailProviderAdapter(
         var body = new BodyBuilder
         {
             TextBody = textBody,
-            HtmlBody = BuildHtmlBody(textBody, unsubscribeUrl)
+            HtmlBody = BuildHtmlBody(textBody, unsubscribeUrl, trackingPixelUrl)
         };
         mime.Body = body.ToMessageBody();
         return mime;
@@ -372,7 +373,13 @@ public sealed class SmtpEmailProviderAdapter(
         return second < 0 ? text : text.Remove(second, unsubscribeUrl.Length).Insert(second, "ссылку выше");
     }
 
-    private static string BuildHtmlBody(string plainText, string unsubscribeUrl)
+    private string BuildTrackingPixelUrl(EmailMessage message)
+    {
+        var token = SendEvent.BuildTrackingToken(message.MailingId, message.Recipient.Email);
+        return ToAbsoluteUrl($"/t/open/{token}.gif");
+    }
+
+    private static string BuildHtmlBody(string plainText, string unsubscribeUrl, string? trackingPixelUrl)
     {
         var html = WebUtility.HtmlEncode(plainText).Replace("\n", "<br>\n", StringComparison.Ordinal);
         if (!string.IsNullOrWhiteSpace(unsubscribeUrl))
@@ -381,6 +388,10 @@ public sealed class SmtpEmailProviderAdapter(
             html = html.Replace(encodedUrl, $"<a href=\"{encodedUrl}\">Отписаться</a>", StringComparison.Ordinal);
         }
 
-        return $"<!doctype html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;\"><p>{html}</p></body></html>";
+        var trackingPixel = string.IsNullOrWhiteSpace(trackingPixelUrl)
+            ? string.Empty
+            : $"<img src=\"{WebUtility.HtmlEncode(trackingPixelUrl)}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none;width:1px;height:1px;opacity:0\" />";
+
+        return $"<!doctype html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;\"><p>{html}</p>{trackingPixel}</body></html>";
     }
 }
