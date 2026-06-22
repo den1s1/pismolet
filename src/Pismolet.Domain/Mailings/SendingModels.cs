@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Pismolet.Web.Domain.Mailings;
 
 public enum SendEventStatus
@@ -137,7 +140,7 @@ public sealed record SendEvent(
         null,
         DateTimeOffset.UtcNow,
         DateTimeOffset.UtcNow,
-        TrackingToken: NewTrackingToken());
+        TrackingToken: BuildTrackingToken(mailingId, recipientEmail));
 
     public SendEvent MarkPaused(SendSkipReason reason) => this with
     {
@@ -168,7 +171,7 @@ public sealed record SendEvent(
             ErrorMessage = null,
             UpdatedAt = now,
             AcceptedAt = AcceptedAt ?? now,
-            TrackingToken = string.IsNullOrWhiteSpace(TrackingToken) ? NewTrackingToken() : TrackingToken
+            TrackingToken = string.IsNullOrWhiteSpace(TrackingToken) ? BuildTrackingToken(MailingId, RecipientEmail) : TrackingToken
         };
     }
 
@@ -226,6 +229,14 @@ public sealed record SendEvent(
 
     public static string NewTrackingToken() => Guid.NewGuid().ToString("N");
 
+    public static string BuildTrackingToken(Guid mailingId, string recipientEmail)
+    {
+        var normalizedRecipient = recipientEmail.Trim().ToLowerInvariant();
+        var raw = $"pismolet-open-tracking-v1:{mailingId:N}:{normalizedRecipient}";
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
     private static (string? Provider, string Payload) ResolveProviderEnvelope(string payload)
     {
         var trimmed = payload.Trim();
@@ -261,67 +272,74 @@ public sealed record ProviderWebhookEvent(
     string ProviderEventId,
     string? ProviderMessageId,
     Guid? MailingId,
-    string? ClientId,
-    string? RecipientEmailNormalized,
+    string? RecipientEmail,
     ProviderWebhookEventType EventType,
     DateTimeOffset OccurredAt,
-    DateTimeOffset ReceivedAt,
-    string RawPayloadHash,
-    string? RawPayloadStored,
     string? ReasonCode,
     string? ReasonMessage,
     ProviderWebhookProcessingStatus ProcessingStatus,
-    Guid CorrelationId)
+    string RawPayload,
+    DateTimeOffset CreatedAt)
 {
-    public ProviderWebhookEvent WithProcessingStatus(ProviderWebhookProcessingStatus status) => this with { ProcessingStatus = status };
+    public static ProviderWebhookEvent New(
+        string provider,
+        string providerEventId,
+        string? providerMessageId,
+        Guid? mailingId,
+        string? recipientEmail,
+        ProviderWebhookEventType eventType,
+        DateTimeOffset occurredAt,
+        string? reasonCode,
+        string? reasonMessage,
+        string rawPayload) => new(
+        Guid.NewGuid(),
+        provider.Trim(),
+        providerEventId.Trim(),
+        string.IsNullOrWhiteSpace(providerMessageId) ? null : providerMessageId.Trim(),
+        mailingId,
+        string.IsNullOrWhiteSpace(recipientEmail) ? null : recipientEmail.Trim().ToLowerInvariant(),
+        eventType,
+        occurredAt.ToUniversalTime(),
+        string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim(),
+        string.IsNullOrWhiteSpace(reasonMessage) ? null : reasonMessage.Trim(),
+        ProviderWebhookProcessingStatus.Unmatched,
+        rawPayload,
+        DateTimeOffset.UtcNow);
+
+    public ProviderWebhookEvent MarkProcessed() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.Processed };
+
+    public ProviderWebhookEvent MarkIgnoredDuplicate() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.IgnoredDuplicate };
+
+    public ProviderWebhookEvent MarkIgnoredUnknown() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.IgnoredUnknown };
+
+    public ProviderWebhookEvent MarkUnmatched() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.Unmatched };
+
+    public ProviderWebhookEvent MarkFailed() => this with { ProcessingStatus = ProviderWebhookProcessingStatus.Failed };
 }
 
 public sealed record ClientSuppression(
     Guid Id,
-    string ClientId,
-    string EmailNormalized,
+    string OwnerEmail,
+    string RecipientEmail,
     ClientSuppressionReason Reason,
-    Guid? SourceMailingId,
-    string? SourceProviderMessageId,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset LastSeenAt)
+    string Source,
+    DateTimeOffset CreatedAt)
 {
-    public static ClientSuppression FromHardBounce(string clientId, string emailNormalized, Guid? sourceMailingId, string? providerMessageId) => new(
+    public static ClientSuppression New(string ownerEmail, string recipientEmail, ClientSuppressionReason reason, string source) => new(
         Guid.NewGuid(),
-        clientId.Trim().ToLowerInvariant(),
-        emailNormalized.Trim().ToLowerInvariant(),
-        ClientSuppressionReason.HardBounce,
-        sourceMailingId,
-        providerMessageId,
-        DateTimeOffset.UtcNow,
+        ownerEmail.Trim().ToLowerInvariant(),
+        recipientEmail.Trim().ToLowerInvariant(),
+        reason,
+        source.Trim(),
         DateTimeOffset.UtcNow);
-
-    public ClientSuppression Touch(Guid? sourceMailingId, string? providerMessageId) => this with
-    {
-        SourceMailingId = SourceMailingId ?? sourceMailingId,
-        SourceProviderMessageId = SourceProviderMessageId ?? providerMessageId,
-        LastSeenAt = DateTimeOffset.UtcNow
-    };
 }
 
 public sealed record MailingSendSummary(
-    Guid MailingId,
+    int TotalAcceptedRecipients,
     int AcceptedForSending,
+    int Pending,
     int Sent,
     int Failed,
     int Suppressed,
     int ClientSuppressed,
-    int PausedByLimit,
-    int SkippedOther,
-    int Pending,
-    int TotalAcceptedRecipients,
-    int ProviderAccepted = 0,
-    int Delivered = 0,
-    int SoftBounced = 0,
-    int HardBounced = 0,
-    int Complaints = 0,
-    int Rejected = 0,
-    int UnknownDelivery = 0)
-{
-    public static MailingSendSummary Empty(Guid mailingId, int totalAcceptedRecipients = 0) => new(mailingId, 0, 0, 0, 0, 0, 0, 0, 0, totalAcceptedRecipients);
-}
+    int PausedByLimit);
