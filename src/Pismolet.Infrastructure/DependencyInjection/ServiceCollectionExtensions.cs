@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IModerationActionLogRepository, InMemoryModerationActionLogRepository>();
         services.AddSingleton<ISendEventRepository, InMemorySendEventRepository>();
         services.AddSingleton<IClickTrackingRepository, InMemoryClickTrackingRepository>();
+        services.AddSingleton<IPostfixDeliveryEventRepository, InMemoryPostfixDeliveryEventRepository>();
         services.AddSingleton<IProviderWebhookEventRepository, InMemoryProviderWebhookEventRepository>();
         services.AddSingleton<IClientSuppressionRepository, InMemoryClientSuppressionRepository>();
         services.AddSingleton<IReplyEventRepository, InMemoryReplyEventRepository>();
@@ -93,6 +94,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IGlobalSuppressionRepository, EfGlobalSuppressionRepository>();
         services.AddScoped<ISendEventRepository, EfSendEventRepository>();
         services.AddScoped<IClickTrackingRepository, EfClickTrackingRepository>();
+        services.AddScoped<IPostfixDeliveryEventRepository, EfPostfixDeliveryEventRepository>();
         services.AddScoped<IAdminRecipientRepository, EfAdminRecipientRepository>();
         services.AddScoped<EfAdminMailingSummaryRepository>();
         services.AddScoped<IAdminCampaignRepository>(sp => sp.GetRequiredService<EfAdminMailingSummaryRepository>());
