@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Configuration;
+using Pismolet.Web.BackgroundServices;
 using Pismolet.Web.Endpoints;
 using Pismolet.Web.Infrastructure.DependencyInjection;
+using Pismolet.Web.Infrastructure.Mail;
 
 var builder = WebApplication.CreateBuilder(args);
 var isRunningUnderTests = builder.Environment.IsEnvironment("Testing") || IsRunningUnderTests();
@@ -52,6 +54,12 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
 builder.Services.AddPismoletEfSendingStorage(builder.Configuration);
+builder.Services.AddSingleton(ReadPostfixDeliveryAutomationSettingsOptions(builder.Configuration));
+builder.Services.AddSingleton<IPostfixDeliveryAutomationSettingsRepository, FilePostfixDeliveryAutomationSettingsRepository>();
+if (!isRunningUnderTests)
+{
+    builder.Services.AddHostedService<PostfixDeliveryLogReaderHostedService>();
+}
 
 var app = builder.Build();
 
@@ -120,6 +128,28 @@ static IReadOnlySet<string> ReadAdminEmails(IConfiguration configuration)
         .Select(email => email.Trim().ToLowerInvariant())
         .Where(email => !string.IsNullOrWhiteSpace(email))
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
+}
+
+static PostfixDeliveryAutomationSettingsOptions ReadPostfixDeliveryAutomationSettingsOptions(IConfiguration configuration)
+{
+    var settingsPath = configuration["PostfixDelivery:SettingsPath"]
+        ?? configuration["PostfixDelivery__SettingsPath"]
+        ?? configuration["PISMOLET_POSTFIX_DELIVERY_SETTINGS_PATH"]
+        ?? Environment.GetEnvironmentVariable("PISMOLET_POSTFIX_DELIVERY_SETTINGS_PATH")
+        ?? PostfixDeliveryAutomationSettingsOptions.ProductionDefault.SettingsPath;
+    var intervalSeconds = ReadInt(
+        configuration,
+        "PostfixDelivery:ReaderIntervalSeconds",
+        PostfixDeliveryAutomationSettings.DefaultIntervalSeconds,
+        PostfixDeliveryAutomationSettings.MinIntervalSeconds,
+        PostfixDeliveryAutomationSettings.MaxIntervalSeconds);
+    return new PostfixDeliveryAutomationSettingsOptions(settingsPath, intervalSeconds);
+}
+
+static int ReadInt(IConfiguration configuration, string key, int fallback, int min, int max)
+{
+    var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
+    return int.TryParse(value, out var parsed) ? Math.Clamp(parsed, min, max) : fallback;
 }
 
 static IEnumerable<string> Split(string? value) => string.IsNullOrWhiteSpace(value)
