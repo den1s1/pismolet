@@ -31,7 +31,7 @@ public sealed record PostfixDeliveryLogReaderResult(
         LinesRead: 0,
         CursorInitialized: false,
         CursorReset: false,
-        Ingestion: new PostfixDeliveryLogIngestionResult(0, 0, 0, 0, 0));
+        Ingestion: new PostfixDeliveryLogIngestionResult(0, 0, 0, 0, 0, 0));
 }
 
 public sealed class PostfixDeliveryLogReaderService(
@@ -58,7 +58,7 @@ public sealed class PostfixDeliveryLogReaderService(
                 LinesRead: 0,
                 CursorInitialized: true,
                 CursorReset: false,
-                Ingestion: new PostfixDeliveryLogIngestionResult(0, 0, 0, 0, 0));
+                Ingestion: new PostfixDeliveryLogIngestionResult(0, 0, 0, 0, 0, 0));
         }
 
         var previousPosition = cursorExists ? ReadCursor() : 0;
@@ -78,7 +78,7 @@ public sealed class PostfixDeliveryLogReaderService(
                 LinesRead: 0,
                 CursorInitialized: false,
                 CursorReset: cursorReset,
-                Ingestion: new PostfixDeliveryLogIngestionResult(0, 0, 0, 0, 0));
+                Ingestion: new PostfixDeliveryLogIngestionResult(0, 0, 0, 0, 0, 0));
         }
 
         using var stream = new FileStream(options.LogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
