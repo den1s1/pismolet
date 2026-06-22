@@ -20,6 +20,12 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         return db.SendEvents.AsNoTracking().FirstOrDefault(x => x.ProviderMessageId == normalized) is { } entity ? ToDomain(entity) : null;
     }
 
+    public SendEvent? GetByTrackingToken(string trackingToken)
+    {
+        var normalized = trackingToken.Trim();
+        return db.SendEvents.AsNoTracking().FirstOrDefault(x => x.TrackingToken == normalized) is { } entity ? ToDomain(entity) : null;
+    }
+
     public IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId) => db.SendEvents.AsNoTracking().Where(x => x.MailingId == mailingId).OrderBy(x => x.CreatedAt).ThenBy(x => x.RecipientEmail).Select(x => ToDomain(x)).ToArray();
 
     public IReadOnlyCollection<SendEvent> GetPendingBatch(Guid mailingId, int batchSize) => db.SendEvents.AsNoTracking().Where(x => x.MailingId == mailingId && x.Status == SendEventStatus.Pending.ToString()).OrderBy(x => x.CreatedAt).ThenBy(x => x.RecipientEmail).Take(Math.Max(1, batchSize)).Select(x => ToDomain(x)).ToArray();
@@ -87,6 +93,10 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
             entity.UpdatedAt = sendEvent.UpdatedAt.ToUniversalTime();
             entity.AcceptedAt = sendEvent.AcceptedAt?.ToUniversalTime();
             entity.AcceptedUtcDay = ToAcceptedUtcDay(sendEvent.AcceptedAt);
+            entity.TrackingToken = NormalizeTrackingToken(sendEvent.TrackingToken);
+            entity.FirstOpenedAt = sendEvent.FirstOpenedAt?.ToUniversalTime();
+            entity.LastOpenedAt = sendEvent.LastOpenedAt?.ToUniversalTime();
+            entity.OpenCount = sendEvent.OpenCount;
         }
 
         db.SaveChanges();
@@ -121,16 +131,22 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         CreatedAt = sendEvent.CreatedAt.ToUniversalTime(),
         UpdatedAt = sendEvent.UpdatedAt.ToUniversalTime(),
         AcceptedAt = sendEvent.AcceptedAt?.ToUniversalTime(),
-        AcceptedUtcDay = ToAcceptedUtcDay(sendEvent.AcceptedAt)
+        AcceptedUtcDay = ToAcceptedUtcDay(sendEvent.AcceptedAt),
+        TrackingToken = NormalizeTrackingToken(sendEvent.TrackingToken),
+        FirstOpenedAt = sendEvent.FirstOpenedAt?.ToUniversalTime(),
+        LastOpenedAt = sendEvent.LastOpenedAt?.ToUniversalTime(),
+        OpenCount = sendEvent.OpenCount
     };
 
-    private static SendEvent ToDomain(SendEventEntity entity) => new(entity.Id, entity.MailingId, entity.OwnerEmail, entity.RecipientEmail, Enum.Parse<SendEventStatus>(entity.Status), Enum.Parse<SendSkipReason>(entity.Reason), entity.Provider, entity.ProviderMessageId, entity.Attempt, entity.ErrorCode, entity.ErrorMessage, entity.CreatedAt, entity.UpdatedAt, Enum.TryParse<DeliveryStatus>(entity.DeliveryStatus, out var status) ? status : DeliveryStatus.NotReported, entity.LastDeliveryEventAt, entity.LastDeliverySummary, entity.AcceptedAt);
+    private static SendEvent ToDomain(SendEventEntity entity) => new(entity.Id, entity.MailingId, entity.OwnerEmail, entity.RecipientEmail, Enum.Parse<SendEventStatus>(entity.Status), Enum.Parse<SendSkipReason>(entity.Reason), entity.Provider, entity.ProviderMessageId, entity.Attempt, entity.ErrorCode, entity.ErrorMessage, entity.CreatedAt, entity.UpdatedAt, Enum.TryParse<DeliveryStatus>(entity.DeliveryStatus, out var status) ? status : DeliveryStatus.NotReported, entity.LastDeliveryEventAt, entity.LastDeliverySummary, entity.AcceptedAt, entity.TrackingToken, entity.FirstOpenedAt, entity.LastOpenedAt, entity.OpenCount);
 
     private static int? ToAcceptedUtcDay(DateTimeOffset? acceptedAt) => acceptedAt is null ? null : ToAcceptedUtcDay(DateOnly.FromDateTime(acceptedAt.Value.UtcDateTime));
 
     private static int ToAcceptedUtcDay(DateOnly utcDate) => utcDate.Year * 10000 + utcDate.Month * 100 + utcDate.Day;
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
+
+    private static string? NormalizeTrackingToken(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
 public sealed class EfProviderWebhookEventRepository(PismoletDbContext db) : IProviderWebhookEventRepository
