@@ -174,7 +174,15 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
 
     private static int ToAcceptedUtcDay(DateOnly utcDate) => utcDate.Year * 10000 + utcDate.Month * 100 + utcDate.Day;
 
-    private static string Normalize(string email) => email.Trim().ToLowerInvariant();
+    private static string Normalize(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new ArgumentException("Email must not be empty.", nameof(email));
+        }
+
+        return email.Trim().ToLowerInvariant();
+    }
 
     private static string? NormalizeTrackingToken(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
