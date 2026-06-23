@@ -16,11 +16,13 @@ public static class HangfireServiceCollectionExtensions
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
             .UseSimpleAssemblyNameTypeSerializer()
             .UseRecommendedSerializerSettings()
-            .UsePostgreSqlStorage(connectionString, new PostgreSqlStorageOptions
-            {
-                SchemaName = schemaName,
-                PrepareSchemaIfNecessary = true
-            }));
+            .UsePostgreSqlStorage(
+                storage => storage.UseNpgsqlConnection(connectionString),
+                new PostgreSqlStorageOptions
+                {
+                    SchemaName = schemaName,
+                    PrepareSchemaIfNecessary = true
+                }));
 
         services.AddHangfireServer(options =>
         {
