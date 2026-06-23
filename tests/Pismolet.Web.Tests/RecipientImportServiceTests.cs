@@ -2,6 +2,7 @@ using System.Text;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Infrastructure.Audit;
 using Pismolet.Web.Infrastructure.Persistence;
 using Xunit;
@@ -32,6 +33,7 @@ public sealed class RecipientImportServiceTests
             mailings,
             new InMemoryGlobalSuppressionRepository(),
             new InMemoryClientSuppressionRepository(),
+            new InMemorySendEventRepository(),
             new EmailNormalizer(),
             new EmailSyntaxValidator(),
             audit);
@@ -49,6 +51,38 @@ public sealed class RecipientImportServiceTests
     }
 
     [Fact]
+    public async Task ImportCsv_warns_about_repeated_soft_bounces_without_excluding_address()
+    {
+        var mailings = new InMemoryMailingRepository();
+        var audit = new InMemoryAuditLogger();
+        var sendEvents = new InMemorySendEventRepository();
+        var mailingService = new MailingService(mailings, audit, new EmailNormalizer());
+        var created = mailingService.CreateDraft(new CreateMailingCommand("client@test.local", "Новости"), Request);
+        var service = new RecipientImportService(
+            mailings,
+            new InMemoryGlobalSuppressionRepository(),
+            new InMemoryClientSuppressionRepository(),
+            sendEvents,
+            new EmailNormalizer(),
+            new EmailSyntaxValidator(),
+            audit);
+        sendEvents.Save(SendEvent.Pending(Guid.NewGuid(), "client@test.local", "soft@test.local")
+            .ApplyDeliveryStatus(DeliveryStatus.SoftBounce, DateTimeOffset.UtcNow.AddDays(-2), "mailbox full"));
+        sendEvents.Save(SendEvent.Pending(Guid.NewGuid(), "client@test.local", "soft@test.local")
+            .ApplyDeliveryStatus(DeliveryStatus.SoftBounce, DateTimeOffset.UtcNow.AddDays(-1), "temporary unavailable"));
+
+        await using var stream = ToStream("email\nsoft@test.local\n");
+        var result = await service.ImportAsync(new ImportRecipientsCommand("client@test.local", created.Mailing!.Id, "list.csv", stream, Request));
+
+        Assert.True(result.Ok);
+        Assert.Equal(1, result.Stats.Accepted);
+        Assert.Single(result.Mailing!.Recipients);
+        Assert.Contains(result.Mailing.LastImportBatch!.Issues, issue =>
+            issue.Email == "soft@test.local" &&
+            issue.Message.Contains("Временные ошибки доставки ранее: 2", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Import_requires_email_column()
     {
         var mailings = new InMemoryMailingRepository();
@@ -58,6 +92,7 @@ public sealed class RecipientImportServiceTests
             mailings,
             new InMemoryGlobalSuppressionRepository(),
             new InMemoryClientSuppressionRepository(),
+            new InMemorySendEventRepository(),
             new EmailNormalizer(),
             new EmailSyntaxValidator(),
             new InMemoryAuditLogger());
