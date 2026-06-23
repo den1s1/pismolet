@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using System.Text;
+using ClosedXML.Excel;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
@@ -16,6 +17,7 @@ public static class SendEndpoints
     {
         app.MapGet("/mailings/{id:guid}/send", ShowSend).RequireAuthorization();
         app.MapGet("/mailings/{id:guid}/send/export.csv", ExportCsv).RequireAuthorization();
+        app.MapGet("/mailings/{id:guid}/send/export.xlsx", ExportXlsx).RequireAuthorization();
         app.MapPost("/mailings/{id:guid}/send/start", StartSend).RequireAuthorization();
         app.MapPost("/mailings/{id:guid}/send/resume", ResumeSend).RequireAuthorization();
         return app;
@@ -46,6 +48,22 @@ public static class SendEndpoints
         var bytes = encoding.GetPreamble().Concat(encoding.GetBytes(csv)).ToArray();
         var fileName = $"pismolet-mailing-{id:N}-report.csv";
         return Results.File(bytes, "text/csv; charset=utf-8", fileName);
+    }
+
+    private static IResult ExportXlsx(Guid id, HttpContext http, IMailingSendService sender, IClickTrackingRepository clicks)
+    {
+        var email = CurrentEmail(http);
+        if (email is null) return Results.Redirect("/account/login");
+
+        var result = sender.GetState(email, id);
+        if (result.State is null)
+        {
+            return Results.NotFound("Рассылка не найдена.");
+        }
+
+        var bytes = BuildXlsxReport(result.State, clicks.ListLinksByMailingId(id));
+        var fileName = $"pismolet-mailing-{id:N}-report.xlsx";
+        return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
 
     private static IResult StartSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
@@ -213,13 +231,74 @@ public static class SendEndpoints
                 <details open><summary>Доставка по получателям</summary><table><thead><tr><th>Email</th><th>Доставка</th><th>Последнее событие</th><th>Причина</th></tr></thead><tbody>{deliveryRows}</tbody></table></details>
                 <details open><summary>Переходы по ссылкам</summary><table><thead><tr><th>Email</th><th>Ссылка</th><th>Кликов</th><th>Первый клик</th><th>Последний клик</th></tr></thead><tbody>{clickRows}</tbody></table></details>
                 <details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Последнее событие доставки</th><th>Открыто</th><th>Открытий</th><th>Последнее открытие</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details>
-                <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a><a class='btn ghost' href='/mailings/{mailing.Id}/send/export.csv'>Скачать CSV-отчёт</a></div>
+                <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a><a class='btn ghost' href='/mailings/{mailing.Id}/send/export.xlsx'>Скачать Excel-отчёт</a></div>
               </section>
             </section>
             """;
     }
 
     private static string BuildCsvReport(MailingSendState state, IReadOnlyCollection<TrackedLink> trackedLinks)
+    {
+        var csv = new StringBuilder();
+        AppendCsvRow(csv, ReportHeaders);
+
+        foreach (var row in BuildReportRows(state, trackedLinks))
+        {
+            AppendCsvRow(csv,
+                row.Email,
+                row.SendStatus,
+                row.DeliveryStatus,
+                row.OpenCount,
+                row.FirstOpenedAt,
+                row.LastOpenedAt,
+                row.ClickCount,
+                row.FirstClickedAt,
+                row.LastClickedAt,
+                row.DeliveryErrorReason);
+        }
+
+        return csv.ToString();
+    }
+
+    private static byte[] BuildXlsxReport(MailingSendState state, IReadOnlyCollection<TrackedLink> trackedLinks)
+    {
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Отчёт");
+
+        for (var column = 0; column < ReportHeaders.Length; column++)
+        {
+            worksheet.Cell(1, column + 1).Value = ReportHeaders[column];
+        }
+
+        var rowNumber = 2;
+        foreach (var row in BuildReportRows(state, trackedLinks))
+        {
+            worksheet.Cell(rowNumber, 1).Value = row.Email;
+            worksheet.Cell(rowNumber, 2).Value = row.SendStatus;
+            worksheet.Cell(rowNumber, 3).Value = row.DeliveryStatus;
+            worksheet.Cell(rowNumber, 4).Value = row.OpenCount;
+            worksheet.Cell(rowNumber, 5).Value = row.FirstOpenedAt;
+            worksheet.Cell(rowNumber, 6).Value = row.LastOpenedAt;
+            worksheet.Cell(rowNumber, 7).Value = row.ClickCount;
+            worksheet.Cell(rowNumber, 8).Value = row.FirstClickedAt;
+            worksheet.Cell(rowNumber, 9).Value = row.LastClickedAt;
+            worksheet.Cell(rowNumber, 10).Value = row.DeliveryErrorReason;
+            rowNumber++;
+        }
+
+        var usedRange = worksheet.Range(1, 1, Math.Max(rowNumber - 1, 1), ReportHeaders.Length);
+        usedRange.SetAutoFilter();
+        worksheet.Row(1).Style.Font.Bold = true;
+        worksheet.SheetView.FreezeRows(1);
+        worksheet.Columns().AdjustToContents();
+        worksheet.Column(10).Width = Math.Max(worksheet.Column(10).Width, 45);
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    private static IReadOnlyCollection<ReportRow> BuildReportRows(MailingSendState state, IReadOnlyCollection<TrackedLink> trackedLinks)
     {
         var clickStats = trackedLinks
             .GroupBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase)
@@ -231,40 +310,36 @@ public static class SendEndpoints
                     x.Where(y => y.LastClickedAt is not null).Select(y => y.LastClickedAt).OrderByDescending(y => y).FirstOrDefault()),
                 StringComparer.OrdinalIgnoreCase);
 
-        var csv = new StringBuilder();
-        AppendCsvRow(csv,
-            "Email",
-            "Статус отправки",
-            "Статус доставки",
-            "Открытий",
-            "Первое открытие UTC",
-            "Последнее открытие UTC",
-            "Кликов",
-            "Первый клик UTC",
-            "Последний клик UTC",
-            "Причина ошибки доставки");
-
-        foreach (var sendEvent in state.Events.OrderBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase))
-        {
-            clickStats.TryGetValue(sendEvent.RecipientEmail, out var clicks);
-            AppendCsvRow(csv,
-                sendEvent.RecipientEmail,
-                sendEvent.Status.ToRu(),
-                sendEvent.DeliveryStatus.ToRu(),
-                sendEvent.OpenCount.ToString(),
-                FormatCsvDate(sendEvent.FirstOpenedAt),
-                FormatCsvDate(sendEvent.LastOpenedAt),
-                (clicks?.ClickCount ?? 0).ToString(),
-                FormatCsvDate(clicks?.FirstClickedAt),
-                FormatCsvDate(clicks?.LastClickedAt),
-                DeliveryErrorReason(sendEvent));
-        }
-
-        return csv.ToString();
+        return state.Events
+            .OrderBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase)
+            .Select(sendEvent =>
+            {
+                clickStats.TryGetValue(sendEvent.RecipientEmail, out var clicks);
+                return new ReportRow(
+                    sendEvent.RecipientEmail,
+                    sendEvent.Status.ToRu(),
+                    sendEvent.DeliveryStatus.ToRu(),
+                    sendEvent.OpenCount.ToString(),
+                    FormatReportDate(sendEvent.FirstOpenedAt),
+                    FormatReportDate(sendEvent.LastOpenedAt),
+                    (clicks?.ClickCount ?? 0).ToString(),
+                    FormatReportDate(clicks?.FirstClickedAt),
+                    FormatReportDate(clicks?.LastClickedAt),
+                    DeliveryErrorReason(sendEvent));
+            })
+            .ToArray();
     }
 
     private static string DeliveryErrorReason(SendEvent sendEvent)
     {
+        var deliveryStatus = sendEvent.DeliveryStatus.ToString();
+        var hasDeliveryProblem = deliveryStatus is "SoftBounce" or "HardBounce" or "Rejected";
+        var hasSendProblem = sendEvent.Status is SendEventStatus.Failed or SendEventStatus.Skipped or SendEventStatus.Paused;
+        if (!hasDeliveryProblem && !hasSendProblem)
+        {
+            return string.Empty;
+        }
+
         if (!string.IsNullOrWhiteSpace(sendEvent.LastDeliverySummary)) return sendEvent.LastDeliverySummary;
         if (!string.IsNullOrWhiteSpace(sendEvent.ErrorMessage)) return sendEvent.ErrorMessage;
         if (!string.IsNullOrWhiteSpace(sendEvent.ErrorCode)) return sendEvent.ErrorCode;
@@ -378,7 +453,7 @@ public static class SendEndpoints
 
     private static string FormatDate(DateTimeOffset? value) => value is null ? "-" : value.Value.ToString("yyyy-MM-dd HH:mm");
 
-    private static string FormatCsvDate(DateTimeOffset? value) => value is null ? string.Empty : value.Value.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss");
+    private static string FormatReportDate(DateTimeOffset? value) => value is null ? string.Empty : value.Value.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss");
 
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
 
@@ -391,6 +466,20 @@ public static class SendEndpoints
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 
+    private static readonly string[] ReportHeaders =
+    {
+        "Email",
+        "Статус отправки",
+        "Статус доставки",
+        "Открытий",
+        "Первое открытие UTC",
+        "Последнее открытие UTC",
+        "Кликов",
+        "Первый клик UTC",
+        "Последний клик UTC",
+        "Причина ошибки доставки"
+    };
+
     private sealed record ClientSuppressionPreview(IReadOnlyCollection<ClientSuppressionPreviewItem> Items)
     {
         public static ClientSuppressionPreview Empty { get; } = new(Array.Empty<ClientSuppressionPreviewItem>());
@@ -401,4 +490,16 @@ public static class SendEndpoints
     private sealed record ClientSuppressionPreviewItem(string EmailNormalized, string Reason, DateTimeOffset? LastSeenAt, string? SourceProviderMessageId);
 
     private sealed record RecipientClickStats(int ClickCount, DateTimeOffset? FirstClickedAt, DateTimeOffset? LastClickedAt);
+
+    private sealed record ReportRow(
+        string Email,
+        string SendStatus,
+        string DeliveryStatus,
+        string OpenCount,
+        string FirstOpenedAt,
+        string LastOpenedAt,
+        string ClickCount,
+        string FirstClickedAt,
+        string LastClickedAt,
+        string DeliveryErrorReason);
 }
