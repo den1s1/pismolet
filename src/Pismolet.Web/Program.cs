@@ -84,6 +84,7 @@ app.MapPaymentEndpoints();
 app.MapCheckEndpoints();
 app.MapSendEndpoints();
 app.MapAdminEndpoints();
+app.MapAdminDeliveryEndpoints();
 app.MapAdminPaymentEndpoints();
 app.MapAdminSettingsEndpoints();
 app.MapAdminPostfixDeliveryEndpoints();
