@@ -83,6 +83,7 @@ jobs:
           fi
 
           rsync -az --delete \
+            --exclude 'cgi-bin/' \
             -e "ssh -i ~/.ssh/pismolet_public_html_deploy_key -p ${SSH_PORT}" \
             public_html/ \
             "${SSH_USER}@${SSH_HOST}:${SSH_REMOTE_PATH%/}/"
