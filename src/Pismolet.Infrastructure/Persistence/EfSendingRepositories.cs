@@ -110,7 +110,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         {
             entity.OwnerEmail = Normalize(sendEvent.OwnerEmail)!;
             entity.Status = sendEvent.Status.ToString();
-            entity.Reason = EnumName(sendEvent.Reason);
+            entity.Reason = SkipReasonName(sendEvent.Reason);
             entity.Provider = RequireNonEmpty(sendEvent.Provider, nameof(sendEvent.Provider));
             entity.ProviderMessageId = sendEvent.ProviderMessageId;
             entity.Attempt = sendEvent.Attempt;
@@ -149,7 +149,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         OwnerEmail = Normalize(sendEvent.OwnerEmail)!,
         RecipientEmail = Normalize(sendEvent.RecipientEmail)!,
         Status = sendEvent.Status.ToString(),
-        Reason = EnumName(sendEvent.Reason),
+        Reason = SkipReasonName(sendEvent.Reason),
         Provider = RequireNonEmpty(sendEvent.Provider, nameof(sendEvent.Provider)),
         ProviderMessageId = sendEvent.ProviderMessageId,
         Attempt = sendEvent.Attempt,
@@ -194,9 +194,8 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         return value.Trim();
     }
 
-    private static string EnumName<TEnum>(TEnum value)
-        where TEnum : struct, Enum =>
-        value.ToString() ?? throw new InvalidOperationException($"Enum {typeof(TEnum).Name} returned a null name.");
+    private static string SkipReasonName(SendSkipReason? value) =>
+        (value ?? SendSkipReason.None).ToString() ?? throw new InvalidOperationException($"Enum {nameof(SendSkipReason)} returned a null name.");
 
     private static string? NormalizeTrackingToken(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
