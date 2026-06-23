@@ -1,5 +1,7 @@
+using System.IO.Compression;
 using System.Net;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -50,30 +52,33 @@ public sealed class SendingWizardSmokeTests
         Assert.Contains("Последнее нажатие", html);
         Assert.Contains("Переходы по ссылкам", html);
         Assert.Contains("Ответов сейчас", html);
-        Assert.Contains("Скачать CSV-отчёт", html);
+        Assert.Contains("Скачать Excel-отчёт", html);
         Assert.DoesNotContain("Прочитано", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task Send_report_can_be_exported_as_csv()
+    public async Task Send_report_can_be_exported_as_xlsx()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
-        var mailingId = SeedMailing(factory, "CSV report campaign");
+        var mailingId = SeedMailing(factory, "Excel report campaign");
         using var client = CreateAuthenticatedClient(factory);
         await PrepareAndApprove(factory, client, mailingId);
         await client.PostAsync($"/mailings/{mailingId}/send/start", new FormUrlEncodedContent(new Dictionary<string, string>()));
 
-        var response = await client.GetAsync($"/mailings/{mailingId}/send/export.csv");
-        var csv = await response.Content.ReadAsStringAsync();
+        var response = await client.GetAsync($"/mailings/{mailingId}/send/export.xlsx");
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        var workbookText = ReadWorkbookText(bytes);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("text/csv", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("attachment", response.Content.Headers.ContentDisposition?.DispositionType ?? string.Empty);
-        Assert.Contains("Email,Статус отправки,Статус доставки,Открытий", csv);
-        Assert.Contains("reader1@example.test", csv);
-        Assert.Contains("reader2@example.test", csv);
-        Assert.Contains("Ожидаем статус доставки", csv);
+        Assert.True(bytes.Length > 1000);
+        Assert.Equal((byte)'P', bytes[0]);
+        Assert.Equal((byte)'K', bytes[1]);
+        Assert.Contains("reader1@example.test", workbookText);
+        Assert.Contains("reader2@example.test", workbookText);
+        Assert.Contains("Ожидаем статус доставки", workbookText);
     }
 
     [Fact]
@@ -94,6 +99,20 @@ public sealed class SendingWizardSmokeTests
         Assert.Contains("Стоимость", html);
         Assert.Contains("Статус", html);
         Assert.Contains("Открыть отправку", html);
+    }
+
+    private static string ReadWorkbookText(byte[] bytes)
+    {
+        using var archive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
+        var builder = new StringBuilder();
+        foreach (var entry in archive.Entries.Where(x => x.FullName.StartsWith("xl/worksheets/", StringComparison.OrdinalIgnoreCase) || string.Equals(x.FullName, "xl/sharedStrings.xml", StringComparison.OrdinalIgnoreCase)))
+        {
+            using var stream = entry.Open();
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            builder.Append(reader.ReadToEnd());
+        }
+
+        return builder.ToString();
     }
 
     private static async Task PrepareAndApprove(WebApplicationFactory<Program> factory, HttpClient client, Guid mailingId)
