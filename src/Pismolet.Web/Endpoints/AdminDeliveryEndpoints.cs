@@ -146,7 +146,7 @@ public static class AdminDeliveryEndpoints
             : string.Join(string.Empty, topClientRows.Select(row => ClientRow(row, days)));
         var suppressionClientRowsHtml = topSuppressionRows.Length == 0
             ? "<tr><td colspan='3'>Новых client suppression за выбранный период нет.</td></tr>"
-            : string.Join(string.Empty, topSuppressionRows.Select(SuppressionClientRowHtml));
+            : string.Join(string.Empty, topSuppressionRows.Select(row => SuppressionClientRowHtml(row, days)));
         var recentDeliveryRowsHtml = recentDeliveryRows.Length == 0
             ? "<tr><td colspan='6'>Проблем доставки за выбранный период нет.</td></tr>"
             : string.Join(string.Empty, recentDeliveryRows.Select(RecentDeliveryRowHtml));
@@ -325,7 +325,7 @@ public static class AdminDeliveryEndpoints
 
     private static string ClientRow(DeliveryClientRow row, int days) => $"<tr><td><a class='admin-link' href='/admin/delivery/client/{Uri.EscapeDataString(row.OwnerEmail)}?days={days}'>{H(row.OwnerEmail)}</a></td><td>{row.TotalProblems}</td><td>{row.HardBounce}</td><td>{row.SoftBounce}</td><td>{row.Rejected}</td><td>{row.Complaint}</td><td>{FormatDate(row.LastEventAt)}</td></tr>";
 
-    private static string SuppressionClientRowHtml(SuppressionClientRow row) => $"<tr><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(row.ClientId)}'>{H(row.ClientId)}</a></td><td>{row.Count}</td><td>{FormatDate(row.CreatedAt)}</td></tr>";
+    private static string SuppressionClientRowHtml(SuppressionClientRow row, int days) => $"<tr><td><a class='admin-link' href='/admin/delivery/client/{Uri.EscapeDataString(row.ClientId)}?days={days}'>{H(row.ClientId)}</a></td><td>{row.Count}</td><td>{FormatDate(row.CreatedAt)}</td></tr>";
 
     private static string RecentDeliveryRowHtml(RecentDeliveryRow row) => $"<tr><td>{H(row.OwnerEmail)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a></td><td><span class='admin-badge'>{H(DeliveryStatusText(row.DeliveryStatus))}</span></td><td>{FormatDate(row.EventAt)}</td><td>{H(row.ProviderMessageId)}</td><td>{H(Shorten(row.Summary, 180))}</td></tr>";
 
