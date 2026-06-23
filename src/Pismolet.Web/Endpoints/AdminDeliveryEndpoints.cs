@@ -41,7 +41,9 @@ public static class AdminDeliveryEndpoints
         var rejectedCount = sendEvents.Count(x => x.DeliveryStatus == rejected);
         var complaintCount = sendEvents.Count(x => x.DeliveryStatus == complaint);
 
-        var clientSuppressions = db.ClientSuppressions.AsNoTracking().Where(x => x.LastSeenAt >= since);
+        // Production may contain client_suppressions created before LastSeenAt was introduced.
+        // The admin overview only needs a stable creation timestamp, so use CreatedAt here.
+        var clientSuppressions = db.ClientSuppressions.AsNoTracking().Where(x => x.CreatedAt >= since);
         var clientSuppressionCount = clientSuppressions.Count();
         var totalClientSuppressionCount = db.ClientSuppressions.AsNoTracking().Count();
 
@@ -66,7 +68,7 @@ public static class AdminDeliveryEndpoints
             .Select(group => new SuppressionClientRow(
                 group.Key,
                 group.Count(),
-                group.Max(x => x.LastSeenAt)))
+                group.Max(x => x.CreatedAt)))
             .OrderByDescending(row => row.Count)
             .ThenBy(row => row.ClientId)
             .Take(20)
@@ -88,7 +90,7 @@ public static class AdminDeliveryEndpoints
 
         var recentSuppressionRows = db.ClientSuppressions
             .AsNoTracking()
-            .OrderByDescending(x => x.LastSeenAt)
+            .OrderByDescending(x => x.CreatedAt)
             .ThenBy(x => x.EmailNormalized)
             .Take(RecentLimit)
             .Select(x => new RecentSuppressionRow(
@@ -97,7 +99,7 @@ public static class AdminDeliveryEndpoints
                 x.Reason,
                 x.SourceMailingId,
                 x.SourceProviderMessageId,
-                x.LastSeenAt))
+                x.CreatedAt))
             .ToArray();
 
         var stats = $"""
@@ -153,7 +155,7 @@ public static class AdminDeliveryEndpoints
                 <div class='section-head'><div><p class='eyebrow'>Клиенты</p><h2>Client suppression за период</h2></div></div>
                 <div class='admin-table-wrap'>
                     <table class='admin-table'>
-                        <thead><tr><th>Клиент</th><th>Адресов в suppression</th><th>Последнее обновление</th></tr></thead>
+                        <thead><tr><th>Клиент</th><th>Адресов в suppression</th><th>Дата создания</th></tr></thead>
                         <tbody>{suppressionClientRowsHtml}</tbody>
                     </table>
                 </div>
@@ -169,7 +171,7 @@ public static class AdminDeliveryEndpoints
                 <div class='section-head'><div><p class='eyebrow'>Последние события</p><h2>Client suppression</h2></div></div>
                 <div class='admin-table-wrap'>
                     <table class='admin-table'>
-                        <thead><tr><th>Клиент</th><th>Email</th><th>Причина</th><th>Рассылка</th><th>Provider ID</th><th>Дата</th></tr></thead>
+                        <thead><tr><th>Клиент</th><th>Email</th><th>Причина</th><th>Рассылка</th><th>Provider ID</th><th>Дата создания</th></tr></thead>
                         <tbody>{recentSuppressionRowsHtml}</tbody>
                     </table>
                 </div>
@@ -188,11 +190,11 @@ public static class AdminDeliveryEndpoints
 
     private static string ClientRow(DeliveryClientRow row) => $"<tr><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(row.OwnerEmail)}'>{H(row.OwnerEmail)}</a></td><td>{row.TotalProblems}</td><td>{row.HardBounce}</td><td>{row.SoftBounce}</td><td>{row.Rejected}</td><td>{row.Complaint}</td><td>{FormatDate(row.LastEventAt)}</td></tr>";
 
-    private static string SuppressionClientRowHtml(SuppressionClientRow row) => $"<tr><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(row.ClientId)}'>{H(row.ClientId)}</a></td><td>{row.Count}</td><td>{FormatDate(row.LastSeenAt)}</td></tr>";
+    private static string SuppressionClientRowHtml(SuppressionClientRow row) => $"<tr><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(row.ClientId)}'>{H(row.ClientId)}</a></td><td>{row.Count}</td><td>{FormatDate(row.CreatedAt)}</td></tr>";
 
     private static string RecentDeliveryRowHtml(RecentDeliveryRow row) => $"<tr><td>{H(row.OwnerEmail)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a></td><td><span class='admin-badge'>{H(DeliveryStatusText(row.DeliveryStatus))}</span></td><td>{FormatDate(row.EventAt)}</td><td>{H(row.ProviderMessageId)}</td><td>{H(Shorten(row.Summary, 180))}</td></tr>";
 
-    private static string RecentSuppressionRowHtml(RecentSuppressionRow row) => $"<tr><td>{H(row.ClientId)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a></td><td>{H(row.Reason)}</td><td>{(row.SourceMailingId is null ? "-" : $"<a class='admin-link' href='/admin/campaigns/{row.SourceMailingId}'>Открыть</a>")}</td><td>{H(row.ProviderMessageId)}</td><td>{FormatDate(row.LastSeenAt)}</td></tr>";
+    private static string RecentSuppressionRowHtml(RecentSuppressionRow row) => $"<tr><td>{H(row.ClientId)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a></td><td>{H(row.Reason)}</td><td>{(row.SourceMailingId is null ? "-" : $"<a class='admin-link' href='/admin/campaigns/{row.SourceMailingId}'>Открыть</a>")}</td><td>{H(row.ProviderMessageId)}</td><td>{FormatDate(row.CreatedAt)}</td></tr>";
 
     private static string DeliveryStatusText(string value) => value switch
     {
@@ -224,9 +226,9 @@ public static class AdminDeliveryEndpoints
 
     private sealed record DeliveryClientRow(string OwnerEmail, int TotalProblems, int HardBounce, int SoftBounce, int Rejected, int Complaint, DateTimeOffset LastEventAt);
 
-    private sealed record SuppressionClientRow(string ClientId, int Count, DateTimeOffset LastSeenAt);
+    private sealed record SuppressionClientRow(string ClientId, int Count, DateTimeOffset CreatedAt);
 
     private sealed record RecentDeliveryRow(string OwnerEmail, string Email, string DeliveryStatus, DateTimeOffset EventAt, string? ProviderMessageId, string? Summary);
 
-    private sealed record RecentSuppressionRow(string ClientId, string Email, string Reason, Guid? SourceMailingId, string? ProviderMessageId, DateTimeOffset LastSeenAt);
+    private sealed record RecentSuppressionRow(string ClientId, string Email, string Reason, Guid? SourceMailingId, string? ProviderMessageId, DateTimeOffset CreatedAt);
 }
