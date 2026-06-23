@@ -55,6 +55,32 @@ public sealed class InMemorySendEventRepository : ISendEventRepository
             .ToArray();
     }
 
+    public IReadOnlyCollection<SoftBounceDeliveryStats> ListSoftBounceStats(string ownerEmail, IEnumerable<string> normalizedEmails)
+    {
+        var normalizedOwner = ownerEmail.Trim().ToLowerInvariant();
+        var emails = normalizedEmails
+            .Select(x => x.Trim().ToLowerInvariant())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (emails.Count == 0)
+        {
+            return Array.Empty<SoftBounceDeliveryStats>();
+        }
+
+        return _items.Values
+            .Where(x =>
+                string.Equals(x.OwnerEmail, normalizedOwner, StringComparison.OrdinalIgnoreCase) &&
+                x.DeliveryStatus == DeliveryStatus.SoftBounce &&
+                emails.Contains(x.RecipientEmail))
+            .GroupBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new SoftBounceDeliveryStats(
+                group.Key,
+                group.Count(),
+                group.Where(x => x.LastDeliveryEventAt is not null).Select(x => x.LastDeliveryEventAt).OrderByDescending(x => x).FirstOrDefault(),
+                group.OrderByDescending(x => x.LastDeliveryEventAt ?? x.UpdatedAt).Select(x => x.LastDeliverySummary).FirstOrDefault()))
+            .ToArray();
+    }
+
     public void Save(SendEvent sendEvent) => _items[Key(sendEvent.MailingId, sendEvent.RecipientEmail)] = sendEvent;
 
     public MailingSendSummary GetSummary(Guid mailingId, int totalAcceptedRecipients)
