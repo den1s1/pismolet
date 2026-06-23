@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Infrastructure.Database;
@@ -19,7 +20,7 @@ public static class AdminDeliveryEndpoints
         return app;
     }
 
-    private static IResult ShowDeliveryOverview(HttpContext http, PismoletDbContext db)
+    private static IResult ShowDeliveryOverview(HttpContext http, [FromServices] PismoletDbContext db)
     {
         var adminEmail = CurrentEmail(http) ?? "admin@example.test";
         var days = ReadDays(http);
