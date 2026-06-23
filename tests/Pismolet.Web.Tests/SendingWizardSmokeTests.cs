@@ -50,7 +50,30 @@ public sealed class SendingWizardSmokeTests
         Assert.Contains("Последнее нажатие", html);
         Assert.Contains("Переходы по ссылкам", html);
         Assert.Contains("Ответов сейчас", html);
+        Assert.Contains("Скачать CSV-отчёт", html);
         Assert.DoesNotContain("Прочитано", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Send_report_can_be_exported_as_csv()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory, "CSV report campaign");
+        using var client = CreateAuthenticatedClient(factory);
+        await PrepareAndApprove(factory, client, mailingId);
+        await client.PostAsync($"/mailings/{mailingId}/send/start", new FormUrlEncodedContent(new Dictionary<string, string>()));
+
+        var response = await client.GetAsync($"/mailings/{mailingId}/send/export.csv");
+        var csv = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/csv", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("attachment", response.Content.Headers.ContentDisposition?.DispositionType ?? string.Empty);
+        Assert.Contains("Email,Статус отправки,Статус доставки,Открытий", csv);
+        Assert.Contains("reader1@example.test", csv);
+        Assert.Contains("reader2@example.test", csv);
+        Assert.Contains("Ожидаем статус доставки", csv);
     }
 
     [Fact]
