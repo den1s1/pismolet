@@ -73,11 +73,13 @@ public sealed class RecipientImportService(
     IMailingRepository mailings,
     IGlobalSuppressionRepository optOuts,
     IClientSuppressionRepository clientSuppressions,
+    ISendEventRepository sendEvents,
     IEmailNormalizer normalizer,
     IEmailSyntaxValidator validator,
     IAuditLogger audit) : IRecipientImportService
 {
     public const int MaxRows = 1000;
+    public const int SoftBounceWarningThreshold = 2;
 
     private sealed record ParsedRecipientRow(int RowNumber, string RawEmail, string NormalizedEmail, bool SyntaxValid);
 
@@ -164,6 +166,10 @@ public sealed class RecipientImportService(
             .ToArray();
         var suppressedSet = optOuts.GetSuppressedSet(validEmails);
         var clientSuppressedSet = clientSuppressions.GetSuppressedSet(userEmail, validEmails);
+        var softBounceWarnings = sendEvents
+            .ListSoftBounceStats(userEmail, validEmails)
+            .Where(x => x.SoftBounceCount >= SoftBounceWarningThreshold)
+            .ToDictionary(x => x.EmailNormalized, StringComparer.OrdinalIgnoreCase);
 
         var accepted = new List<Recipient>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -212,6 +218,13 @@ public sealed class RecipientImportService(
             else
             {
                 accepted.Add(Recipient.Accepted(row.RawEmail, row.NormalizedEmail));
+                if (softBounceWarnings.TryGetValue(row.NormalizedEmail, out var warning))
+                {
+                    issues.Add(new RecipientImportIssue(
+                        row.RowNumber,
+                        row.NormalizedEmail,
+                        $"Временные ошибки доставки ранее: {warning.SoftBounceCount}. Адрес не исключён."));
+                }
             }
         }
 
