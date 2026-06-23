@@ -1,0 +1,88 @@
+name: Deploy public_html to pismolet.ru
+
+on:
+  push:
+    branches:
+      - Development
+    paths:
+      - 'public_html/**'
+      - '.github/workflows/deploy-public-html.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: public-html-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy static site
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout public_html only
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            public_html
+          sparse-checkout-cone-mode: true
+
+      - name: Prepare SSH key and known_hosts
+        env:
+          SSH_HOST: ${{ secrets.PUBLIC_HTML_SSH_HOST }}
+          SSH_PORT: ${{ secrets.PUBLIC_HTML_SSH_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.PUBLIC_HTML_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PUBLIC_HTML_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$SSH_HOST" ]; then
+            echo "PUBLIC_HTML_SSH_HOST is not set" >&2
+            exit 1
+          fi
+
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "PUBLIC_HTML_SSH_PRIVATE_KEY is not set" >&2
+            exit 1
+          fi
+
+          SSH_PORT="${SSH_PORT:-22}"
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/pismolet_public_html_deploy_key
+          chmod 600 ~/.ssh/pismolet_public_html_deploy_key
+
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
+          fi
+
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy public_html contents via rsync
+        env:
+          SSH_HOST: ${{ secrets.PUBLIC_HTML_SSH_HOST }}
+          SSH_PORT: ${{ secrets.PUBLIC_HTML_SSH_PORT }}
+          SSH_USER: ${{ secrets.PUBLIC_HTML_SSH_USER }}
+          SSH_REMOTE_PATH: ${{ secrets.PUBLIC_HTML_REMOTE_PATH }}
+        run: |
+          set -euo pipefail
+
+          SSH_PORT="${SSH_PORT:-22}"
+
+          if [ -z "$SSH_USER" ]; then
+            echo "PUBLIC_HTML_SSH_USER is not set" >&2
+            exit 1
+          fi
+
+          if [ -z "$SSH_REMOTE_PATH" ]; then
+            echo "PUBLIC_HTML_REMOTE_PATH is not set" >&2
+            exit 1
+          fi
+
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/pismolet_public_html_deploy_key -p ${SSH_PORT}" \
+            public_html/ \
+            "${SSH_USER}@${SSH_HOST}:${SSH_REMOTE_PATH%/}/"
