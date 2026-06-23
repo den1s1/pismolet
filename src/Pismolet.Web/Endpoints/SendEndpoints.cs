@@ -129,7 +129,7 @@ public static class SendEndpoints
                 .OrderByDescending(x => x.LastDeliveryEventAt ?? x.CreatedAt)
                 .ThenBy(x => x.RecipientEmail)
                 .Take(50)
-                .Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{FormatDate(x.LastDeliveryEventAt)}</td><td>{H(ShortText(x.LastDeliverySummary))}</td></tr>"));
+                .Select(x => $"<tr><td>{H(x.RecipientEmail)}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{FormatDate(x.LastDeliveryEventAt)}</td><td>{H(ShortText(x.LastDeliverySummary))}</td></tr>"));
 
         var clickRows = trackedLinks.Count == 0
             ? "<tr><td colspan='5'>Отслеживаемые ссылки пока не созданы.</td></tr>"
@@ -137,11 +137,11 @@ public static class SendEndpoints
                 .OrderByDescending(x => x.LastClickedAt ?? x.CreatedAt)
                 .ThenBy(x => x.RecipientEmail)
                 .Take(20)
-                .Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(ShortUrl(x.OriginalUrl))}</td><td>{x.ClickCount}</td><td>{FormatDate(x.FirstClickedAt)}</td><td>{FormatDate(x.LastClickedAt)}</td></tr>"));
+                .Select(x => $"<tr><td>{H(x.RecipientEmail)}</td><td>{H(ShortUrl(x.OriginalUrl))}</td><td>{x.ClickCount}</td><td>{FormatDate(x.FirstClickedAt)}</td><td>{FormatDate(x.LastClickedAt)}</td></tr>"));
 
         var devRows = state.Events.Count == 0
             ? "<tr><td colspan='8'>Событий отправки пока нет.</td></tr>"
-            : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(MaskEmail(x.RecipientEmail))}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{FormatDate(x.LastDeliveryEventAt)}</td><td>{(x.FirstOpenedAt is null ? "Нет" : "Да")}</td><td>{x.OpenCount}</td><td>{FormatDate(x.LastOpenedAt)}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
+            : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(x.RecipientEmail)}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{FormatDate(x.LastDeliveryEventAt)}</td><td>{(x.FirstOpenedAt is null ? "Нет" : "Да")}</td><td>{x.OpenCount}</td><td>{FormatDate(x.LastOpenedAt)}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
         var clientSuppressionBlock = ClientSuppressionPreviewBlock(suppressionPreview);
 
         return $"""
@@ -250,7 +250,7 @@ public static class SendEndpoints
 
         var rows = string.Join(string.Empty, preview.Items
             .Take(50)
-            .Select(x => $"<tr><td>{H(MaskEmail(x.EmailNormalized))}</td><td>{H(SuppressionReasonRu(x.Reason))}</td><td>{FormatDate(x.LastSeenAt)}</td><td>{H(x.SourceProviderMessageId ?? "-")}</td></tr>"));
+            .Select(x => $"<tr><td>{H(x.EmailNormalized)}</td><td>{H(SuppressionReasonRu(x.Reason))}</td><td>{FormatDate(x.LastSeenAt)}</td><td>{H(x.SourceProviderMessageId ?? "-")}</td></tr>"));
         var hidden = preview.Count > 50
             ? $"<p class='muted'>Показаны первые 50 адресов из {preview.Count}.</p>"
             : string.Empty;
@@ -277,12 +277,6 @@ public static class SendEndpoints
     }
 
     private static int CountDeliveryStatus(IEnumerable<SendEvent> events, string status) => events.Count(x => string.Equals(x.DeliveryStatus.ToString(), status, StringComparison.Ordinal));
-
-    private static string MaskEmail(string email)
-    {
-        var at = email.IndexOf('@');
-        return at <= 1 ? email : $"{email[..1]}***{email[at..]}";
-    }
 
     private static string SuppressionReasonRu(string reason) => reason switch
     {
