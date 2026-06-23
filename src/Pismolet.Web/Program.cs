@@ -72,6 +72,7 @@ if (app.Environment.IsDevelopment() && !isRunningUnderTests)
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAdminSuppressions();
 app.UseAdminCampaignDeliveryAnalytics();
 app.UseAdminCampaignOpenAnalytics();
 app.UseAdminCampaignClickAnalytics();
