@@ -89,7 +89,7 @@ public static class DashboardEndpoints
         var replyInfo = replySummary.TotalReplies == 0
             ? "Ответов пока нет."
             : $"Ответы: {replySummary.TotalReplies}; последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC; статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}.";
-        var body = $"<section class='card'><h1>{H(mailing.Subject)}</h1><p><span class='badge'>{mailing.StatusRu}</span></p>{importInfo}<p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}.</p><h2>Ответы получателей</h2><p>{replyInfo}</p><p class='muted'>Ответы пересылаются клиенту на email отправителя; здесь показывается только счётчик и безопасный статус.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
+        var body = $"<section class='card'><h1>{H(mailing.Subject)}</h1><p><span class='badge'>{mailing.StatusRu}</span></p>{importInfo}<p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных: {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}; исключены из-за ошибок доставки {stats.ClientSuppressed}.</p><h2>Ответы получателей</h2><p>{replyInfo}</p><p class='muted'>Ответы пересылаются клиенту на email отправителя; здесь показывается только счётчик и безопасный статус.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
         return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка", body, authenticated: true));
     }
 
@@ -316,14 +316,14 @@ public static class DashboardEndpoints
     private static string ImportResultWizard(Mailing mailing)
     {
         var stats = mailing.LastImportStats;
-        var issues = mailing.LastImportBatch?.Issues.Take(10).ToArray() ?? Array.Empty<RecipientImportIssue>();
+        var allIssues = mailing.LastImportBatch?.Issues.ToArray() ?? Array.Empty<RecipientImportIssue>();
+        var warningIssues = allIssues.Where(IsWarningIssue).Take(10).ToArray();
+        var excludedIssues = allIssues.Where(issue => !IsWarningIssue(issue)).Take(10).ToArray();
         var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
-        var issueRows = issues.Length == 0
-            ? "<p class='muted'>Ошибок в первых строках не найдено.</p>"
-            : string.Join("", issues.Select(issue => $"<li><b>Строка {issue.RowNumber}</b><span>{H(issue.Email)}</span><em>{H(issue.Message)}</em></li>"));
-        var issueBlock = issues.Length == 0
-            ? issueRows
-            : $"<ul class='issue-list'>{issueRows}</ul>";
+        var warningsBlock = warningIssues.Length == 0
+            ? string.Empty
+            : $"<h2>Предупреждения</h2>{IssueBlock(warningIssues, "Предупреждений нет.")}";
+        var excludedBlock = IssueBlock(excludedIssues, "Исключённых адресов нет.");
 
         return $@"
 <section class='wizard-shell'>
@@ -344,8 +344,9 @@ public static class DashboardEndpoints
       <div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div>
       <div class='stat'><b>{stats.GloballySuppressed}</b><span>Ранее отписались</span></div>
     </div>
+    {warningsBlock}
     <h2>Что исключено</h2>
-    {issueBlock}
+    {excludedBlock}
     <div class='actions'>
       <a class='button' href='/mailings/{mailing.Id}/declaration'>Перейти к следующему шагу</a>
       <a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Загрузить другой список</a>
@@ -353,6 +354,20 @@ public static class DashboardEndpoints
   </section>
 </section>";
     }
+
+    private static string IssueBlock(IReadOnlyCollection<RecipientImportIssue> issues, string emptyText)
+    {
+        if (issues.Count == 0)
+        {
+            return $"<p class='muted'>{H(emptyText)}</p>";
+        }
+
+        var rows = string.Join("", issues.Select(issue => $"<li><b>Строка {issue.RowNumber}</b><span>{H(issue.Email)}</span><em>{H(issue.Message)}</em></li>"));
+        return $"<ul class='issue-list'>{rows}</ul>";
+    }
+
+    private static bool IsWarningIssue(RecipientImportIssue issue) =>
+        issue.Message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase);
 
     private static string? ValidateManualAddresses(string value)
     {
@@ -370,10 +385,7 @@ public static class DashboardEndpoints
         return null;
     }
 
-    private static string ToManualCsv(string value)
-    {
-        return "email\n" + string.Join('\n', ManualAddressLines(value));
-    }
+    private static string ToManualCsv(string value) => "email\n" + string.Join('\n', ManualAddressLines(value));
 
     private static IEnumerable<string> ManualAddressLines(string value) => value
         .Replace("\r\n", "\n", StringComparison.Ordinal)
@@ -529,7 +541,7 @@ public static class DashboardEndpoints
 
     private static MessageType TryParseMessageType(string value) => Enum.TryParse<MessageType>(value, out var type) ? type : MessageType.Transactional;
 
-    private static Pismolet.Web.Domain.Mailings.Mailing? GetMailing(Guid id, HttpContext http, IMailingService mailings)
+    private static Mailing? GetMailing(Guid id, HttpContext http, IMailingService mailings)
     {
         var email = CurrentEmail(http);
         return email is null ? null : mailings.GetForOwner(id, email);
