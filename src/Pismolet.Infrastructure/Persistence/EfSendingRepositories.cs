@@ -111,7 +111,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
             entity.OwnerEmail = Normalize(sendEvent.OwnerEmail)!;
             entity.Status = sendEvent.Status.ToString();
             entity.Reason = sendEvent.Reason.ToString();
-            entity.Provider = sendEvent.Provider;
+            entity.Provider = RequireNonEmpty(sendEvent.Provider, nameof(sendEvent.Provider));
             entity.ProviderMessageId = sendEvent.ProviderMessageId;
             entity.Attempt = sendEvent.Attempt;
             entity.ErrorCode = sendEvent.ErrorCode;
@@ -150,7 +150,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         RecipientEmail = Normalize(sendEvent.RecipientEmail)!,
         Status = sendEvent.Status.ToString(),
         Reason = sendEvent.Reason.ToString(),
-        Provider = sendEvent.Provider,
+        Provider = RequireNonEmpty(sendEvent.Provider, nameof(sendEvent.Provider)),
         ProviderMessageId = sendEvent.ProviderMessageId,
         Attempt = sendEvent.Attempt,
         ErrorCode = sendEvent.ErrorCode,
@@ -182,6 +182,16 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         }
 
         return email.Trim().ToLowerInvariant();
+    }
+
+    private static string RequireNonEmpty(string? value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException($"{parameterName} must not be empty.", parameterName);
+        }
+
+        return value.Trim();
     }
 
     private static string? NormalizeTrackingToken(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
