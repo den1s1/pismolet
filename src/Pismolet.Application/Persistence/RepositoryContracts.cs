@@ -136,6 +136,12 @@ public interface IModerationActionLogRepository
     IReadOnlyCollection<ModerationActionLog> ListForReview(Guid reviewId);
 }
 
+public sealed record SoftBounceDeliveryStats(
+    string EmailNormalized,
+    int SoftBounceCount,
+    DateTimeOffset? LastSoftBounceAt,
+    string? LastDeliverySummary);
+
 public interface ISendEventRepository
 {
     SendEvent? Get(Guid mailingId, string recipientEmail);
@@ -151,6 +157,8 @@ public interface ISendEventRepository
     int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate);
 
     IReadOnlyCollection<MailWarmupAcceptedSend> ListAcceptedForWarmupWindow(string ownerEmail, DateTimeOffset sinceUtc);
+
+    IReadOnlyCollection<SoftBounceDeliveryStats> ListSoftBounceStats(string ownerEmail, IEnumerable<string> normalizedEmails) => Array.Empty<SoftBounceDeliveryStats>();
 
     void Save(SendEvent sendEvent);
 
