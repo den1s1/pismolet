@@ -100,9 +100,9 @@ public static class AdminDeliveryClientDrilldownMiddleware
                     <div class='admin-stat'><b>{problemRows.Count(x => x.DeliveryStatus == complaint)}</b><span>Complaint</span></div>
                 </div>
                 <div class='section-head'><div><p class='eyebrow'>Рассылки</p><h2>Проблемные рассылки клиента</h2></div></div>
-                {Table("Рассылка|Всего проблем|Hard|Soft|Rejected|Complaint|Последнее событие", mailingRows, x => ClientMailingProblemRowHtml(x, mailingLookup), 7, "Проблемных рассылок за выбранный период нет.")}
+                {Table("Рассылка|Всего проблем|Hard|Soft|Rejected|Complaint|Последнее событие", mailingRows, x => ClientMailingProblemRowHtml(x, mailingLookup, days), 7, "Проблемных рассылок за выбранный период нет.")}
                 <div class='section-head'><div><p class='eyebrow'>События</p><h2>Последние проблемные события</h2></div></div>
-                {Table("Рассылка|Email|Доставка|Дата|Provider ID|Сводка", recentRows, x => ClientDeliveryEventRowHtml(x, mailingLookup), 6, "Проблемных событий за выбранный период нет.")}
+                {Table("Рассылка|Email|Доставка|Дата|Provider ID|Сводка", recentRows, x => ClientDeliveryEventRowHtml(x, mailingLookup, days), 6, "Проблемных событий за выбранный период нет.")}
                 <p><a class='admin-link' href='{backUrl}'>Вернуться к обзору доставки</a></p>
             </section>
             """;
@@ -119,18 +119,19 @@ public static class AdminDeliveryClientDrilldownMiddleware
 
     private static string Table<T>(string headers, IReadOnlyCollection<T> rows, Func<T, string> rowHtml, int columns, string emptyText) => $"<div class='admin-table-wrap'><table class='admin-table'><thead><tr>{string.Join(string.Empty, headers.Split('|').Select(x => $"<th>{H(x)}</th>"))}</tr></thead><tbody>{(rows.Count == 0 ? $"<tr><td colspan='{columns}'>{H(emptyText)}</td></tr>" : string.Join(string.Empty, rows.Select(rowHtml)))}</tbody></table></div>";
 
-    private static string ClientMailingProblemRowHtml(ClientMailingProblemRow row, IReadOnlyDictionary<Guid, MailingDisplayRow> mailings) => $"<tr><td>{MailingCell(row.MailingId, mailings)}</td><td>{row.TotalProblems}</td><td>{row.HardBounce}</td><td>{row.SoftBounce}</td><td>{row.Rejected}</td><td>{row.Complaint}</td><td>{FormatDate(row.LastEventAt)}</td></tr>";
+    private static string ClientMailingProblemRowHtml(ClientMailingProblemRow row, IReadOnlyDictionary<Guid, MailingDisplayRow> mailings, int days) => $"<tr><td>{MailingCell(row.MailingId, mailings, days)}</td><td>{row.TotalProblems}</td><td>{row.HardBounce}</td><td>{row.SoftBounce}</td><td>{row.Rejected}</td><td>{row.Complaint}</td><td>{FormatDate(row.LastEventAt)}</td></tr>";
 
-    private static string ClientDeliveryEventRowHtml(ClientDeliveryEventRow row, IReadOnlyDictionary<Guid, MailingDisplayRow> mailings) => $"<tr><td>{MailingCell(row.MailingId, mailings)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a></td><td><span class='admin-badge'>{H(row.DeliveryStatus)}</span></td><td>{FormatDate(row.EventAt)}</td><td>{H(row.ProviderMessageId)}</td><td>{H(Shorten(row.Summary, 180))}</td></tr>";
+    private static string ClientDeliveryEventRowHtml(ClientDeliveryEventRow row, IReadOnlyDictionary<Guid, MailingDisplayRow> mailings, int days) => $"<tr><td>{MailingCell(row.MailingId, mailings, days)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a></td><td><span class='admin-badge'>{H(row.DeliveryStatus)}</span></td><td>{FormatDate(row.EventAt)}</td><td>{H(row.ProviderMessageId)}</td><td>{H(Shorten(row.Summary, 180))}</td></tr>";
 
-    private static string MailingCell(Guid mailingId, IReadOnlyDictionary<Guid, MailingDisplayRow> mailings)
+    private static string MailingCell(Guid mailingId, IReadOnlyDictionary<Guid, MailingDisplayRow> mailings, int days)
     {
+        var href = $"/admin/delivery/mailing/{mailingId}?days={days}";
         if (!mailings.TryGetValue(mailingId, out var mailing))
         {
-            return $"<a class='admin-link' href='/admin/campaigns/{mailingId}'>Открыть</a><br><span class='admin-muted'>{mailingId}</span>";
+            return $"<a class='admin-link' href='{href}'>Открыть delivery</a><br><span class='admin-muted'>{mailingId}</span>";
         }
 
-        return $"<a class='admin-link' href='/admin/campaigns/{mailingId}'>{H(mailing.Subject)}</a><br><span class='admin-muted'>{H(mailing.CreatedAtText)} · {mailingId}</span>";
+        return $"<a class='admin-link' href='{href}'>{H(mailing.Subject)}</a><br><span class='admin-muted'>{H(mailing.CreatedAtText)} · {mailingId}</span>";
     }
 
     private static string Shorten(string? value, int maxLength)
