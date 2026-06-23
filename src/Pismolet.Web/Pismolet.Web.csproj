@@ -13,6 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="ClosedXML" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Pismolet.Domain\Pismolet.Domain.csproj" />
     <ProjectReference Include="..\Pismolet.Application\Pismolet.Application.csproj" />
     <ProjectReference Include="..\Pismolet.Infrastructure\Pismolet.Infrastructure.csproj" />
