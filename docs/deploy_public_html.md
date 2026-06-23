@@ -29,7 +29,17 @@ repo/public_html/assets/logo.svg -> pismolet.ru/assets/logo.svg
 Он запускается:
 
 - при push в ветку `Development`, если изменились файлы `public_html/**`;
+- при изменении самого workflow `.github/workflows/deploy-public-html.yml`;
 - вручную через `workflow_dispatch`.
+
+Workflow рассчитан на нестабильные SSH-сессии shared-хостинга:
+
+- старый незавершённый запуск отменяется при новом push;
+- у job есть общий таймаут 10 минут;
+- SSH подключается по IPv4;
+- для SSH задан `ConnectTimeout=20` и keepalive;
+- `rsync` делает до 3 попыток с паузой 20 секунд;
+- у `rsync` задан таймаут передачи 60 секунд.
 
 ## Требуемые GitHub Secrets
 
@@ -48,11 +58,13 @@ PUBLIC_HTML_SSH_KNOWN_HOSTS
 
 SSH-хост обычного хостинга.
 
-Пример:
+Для текущего хостинга Письмолёта используется IPv4-адрес:
 
 ```text
-server.example.ru
+92.53.96.243
 ```
+
+Причина: подключение по доменному имени `vh372.timeweb.ru` из GitHub Actions может быть нестабильным из-за сетевой маршрутизации, поэтому workflow принудительно использует IPv4.
 
 ### `PUBLIC_HTML_SSH_PORT`
 
@@ -67,6 +79,12 @@ SSH-порт. Обычно:
 ### `PUBLIC_HTML_SSH_USER`
 
 Пользователь SSH на хостинге.
+
+Для текущего хостинга:
+
+```text
+cf22657
+```
 
 ### `PUBLIC_HTML_SSH_PRIVATE_KEY`
 
@@ -102,10 +120,10 @@ SSH-порт. Обычно:
 
 Опционально, но желательно.
 
-Содержимое можно получить локально:
+Для текущего варианта с IPv4 содержимое можно получить локально:
 
 ```bash
-ssh-keyscan -p 22 HOSTNAME
+ssh-keyscan -p 22 92.53.96.243
 ```
 
 Если секрет не задан, workflow выполнит `ssh-keyscan` сам во время деплоя.
@@ -126,8 +144,28 @@ Settings -> Secrets and variables -> Actions -> Repository secrets
 
 1. открыть вкладку `Actions`;
 2. выбрать workflow `Deploy public_html to pismolet.ru`;
-3. запустить `Run workflow` на ветке `Development`;
+3. запустить `Run workflow` на ветке `Development` или сделать push в `public_html/**`;
 4. проверить, что на `pismolet.ru` обновились файлы из `public_html/`.
+
+Для проверки фактического деплоя можно временно добавить файл `public_html/deploy-test.txt`, дождаться успешного workflow и открыть:
+
+```text
+https://pismolet.ru/deploy-test.txt
+```
+
+После проверки тестовый файл нужно удалить из репозитория отдельным коммитом.
+
+## Если деплой зависает или падает по timeout
+
+Единичные ошибки SSH-соединения с shared-хостингом допустимы: workflow делает несколько попыток. Если все 3 попытки не прошли, можно повторно запустить failed jobs из GitHub Actions.
+
+Если таймауты становятся постоянными, резервная схема:
+
+```text
+GitHub Actions -> VPS/app.pismolet.ru -> Timeweb/pismolet.ru
+```
+
+То есть GitHub подключается к VPS, а VPS уже выполняет `rsync` на обычный хостинг.
 
 ## Важные правила
 
