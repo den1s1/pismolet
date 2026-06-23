@@ -134,7 +134,7 @@ public static class AdminSuppressionsMiddleware
             ? "-"
             : $"<a class='admin-link' href='/admin/delivery/mailing/{row.SourceMailingId}'>Delivery</a><br><span class='admin-muted'>{row.SourceMailingId}</span>";
         var client = $"<a class='admin-link' href='/admin/delivery/client/{Uri.EscapeDataString(row.ClientId)}'>{H(row.ClientId)}</a>";
-        var email = $"<a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a>";
+        var email = $"<a class='admin-link' href='/admin/suppressions/detail?client={Uri.EscapeDataString(row.ClientId)}&email={Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a>";
         return $"<tr><td>{client}</td><td>{email}</td><td><span class='admin-badge'>{H(row.Reason)}</span></td><td>{mailing}</td><td>{H(row.ProviderMessageId)}</td><td>{FormatDate(row.CreatedAt)}</td><td>{H(ReasonHint(row.Reason))}</td></tr>";
     }
 
