@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using System.Text;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
@@ -14,6 +15,7 @@ public static class SendEndpoints
     public static IEndpointRouteBuilder MapSendEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/mailings/{id:guid}/send", ShowSend).RequireAuthorization();
+        app.MapGet("/mailings/{id:guid}/send/export.csv", ExportCsv).RequireAuthorization();
         app.MapPost("/mailings/{id:guid}/send/start", StartSend).RequireAuthorization();
         app.MapPost("/mailings/{id:guid}/send/resume", ResumeSend).RequireAuthorization();
         return app;
@@ -26,6 +28,24 @@ public static class SendEndpoints
         var result = sender.GetState(email, id);
         var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
         return HtmlRenderer.Html(HtmlRenderer.Page("Запуск рассылки", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, null), authenticated: true));
+    }
+
+    private static IResult ExportCsv(Guid id, HttpContext http, IMailingSendService sender, IClickTrackingRepository clicks)
+    {
+        var email = CurrentEmail(http);
+        if (email is null) return Results.Redirect("/account/login");
+
+        var result = sender.GetState(email, id);
+        if (result.State is null)
+        {
+            return Results.NotFound("Рассылка не найдена.");
+        }
+
+        var csv = BuildCsvReport(result.State, clicks.ListLinksByMailingId(id));
+        var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+        var bytes = encoding.GetPreamble().Concat(encoding.GetBytes(csv)).ToArray();
+        var fileName = $"pismolet-mailing-{id:N}-report.csv";
+        return Results.File(bytes, "text/csv; charset=utf-8", fileName);
     }
 
     private static IResult StartSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
@@ -193,10 +213,75 @@ public static class SendEndpoints
                 <details open><summary>Доставка по получателям</summary><table><thead><tr><th>Email</th><th>Доставка</th><th>Последнее событие</th><th>Причина</th></tr></thead><tbody>{deliveryRows}</tbody></table></details>
                 <details open><summary>Переходы по ссылкам</summary><table><thead><tr><th>Email</th><th>Ссылка</th><th>Кликов</th><th>Первый клик</th><th>Последний клик</th></tr></thead><tbody>{clickRows}</tbody></table></details>
                 <details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Последнее событие доставки</th><th>Открыто</th><th>Открытий</th><th>Последнее открытие</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details>
-                <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a></div>
+                <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a><a class='btn ghost' href='/mailings/{mailing.Id}/send/export.csv'>Скачать CSV-отчёт</a></div>
               </section>
             </section>
             """;
+    }
+
+    private static string BuildCsvReport(MailingSendState state, IReadOnlyCollection<TrackedLink> trackedLinks)
+    {
+        var clickStats = trackedLinks
+            .GroupBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                x => x.Key,
+                x => new RecipientClickStats(
+                    x.Sum(y => y.ClickCount),
+                    x.Where(y => y.FirstClickedAt is not null).Select(y => y.FirstClickedAt).OrderBy(y => y).FirstOrDefault(),
+                    x.Where(y => y.LastClickedAt is not null).Select(y => y.LastClickedAt).OrderByDescending(y => y).FirstOrDefault()),
+                StringComparer.OrdinalIgnoreCase);
+
+        var csv = new StringBuilder();
+        AppendCsvRow(csv,
+            "Email",
+            "Статус отправки",
+            "Статус доставки",
+            "Открытий",
+            "Первое открытие UTC",
+            "Последнее открытие UTC",
+            "Кликов",
+            "Первый клик UTC",
+            "Последний клик UTC",
+            "Причина ошибки доставки");
+
+        foreach (var sendEvent in state.Events.OrderBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase))
+        {
+            clickStats.TryGetValue(sendEvent.RecipientEmail, out var clicks);
+            AppendCsvRow(csv,
+                sendEvent.RecipientEmail,
+                sendEvent.Status.ToRu(),
+                sendEvent.DeliveryStatus.ToRu(),
+                sendEvent.OpenCount.ToString(),
+                FormatCsvDate(sendEvent.FirstOpenedAt),
+                FormatCsvDate(sendEvent.LastOpenedAt),
+                (clicks?.ClickCount ?? 0).ToString(),
+                FormatCsvDate(clicks?.FirstClickedAt),
+                FormatCsvDate(clicks?.LastClickedAt),
+                DeliveryErrorReason(sendEvent));
+        }
+
+        return csv.ToString();
+    }
+
+    private static string DeliveryErrorReason(SendEvent sendEvent)
+    {
+        if (!string.IsNullOrWhiteSpace(sendEvent.LastDeliverySummary)) return sendEvent.LastDeliverySummary;
+        if (!string.IsNullOrWhiteSpace(sendEvent.ErrorMessage)) return sendEvent.ErrorMessage;
+        if (!string.IsNullOrWhiteSpace(sendEvent.ErrorCode)) return sendEvent.ErrorCode;
+        return sendEvent.Reason is null or SendSkipReason.None ? string.Empty : sendEvent.Reason.Value.ToString();
+    }
+
+    private static void AppendCsvRow(StringBuilder csv, params string?[] values)
+    {
+        csv.AppendLine(string.Join(',', values.Select(CsvCell)));
+    }
+
+    private static string CsvCell(string? value)
+    {
+        var text = value ?? string.Empty;
+        return text.IndexOfAny(new[] { ',', '"', '\r', '\n' }) < 0
+            ? text
+            : $"\"{text.Replace("\"", "\"\"")}\"";
     }
 
     private static ClientSuppressionPreview BuildClientSuppressionPreview(MailingSendResult result, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
@@ -293,6 +378,8 @@ public static class SendEndpoints
 
     private static string FormatDate(DateTimeOffset? value) => value is null ? "-" : value.Value.ToString("yyyy-MM-dd HH:mm");
 
+    private static string FormatCsvDate(DateTimeOffset? value) => value is null ? string.Empty : value.Value.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss");
+
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
 
     private static RequestMetadata ToRequestMetadata(HttpContext http)
@@ -312,4 +399,6 @@ public static class SendEndpoints
     }
 
     private sealed record ClientSuppressionPreviewItem(string EmailNormalized, string Reason, DateTimeOffset? LastSeenAt, string? SourceProviderMessageId);
+
+    private sealed record RecipientClickStats(int ClickCount, DateTimeOffset? FirstClickedAt, DateTimeOffset? LastClickedAt);
 }
