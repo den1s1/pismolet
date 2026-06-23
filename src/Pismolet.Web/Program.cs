@@ -75,6 +75,7 @@ app.UseAuthorization();
 app.UseAdminCampaignDeliveryAnalytics();
 app.UseAdminCampaignOpenAnalytics();
 app.UseAdminCampaignClickAnalytics();
+app.UseAdminDeliveryClientDrilldown();
 
 app.MapHomeEndpoints();
 app.MapAccountEndpoints();
