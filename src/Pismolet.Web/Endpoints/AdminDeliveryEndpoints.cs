@@ -17,6 +17,7 @@ public static class AdminDeliveryEndpoints
     public static IEndpointRouteBuilder MapAdminDeliveryEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/admin/delivery", ShowDeliveryOverview).RequireAuthorization(AdminEndpoints.AdminPolicyName);
+        app.MapGet("/admin/delivery/client/{ownerEmail}", ShowClientDeliveryDetails).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         return app;
     }
 
@@ -142,7 +143,7 @@ public static class AdminDeliveryEndpoints
             : $"<div class='admin-warning'>{H(suppressionLoadError)}</div>";
         var clientRowsHtml = topClientRows.Length == 0
             ? "<tr><td colspan='7'>Проблем доставки за выбранный период нет.</td></tr>"
-            : string.Join(string.Empty, topClientRows.Select(ClientRow));
+            : string.Join(string.Empty, topClientRows.Select(row => ClientRow(row, days)));
         var suppressionClientRowsHtml = topSuppressionRows.Length == 0
             ? "<tr><td colspan='3'>Новых client suppression за выбранный период нет.</td></tr>"
             : string.Join(string.Empty, topSuppressionRows.Select(SuppressionClientRowHtml));
@@ -210,19 +211,129 @@ public static class AdminDeliveryEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Админка - доставка", body, authenticated: true));
     }
 
+    private static IResult ShowClientDeliveryDetails(string ownerEmail, HttpContext http, [FromServices] PismoletDbContext db)
+    {
+        var days = ReadDays(http);
+        var since = DateTimeOffset.UtcNow.AddDays(-days);
+        var hardBounce = DeliveryStatus.HardBounce.ToString();
+        var softBounce = DeliveryStatus.SoftBounce.ToString();
+        var rejected = DeliveryStatus.Rejected.ToString();
+        var complaint = DeliveryStatus.Complaint.ToString();
+
+        var problemRows = db.SendEvents
+            .AsNoTracking()
+            .Where(x => x.OwnerEmail == ownerEmail && x.UpdatedAt >= since)
+            .Where(x => x.DeliveryStatus == hardBounce || x.DeliveryStatus == softBounce || x.DeliveryStatus == rejected || x.DeliveryStatus == complaint)
+            .Select(x => new ClientDeliveryEventRow(
+                x.MailingId,
+                x.RecipientEmail,
+                x.DeliveryStatus,
+                x.LastDeliveryEventAt ?? x.UpdatedAt,
+                x.ProviderMessageId,
+                x.LastDeliverySummary))
+            .ToArray();
+
+        var mailingRows = problemRows
+            .GroupBy(x => x.MailingId)
+            .Select(group => new ClientMailingProblemRow(
+                group.Key,
+                group.Count(),
+                group.Count(x => x.DeliveryStatus == hardBounce),
+                group.Count(x => x.DeliveryStatus == softBounce),
+                group.Count(x => x.DeliveryStatus == rejected),
+                group.Count(x => x.DeliveryStatus == complaint),
+                group.Max(x => x.EventAt)))
+            .OrderByDescending(x => x.TotalProblems)
+            .ThenByDescending(x => x.LastEventAt)
+            .Take(50)
+            .ToArray();
+
+        var recentRows = problemRows
+            .OrderByDescending(x => x.EventAt)
+            .ThenBy(x => x.Email)
+            .Take(RecentLimit)
+            .ToArray();
+
+        var totalProblems = problemRows.Length;
+        var hardBounceCount = problemRows.Count(x => x.DeliveryStatus == hardBounce);
+        var softBounceCount = problemRows.Count(x => x.DeliveryStatus == softBounce);
+        var rejectedCount = problemRows.Count(x => x.DeliveryStatus == rejected);
+        var complaintCount = problemRows.Count(x => x.DeliveryStatus == complaint);
+        var backUrl = $"/admin/delivery?days={days}";
+
+        var stats = $"""
+            <div class='admin-stats'>
+                <div class='admin-stat'><b>{totalProblems}</b><span>Проблем за {days} дн.</span></div>
+                <div class='admin-stat'><b>{hardBounceCount}</b><span>HardBounce</span></div>
+                <div class='admin-stat'><b>{softBounceCount}</b><span>SoftBounce</span></div>
+                <div class='admin-stat'><b>{rejectedCount}</b><span>Rejected</span></div>
+                <div class='admin-stat'><b>{complaintCount}</b><span>Complaint</span></div>
+            </div>
+            """;
+
+        var mailingRowsHtml = mailingRows.Length == 0
+            ? "<tr><td colspan='7'>Проблемных рассылок за выбранный период нет.</td></tr>"
+            : string.Join(string.Empty, mailingRows.Select(ClientMailingProblemRowHtml));
+        var recentRowsHtml = recentRows.Length == 0
+            ? "<tr><td colspan='6'>Проблемных событий за выбранный период нет.</td></tr>"
+            : string.Join(string.Empty, recentRows.Select(ClientDeliveryEventRowHtml));
+
+        var body = $"""
+            <section class='admin-panel'>
+                <div class='admin-title-row'>
+                    <div>
+                        <p class='eyebrow'>Доставка клиента</p>
+                        <h1>{H(ownerEmail)}</h1>
+                        <p class='admin-muted'>Drill-down по проблемным событиям доставки клиента за выбранный период.</p>
+                    </div>
+                    <a class='admin-export' href='{backUrl}'>К обзору доставки</a>
+                </div>
+                <form class='admin-filters' method='get' action='/admin/delivery/client/{Uri.EscapeDataString(ownerEmail)}'>
+                    <label>Период, дней<input type='number' min='1' max='{MaxDays}' name='days' value='{days}'></label>
+                    <button class='admin-button' type='submit'>Обновить</button>
+                    <a class='admin-link' href='/admin/delivery/client/{Uri.EscapeDataString(ownerEmail)}'>Сбросить</a>
+                </form>
+                {stats}
+
+                <div class='section-head'><div><p class='eyebrow'>Рассылки</p><h2>Проблемные рассылки клиента</h2></div></div>
+                <div class='admin-table-wrap'>
+                    <table class='admin-table'>
+                        <thead><tr><th>Рассылка</th><th>Всего проблем</th><th>Hard</th><th>Soft</th><th>Rejected</th><th>Complaint</th><th>Последнее событие</th></tr></thead>
+                        <tbody>{mailingRowsHtml}</tbody>
+                    </table>
+                </div>
+
+                <div class='section-head'><div><p class='eyebrow'>События</p><h2>Последние проблемные события</h2></div></div>
+                <div class='admin-table-wrap'>
+                    <table class='admin-table'>
+                        <thead><tr><th>Рассылка</th><th>Email</th><th>Доставка</th><th>Дата</th><th>Provider ID</th><th>Сводка</th></tr></thead>
+                        <tbody>{recentRowsHtml}</tbody>
+                    </table>
+                </div>
+                <p><a class='admin-link' href='{backUrl}'>Вернуться к обзору доставки</a></p>
+            </section>
+            """;
+
+        return HtmlRenderer.Html(HtmlRenderer.Page("Админка - доставка клиента", body, authenticated: true));
+    }
+
     private static int ReadDays(HttpContext http)
     {
         var raw = http.Request.Query["days"].ToString();
         return int.TryParse(raw, out var days) ? Math.Clamp(days, 1, MaxDays) : DefaultDays;
     }
 
-    private static string ClientRow(DeliveryClientRow row) => $"<tr><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(row.OwnerEmail)}'>{H(row.OwnerEmail)}</a></td><td>{row.TotalProblems}</td><td>{row.HardBounce}</td><td>{row.SoftBounce}</td><td>{row.Rejected}</td><td>{row.Complaint}</td><td>{FormatDate(row.LastEventAt)}</td></tr>";
+    private static string ClientRow(DeliveryClientRow row, int days) => $"<tr><td><a class='admin-link' href='/admin/delivery/client/{Uri.EscapeDataString(row.OwnerEmail)}?days={days}'>{H(row.OwnerEmail)}</a></td><td>{row.TotalProblems}</td><td>{row.HardBounce}</td><td>{row.SoftBounce}</td><td>{row.Rejected}</td><td>{row.Complaint}</td><td>{FormatDate(row.LastEventAt)}</td></tr>";
 
     private static string SuppressionClientRowHtml(SuppressionClientRow row) => $"<tr><td><a class='admin-link' href='/admin/users/{Uri.EscapeDataString(row.ClientId)}'>{H(row.ClientId)}</a></td><td>{row.Count}</td><td>{FormatDate(row.CreatedAt)}</td></tr>";
 
     private static string RecentDeliveryRowHtml(RecentDeliveryRow row) => $"<tr><td>{H(row.OwnerEmail)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a></td><td><span class='admin-badge'>{H(DeliveryStatusText(row.DeliveryStatus))}</span></td><td>{FormatDate(row.EventAt)}</td><td>{H(row.ProviderMessageId)}</td><td>{H(Shorten(row.Summary, 180))}</td></tr>";
 
     private static string RecentSuppressionRowHtml(RecentSuppressionRow row) => $"<tr><td>{H(row.ClientId)}</td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a></td><td>{H(row.Reason)}</td><td>{(row.SourceMailingId is null ? "-" : $"<a class='admin-link' href='/admin/campaigns/{row.SourceMailingId}'>Открыть</a>")}</td><td>{H(row.ProviderMessageId)}</td><td>{FormatDate(row.CreatedAt)}</td></tr>";
+
+    private static string ClientMailingProblemRowHtml(ClientMailingProblemRow row) => $"<tr><td><a class='admin-link' href='/admin/campaigns/{row.MailingId}'>Открыть</a><br><span class='admin-muted'>{row.MailingId}</span></td><td>{row.TotalProblems}</td><td>{row.HardBounce}</td><td>{row.SoftBounce}</td><td>{row.Rejected}</td><td>{row.Complaint}</td><td>{FormatDate(row.LastEventAt)}</td></tr>";
+
+    private static string ClientDeliveryEventRowHtml(ClientDeliveryEventRow row) => $"<tr><td><a class='admin-link' href='/admin/campaigns/{row.MailingId}'>Открыть</a></td><td><a class='admin-link' href='/admin/recipients/{Uri.EscapeDataString(row.Email)}'>{H(row.Email)}</a></td><td><span class='admin-badge'>{H(DeliveryStatusText(row.DeliveryStatus))}</span></td><td>{FormatDate(row.EventAt)}</td><td>{H(row.ProviderMessageId)}</td><td>{H(Shorten(row.Summary, 180))}</td></tr>";
 
     private static string DeliveryStatusText(string value) => value switch
     {
@@ -259,4 +370,8 @@ public static class AdminDeliveryEndpoints
     private sealed record RecentDeliveryRow(string OwnerEmail, string Email, string DeliveryStatus, DateTimeOffset EventAt, string? ProviderMessageId, string? Summary);
 
     private sealed record RecentSuppressionRow(string ClientId, string Email, string Reason, Guid? SourceMailingId, string? ProviderMessageId, DateTimeOffset CreatedAt);
+
+    private sealed record ClientMailingProblemRow(Guid MailingId, int TotalProblems, int HardBounce, int SoftBounce, int Rejected, int Complaint, DateTimeOffset LastEventAt);
+
+    private sealed record ClientDeliveryEventRow(Guid MailingId, string Email, string DeliveryStatus, DateTimeOffset EventAt, string? ProviderMessageId, string? Summary);
 }
