@@ -102,6 +102,7 @@ public static class AdminDeliveryMailingDrilldownMiddleware
                     <div class='admin-stat'><b>{Count(periodEvents, complaint)}</b><span>Complaint</span></div>
                 </div>
                 <p class='admin-muted'>NotReported за период: {Count(periodEvents, notReported)}. <a class='admin-link' href='/admin/campaigns/{mailingId}'>Открыть обычную страницу рассылки</a></p>
+                {RecommendationBlock(periodEvents, hard, soft, rejected, complaint)}
                 <div class='section-head'><div><p class='eyebrow'>События</p><h2>Проблемные события доставки этой рассылки</h2></div></div>
                 {Table(problemRows, ProblemEventRowHtml)}
                 <p><a class='admin-link' href='{ownerLink}'>Вернуться к доставке клиента</a></p>
@@ -126,6 +127,55 @@ public static class AdminDeliveryMailingDrilldownMiddleware
 
     private static int Count(IEnumerable<SendEvent> rows, string status) =>
         rows.Count(x => string.Equals(x.DeliveryStatus.ToString(), status, StringComparison.Ordinal));
+
+    private static string RecommendationBlock(IReadOnlyCollection<SendEvent> rows, string hard, string soft, string rejected, string complaint)
+    {
+        var hardCount = Count(rows, hard);
+        var softCount = Count(rows, soft);
+        var rejectedCount = Count(rows, rejected);
+        var complaintCount = Count(rows, complaint);
+        if (hardCount + softCount + rejectedCount + complaintCount == 0)
+        {
+            return "<div class='section-head'><div><p class='eyebrow'>Что делать</p><h2>Проблем доставки за выбранный период нет</h2><p class='admin-muted'>Дополнительных действий не требуется.</p></div></div>";
+        }
+
+        var items = new List<string>();
+        if (hardCount > 0)
+        {
+            items.Add($"<li><b>HardBounce:</b> {hardCount}. Постоянная ошибка доставки. Адреса с таким статусом считаются плохими и должны исключаться из будущих отправок через suppression.</li>");
+        }
+
+        if (softCount > 0)
+        {
+            var overQuota = rows.Any(x => string.Equals(x.DeliveryStatus.ToString(), soft, StringComparison.Ordinal) && ContainsAny(x.LastDeliverySummary, "out of storage", "over quota", "overquota", "mailbox full", "quota"));
+            var detail = overQuota
+                ? "Есть признаки переполненного ящика. Адрес не блокируем сразу: можно повторить позже, но при повторных SoftBounce держим как рискованный."
+                : "Временная ошибка доставки. Адрес не блокируем сразу, но повторные SoftBounce по этому адресу ухудшают качество базы.";
+            items.Add($"<li><b>SoftBounce:</b> {softCount}. {detail}</li>");
+        }
+
+        if (rejectedCount > 0)
+        {
+            items.Add($"<li><b>Rejected:</b> {rejectedCount}. Получающая сторона отклонила письмо. Нужно смотреть текст ошибки: возможны блокировка, политика домена или плохое содержимое письма.</li>");
+        }
+
+        if (complaintCount > 0)
+        {
+            items.Add($"<li><b>Complaint:</b> {complaintCount}. Жалоба получателя. Это высокий риск для репутации отправки: клиента и базу нужно проверять вручную.</li>");
+        }
+
+        return $"<div class='section-head'><div><p class='eyebrow'>Что делать</p><h2>Рекомендации по доставке</h2><ul class='admin-muted'>{string.Join(string.Empty, items)}</ul></div></div>";
+    }
+
+    private static bool ContainsAny(string? value, params string[] patterns)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return patterns.Any(pattern => value.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+    }
 
     private static string Table(IReadOnlyCollection<SendEvent> rows, Func<SendEvent, string> rowHtml) =>
         $"<div class='admin-table-wrap'><table class='admin-table'><thead><tr><th>Email</th><th>Доставка</th><th>Дата</th><th>Provider ID</th><th>Сводка</th></tr></thead><tbody>{(rows.Count == 0 ? "<tr><td colspan='5'>Проблемных событий за выбранный период нет.</td></tr>" : string.Join(string.Empty, rows.Select(rowHtml)))}</tbody></table></div>";
