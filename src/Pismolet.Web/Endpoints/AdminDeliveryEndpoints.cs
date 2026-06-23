@@ -22,7 +22,6 @@ public static class AdminDeliveryEndpoints
 
     private static IResult ShowDeliveryOverview(HttpContext http, [FromServices] PismoletDbContext db)
     {
-        var adminEmail = CurrentEmail(http) ?? "admin@example.test";
         var days = ReadDays(http);
         var since = DateTimeOffset.UtcNow.AddDays(-days);
         var hardBounce = DeliveryStatus.HardBounce.ToString();
@@ -41,44 +40,8 @@ public static class AdminDeliveryEndpoints
         var rejectedCount = sendEvents.Count(x => x.DeliveryStatus == rejected);
         var complaintCount = sendEvents.Count(x => x.DeliveryStatus == complaint);
 
-        // Production may contain client_suppressions created before LastSeenAt was introduced.
-        // The admin overview only needs a stable creation timestamp, so use CreatedAt here.
-        var clientSuppressions = db.ClientSuppressions.AsNoTracking().Where(x => x.CreatedAt >= since);
-        var clientSuppressionCount = clientSuppressions.Count();
-        var totalClientSuppressionCount = db.ClientSuppressions.AsNoTracking().Count();
-
-        var topClientRows = sendEvents
+        var problemRows = sendEvents
             .Where(x => x.DeliveryStatus == hardBounce || x.DeliveryStatus == softBounce || x.DeliveryStatus == rejected || x.DeliveryStatus == complaint)
-            .GroupBy(x => x.OwnerEmail)
-            .Select(group => new DeliveryClientRow(
-                group.Key,
-                group.Count(),
-                group.Count(x => x.DeliveryStatus == hardBounce),
-                group.Count(x => x.DeliveryStatus == softBounce),
-                group.Count(x => x.DeliveryStatus == rejected),
-                group.Count(x => x.DeliveryStatus == complaint),
-                group.Max(x => x.LastDeliveryEventAt ?? x.UpdatedAt)))
-            .OrderByDescending(row => row.TotalProblems)
-            .ThenBy(row => row.OwnerEmail)
-            .Take(20)
-            .ToArray();
-
-        var topSuppressionRows = clientSuppressions
-            .GroupBy(x => x.ClientId)
-            .Select(group => new SuppressionClientRow(
-                group.Key,
-                group.Count(),
-                group.Max(x => x.CreatedAt)))
-            .OrderByDescending(row => row.Count)
-            .ThenBy(row => row.ClientId)
-            .Take(20)
-            .ToArray();
-
-        var recentDeliveryRows = sendEvents
-            .Where(x => x.DeliveryStatus == hardBounce || x.DeliveryStatus == softBounce || x.DeliveryStatus == rejected || x.DeliveryStatus == complaint)
-            .OrderByDescending(x => x.LastDeliveryEventAt ?? x.UpdatedAt)
-            .ThenBy(x => x.RecipientEmail)
-            .Take(RecentLimit)
             .Select(x => new RecentDeliveryRow(
                 x.OwnerEmail,
                 x.RecipientEmail,
@@ -88,19 +51,80 @@ public static class AdminDeliveryEndpoints
                 x.LastDeliverySummary))
             .ToArray();
 
-        var recentSuppressionRows = db.ClientSuppressions
-            .AsNoTracking()
-            .OrderByDescending(x => x.CreatedAt)
-            .ThenBy(x => x.EmailNormalized)
-            .Take(RecentLimit)
-            .Select(x => new RecentSuppressionRow(
-                x.ClientId,
-                x.EmailNormalized,
-                x.Reason,
-                x.SourceMailingId,
-                x.SourceProviderMessageId,
-                x.CreatedAt))
+        var topClientRows = problemRows
+            .GroupBy(x => x.OwnerEmail)
+            .Select(group => new DeliveryClientRow(
+                group.Key,
+                group.Count(),
+                group.Count(x => x.DeliveryStatus == hardBounce),
+                group.Count(x => x.DeliveryStatus == softBounce),
+                group.Count(x => x.DeliveryStatus == rejected),
+                group.Count(x => x.DeliveryStatus == complaint),
+                group.Max(x => x.EventAt)))
+            .OrderByDescending(row => row.TotalProblems)
+            .ThenBy(row => row.OwnerEmail)
+            .Take(20)
             .ToArray();
+
+        var recentDeliveryRows = problemRows
+            .OrderByDescending(x => x.EventAt)
+            .ThenBy(x => x.Email)
+            .Take(RecentLimit)
+            .ToArray();
+
+        var clientSuppressionCount = 0;
+        var totalClientSuppressionCount = 0;
+        var topSuppressionRows = Array.Empty<SuppressionClientRow>();
+        var recentSuppressionRows = Array.Empty<RecentSuppressionRow>();
+        var suppressionLoadError = string.Empty;
+
+        try
+        {
+            // Production may contain client_suppressions created before later schema fields were introduced.
+            // Keep this block isolated so delivery diagnostics stay available even if suppression schema drifts.
+            var periodSuppressions = db.ClientSuppressions
+                .AsNoTracking()
+                .Where(x => x.CreatedAt >= since)
+                .Select(x => new RecentSuppressionRow(
+                    x.ClientId,
+                    x.EmailNormalized,
+                    x.Reason,
+                    x.SourceMailingId,
+                    x.SourceProviderMessageId,
+                    x.CreatedAt))
+                .ToArray();
+
+            clientSuppressionCount = periodSuppressions.Length;
+            totalClientSuppressionCount = db.ClientSuppressions.AsNoTracking().Count();
+            topSuppressionRows = periodSuppressions
+                .GroupBy(x => x.ClientId)
+                .Select(group => new SuppressionClientRow(
+                    group.Key,
+                    group.Count(),
+                    group.Max(x => x.CreatedAt)))
+                .OrderByDescending(row => row.Count)
+                .ThenBy(row => row.ClientId)
+                .Take(20)
+                .ToArray();
+
+            recentSuppressionRows = db.ClientSuppressions
+                .AsNoTracking()
+                .OrderByDescending(x => x.CreatedAt)
+                .ThenBy(x => x.EmailNormalized)
+                .Take(RecentLimit)
+                .Select(x => new RecentSuppressionRow(
+                    x.ClientId,
+                    x.EmailNormalized,
+                    x.Reason,
+                    x.SourceMailingId,
+                    x.SourceProviderMessageId,
+                    x.CreatedAt))
+                .ToArray();
+        }
+        catch (Exception ex)
+        {
+            suppressionLoadError = $"Client suppression временно недоступен: {ex.GetType().Name}: {ex.Message}";
+        }
 
         var stats = $"""
             <div class='admin-stats'>
@@ -113,6 +137,9 @@ public static class AdminDeliveryEndpoints
             </div>
             """;
 
+        var suppressionWarningHtml = string.IsNullOrWhiteSpace(suppressionLoadError)
+            ? string.Empty
+            : $"<div class='admin-warning'>{H(suppressionLoadError)}</div>";
         var clientRowsHtml = topClientRows.Length == 0
             ? "<tr><td colspan='7'>Проблем доставки за выбранный период нет.</td></tr>"
             : string.Join(string.Empty, topClientRows.Select(ClientRow));
@@ -142,6 +169,7 @@ public static class AdminDeliveryEndpoints
                     <a class='admin-link' href='/admin/delivery'>Сбросить</a>
                 </form>
                 {stats}
+                {suppressionWarningHtml}
                 <p class='admin-muted'>Accepted за период: {acceptedCount}. Complaint за период: {complaintCount}. Всего client suppression в базе: {totalClientSuppressionCount}.</p>
 
                 <div class='section-head'><div><p class='eyebrow'>Клиенты</p><h2>Проблемы доставки за период</h2></div></div>
