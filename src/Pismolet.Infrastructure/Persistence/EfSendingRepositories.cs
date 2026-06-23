@@ -68,6 +68,36 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
             .ToArray();
     }
 
+    public IReadOnlyCollection<SoftBounceDeliveryStats> ListSoftBounceStats(string ownerEmail, IEnumerable<string> normalizedEmails)
+    {
+        var normalizedOwner = Normalize(ownerEmail);
+        var emails = normalizedEmails
+            .Select(Normalize)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (emails.Length == 0)
+        {
+            return Array.Empty<SoftBounceDeliveryStats>();
+        }
+
+        return db.SendEvents
+            .AsNoTracking()
+            .Where(x =>
+                x.OwnerEmail == normalizedOwner &&
+                x.DeliveryStatus == DeliveryStatus.SoftBounce.ToString() &&
+                emails.Contains(x.RecipientEmail))
+            .Select(x => new { x.RecipientEmail, x.LastDeliveryEventAt, x.LastDeliverySummary, x.UpdatedAt })
+            .AsEnumerable()
+            .GroupBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new SoftBounceDeliveryStats(
+                group.Key,
+                group.Count(),
+                group.Where(x => x.LastDeliveryEventAt is not null).Select(x => x.LastDeliveryEventAt).OrderByDescending(x => x).FirstOrDefault(),
+                group.OrderByDescending(x => x.LastDeliveryEventAt ?? x.UpdatedAt).Select(x => x.LastDeliverySummary).FirstOrDefault()))
+            .ToArray();
+    }
+
     public void Save(SendEvent sendEvent)
     {
         var recipientEmail = Normalize(sendEvent.RecipientEmail);
