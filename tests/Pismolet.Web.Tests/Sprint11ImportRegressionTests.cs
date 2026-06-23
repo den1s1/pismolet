@@ -70,11 +70,12 @@ public sealed class Sprint11ImportRegressionTests
     private static RecipientImportService CreateService(out InMemoryMailingRepository mailings, out TestImportState state)
     {
         mailings = new InMemoryMailingRepository();
-        state = new TestImportState(new InMemoryGlobalSuppressionRepository(), new InMemoryClientSuppressionRepository());
+        state = new TestImportState(new InMemoryGlobalSuppressionRepository(), new InMemoryClientSuppressionRepository(), new InMemorySendEventRepository());
         return new RecipientImportService(
             mailings,
             state.GlobalSuppressions,
             state.ClientSuppressions,
+            state.SendEvents,
             new EmailNormalizer(),
             new EmailSyntaxValidator(),
             new InMemoryAuditLogger());
@@ -96,5 +97,6 @@ public sealed class Sprint11ImportRegressionTests
 
     private sealed record TestImportState(
         InMemoryGlobalSuppressionRepository GlobalSuppressions,
-        InMemoryClientSuppressionRepository ClientSuppressions);
+        InMemoryClientSuppressionRepository ClientSuppressions,
+        InMemorySendEventRepository SendEvents);
 }
