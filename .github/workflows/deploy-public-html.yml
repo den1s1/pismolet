@@ -17,7 +17,7 @@ jobs:
   deploy:
     name: Deploy static site
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 3
 
     steps:
       - name: Checkout public_html only
@@ -57,7 +57,7 @@ jobs:
           if [ -n "$SSH_KNOWN_HOSTS" ]; then
             printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           else
-            ssh-keyscan -4 -T 20 -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
+            ssh-keyscan -4 -T 8 -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
           fi
 
           chmod 644 ~/.ssh/known_hosts
@@ -83,28 +83,28 @@ jobs:
             exit 1
           fi
 
-          SSH_COMMAND="ssh -4 -i ~/.ssh/pismolet_public_html_deploy_key -p ${SSH_PORT} -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3"
+          SSH_COMMAND="ssh -4 -i ~/.ssh/pismolet_public_html_deploy_key -p ${SSH_PORT} -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=5 -o ServerAliveCountMax=2"
           RSYNC_COMMAND=(
             rsync -az --delete
             --exclude 'cgi-bin/'
-            --timeout=60
+            --timeout=30
             -e "$SSH_COMMAND"
             public_html/
             "${SSH_USER}@${SSH_HOST}:${SSH_REMOTE_PATH%/}/"
           )
 
-          for attempt in 1 2 3; do
-            echo "Deploy attempt ${attempt}/3"
+          for attempt in 1 2; do
+            echo "Deploy attempt ${attempt}/2"
             if "${RSYNC_COMMAND[@]}"; then
               echo "Deploy completed"
               exit 0
             fi
 
-            if [ "$attempt" -lt 3 ]; then
-              echo "Deploy attempt ${attempt} failed; retrying in 20 seconds"
-              sleep 20
+            if [ "$attempt" -lt 2 ]; then
+              echo "Deploy attempt ${attempt} failed; retrying in 10 seconds"
+              sleep 10
             fi
           done
 
-          echo "Deploy failed after 3 attempts" >&2
+          echo "Deploy failed after 2 attempts" >&2
           exit 1
