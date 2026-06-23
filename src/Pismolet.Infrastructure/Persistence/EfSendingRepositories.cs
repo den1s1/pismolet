@@ -108,7 +108,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         }
         else
         {
-            entity.OwnerEmail = Normalize(sendEvent.OwnerEmail);
+            entity.OwnerEmail = Normalize(sendEvent.OwnerEmail)!;
             entity.Status = sendEvent.Status.ToString();
             entity.Reason = sendEvent.Reason.ToString();
             entity.Provider = sendEvent.Provider;
@@ -146,8 +146,8 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
     {
         Id = sendEvent.Id == Guid.Empty ? Guid.NewGuid() : sendEvent.Id,
         MailingId = sendEvent.MailingId,
-        OwnerEmail = Normalize(sendEvent.OwnerEmail),
-        RecipientEmail = Normalize(sendEvent.RecipientEmail),
+        OwnerEmail = Normalize(sendEvent.OwnerEmail)!,
+        RecipientEmail = Normalize(sendEvent.RecipientEmail)!,
         Status = sendEvent.Status.ToString(),
         Reason = sendEvent.Reason.ToString(),
         Provider = sendEvent.Provider,
