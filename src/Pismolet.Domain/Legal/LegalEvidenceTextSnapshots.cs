@@ -13,4 +13,7 @@ public static class LegalEvidenceTextSnapshots
 
     public const string CampaignLaunchConfirmationText =
         "Клиент подтвердил финальный запуск рассылки и поручил Письмолёту поставить письма в очередь отправки.";
+
+    public const string GlobalUnsubscribeConfirmationText =
+        "Получатель подтвердил отписку от писем через сервис Письмолёт по ссылке отписки.";
 }
