@@ -1,8 +1,11 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Legal;
+using Pismolet.Web.Domain.Legal;
 using Pismolet.Web.Rendering;
 
 namespace Pismolet.Web.Endpoints;
@@ -44,7 +47,10 @@ public static class AccountEndpoints
         return app;
     }
 
-    private static async Task<IResult> Register(HttpContext http, IUserAccountService accounts)
+    private static async Task<IResult> Register(
+        HttpContext http,
+        IUserAccountService accounts,
+        ILegalEvidenceService legalEvidence)
     {
         var form = await http.Request.ReadFormAsync();
         if (!IsChecked(form, "acceptOffer") || !IsChecked(form, "acceptPrivacy"))
@@ -58,11 +64,14 @@ public static class AccountEndpoints
             DisplayName: form["displayName"].ToString(),
             Phone: form["phone"].ToString());
 
-        var result = accounts.Register(command, ToRequestMetadata(http));
+        var request = ToRequestMetadata(http);
+        var result = accounts.Register(command, request);
         if (!result.Ok)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error(result.Error)));
         }
+
+        RecordRegistrationConsentEvents(command, request, legalEvidence);
 
         const string body = "<section class='card'><h1>Аккаунт создан</h1><p>Мы отправили ссылку подтверждения на указанный email. Перейдите по ней, чтобы активировать аккаунт.</p><p><a class='button' href='/account/login'>К странице входа</a></p></section>";
         return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение", body));
@@ -120,6 +129,63 @@ public static class AccountEndpoints
         return Results.Redirect("/");
     }
 
+    private static void RecordRegistrationConsentEvents(
+        RegisterUserCommand command,
+        RequestMetadata request,
+        ILegalEvidenceService legalEvidence)
+    {
+        var email = NormalizeEmail(command.Email);
+        var metadata = JsonSerializer.Serialize(new
+        {
+            command.DisplayName,
+            command.Phone,
+            source = "registration_form",
+            offerAccepted = true,
+            personalDataConsentAccepted = true
+        });
+
+        RecordRegistrationConsentEvent(
+            legalEvidence,
+            LegalEventTypes.OfferAndRulesAccepted,
+            LegalDocumentKeys.OfferAndRules,
+            LegalEvidenceTextSnapshots.OfferAndRulesAcceptanceText,
+            email,
+            request,
+            metadata);
+
+        RecordRegistrationConsentEvent(
+            legalEvidence,
+            LegalEventTypes.ClientPersonalDataConsentAccepted,
+            LegalDocumentKeys.ClientPersonalDataConsent,
+            LegalEvidenceTextSnapshots.ClientPersonalDataConsentText,
+            email,
+            request,
+            metadata);
+    }
+
+    private static void RecordRegistrationConsentEvent(
+        ILegalEvidenceService legalEvidence,
+        string eventType,
+        string documentKey,
+        string snapshot,
+        string email,
+        RequestMetadata request,
+        string metadataJson) => legalEvidence.RecordEvent(new LegalEvidenceEventDraft(
+            EventType: eventType,
+            ClientId: email,
+            UserId: email,
+            ImportBatchId: null,
+            MailingId: null,
+            DocumentKey: documentKey,
+            DocumentVersion: LegalEvidenceTextSnapshots.CurrentVersion,
+            TextHash: legalEvidence.ComputeTextHash(snapshot),
+            EventTextSnapshot: snapshot,
+            Result: LegalEventResults.Accepted,
+            Ip: request.Ip,
+            UserAgent: request.UserAgent,
+            Route: "/account/register",
+            MetadataJson: metadataJson));
+
     private static bool IsChecked(IFormCollection form, string key)
     {
         var value = form[key].ToString();
@@ -135,4 +201,6 @@ public static class AccountEndpoints
 
         return new RequestMetadata(ip, string.IsNullOrWhiteSpace(userAgent) ? "unknown" : userAgent);
     }
+
+    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 }
