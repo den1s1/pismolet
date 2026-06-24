@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pismolet.Web.Application.Audit;
+using Pismolet.Web.Application.Mail;
 using Xunit;
 
 namespace Pismolet.IntegrationTests;
@@ -20,7 +21,7 @@ public sealed class Sprint3FlowTests
         var client = CreateClient(factory);
         var email = UniqueEmail();
 
-        await RegisterAndLoginAsync(client, email);
+        await RegisterAndLoginAsync(factory, client, email);
         var mailingId = await CreateMailingAndImportCsvAsync(client);
 
         var declaration = await client.PostAsync($"/mailings/{mailingId}/declaration", new FormUrlEncodedContent(new Dictionary<string, string>
@@ -66,7 +67,7 @@ public sealed class Sprint3FlowTests
         using var factory = CreateFactory();
         var client = CreateClient(factory);
 
-        await RegisterAndLoginAsync(client, UniqueEmail());
+        await RegisterAndLoginAsync(factory, client, UniqueEmail());
         var mailingId = await CreateMailingAndImportCsvAsync(client);
 
         var response = await client.PostAsync($"/mailings/{mailingId}/declaration", new FormUrlEncodedContent(new Dictionary<string, string>
@@ -86,7 +87,7 @@ public sealed class Sprint3FlowTests
         using var factory = CreateFactory();
         var client = CreateClient(factory);
 
-        await RegisterAndLoginAsync(client, UniqueEmail());
+        await RegisterAndLoginAsync(factory, client, UniqueEmail());
         var mailingId = await CreateMailingAndImportCsvAsync(client);
 
         var response = await client.GetAsync($"/mailings/{mailingId}/message");
@@ -112,19 +113,26 @@ public sealed class Sprint3FlowTests
         AllowAutoRedirect = false
     });
 
-    private static async Task RegisterAndLoginAsync(HttpClient client, string email)
+    private static async Task RegisterAndLoginAsync(WebApplicationFactory<Program> factory, HttpClient client, string email)
     {
         const string password = "Password123!";
         var register = await client.PostAsync("/account/register", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["email"] = email,
             ["password"] = password,
-            ["displayName"] = "Тестовый пользователь"
+            ["displayName"] = "Тестовый Пользователь",
+            ["phone"] = "+79990000000"
         }));
 
         Assert.Equal(HttpStatusCode.OK, register.StatusCode);
-        var registerBody = await register.Content.ReadAsStringAsync();
-        var confirmLink = ExtractHref(registerBody, "/account/confirm-email");
+
+        var fakeMailer = factory.Services.GetRequiredService<IFakeMailer>();
+        var confirmLink = fakeMailer
+            .GetOutbox()
+            .FirstOrDefault(message => message.To.Equals(email, StringComparison.OrdinalIgnoreCase)
+                && message.Link.Contains("/account/confirm-email", StringComparison.Ordinal))
+            ?.Link;
+        Assert.False(string.IsNullOrWhiteSpace(confirmLink), "В тестовом outbox не найдена ссылка подтверждения email.");
 
         var confirm = await client.GetAsync(confirmLink);
         Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
@@ -164,20 +172,6 @@ public sealed class Sprint3FlowTests
         Assert.Contains("<b>1</b><span>Принято к отправке</span>", body);
 
         return mailingId;
-    }
-
-    private static string ExtractHref(string html, string requiredPath)
-    {
-        foreach (Match match in Regex.Matches(html, "href='(?<href>[^']+)'").Cast<Match>())
-        {
-            var href = match.Groups["href"].Value;
-            if (href.Contains(requiredPath, StringComparison.Ordinal))
-            {
-                return href;
-            }
-        }
-
-        throw new InvalidOperationException($"В HTML не найдена ссылка на {requiredPath}.");
     }
 
     private static string UniqueEmail() => $"user-{Guid.NewGuid():N}@example.com";
