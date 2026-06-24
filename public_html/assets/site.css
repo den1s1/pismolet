@@ -51,25 +51,36 @@ h3 { font-size: 22px; }
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
   min-width: 205px;
   text-decoration: none;
   color: var(--text);
 }
 .brand-logo {
+  order: 0;
   width: 48px;
   height: 48px;
   display: block;
   flex: 0 0 48px;
+  margin-right: 12px;
 }
-.brand::after {
-  content: "Письмолёт";
+.brand::after,
+.brand::before {
   display: block;
-  color: var(--text);
   font-weight: 900;
   font-size: 25px;
   line-height: 1;
   letter-spacing: -0.045em;
+}
+.brand::after {
+  order: 1;
+  content: "Письмо";
+  color: var(--text);
+}
+.brand::before {
+  order: 2;
+  content: "лёт";
+  color: var(--accent);
+  margin-left: -1px;
 }
 .nav { display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 14px; flex-wrap: wrap; }
 .nav a { text-decoration: none; }
@@ -204,5 +215,6 @@ dl.details a,
   .panel-head { grid-template-columns: 1fr; }
   .brand { min-width: 0; }
   .brand-logo { width: 44px; height: 44px; flex-basis: 44px; }
-  .brand::after { font-size: 23px; }
+  .brand::after,
+  .brand::before { font-size: 23px; }
 }
