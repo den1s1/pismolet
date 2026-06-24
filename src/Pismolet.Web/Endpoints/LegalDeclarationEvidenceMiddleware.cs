@@ -1,4 +1,3 @@
-using System.Net;
 using System.Security.Claims;
 using System.Text.Json;
 using Pismolet.Web.Application.Common;
@@ -135,8 +134,8 @@ public sealed class LegalDeclarationEvidenceMiddleware(RequestDelegate next, ILo
                 mailingId,
                 LegalDocumentKeys.RecipientDataProcessingInstruction,
                 BaseDeclarationText.CurrentVersion,
-                legalEvidence.ComputeTextHash(BaseDeclarationText.RecipientDataProcessingInstructionText),
-                BaseDeclarationText.RecipientDataProcessingInstructionText,
+                legalEvidence.ComputeTextHash(LegalEvidenceTextSnapshots.RecipientDataProcessingInstructionText),
+                LegalEvidenceTextSnapshots.RecipientDataProcessingInstructionText,
                 LegalEventResults.Accepted,
                 request.Ip,
                 request.UserAgent,
@@ -154,8 +153,8 @@ public sealed class LegalDeclarationEvidenceMiddleware(RequestDelegate next, ILo
                 mailingId,
                 LegalDocumentKeys.AdvertisingConsentDeclaration,
                 BaseDeclarationText.CurrentVersion,
-                legalEvidence.ComputeTextHash(BaseDeclarationText.AdvertisingConsentText),
-                BaseDeclarationText.AdvertisingConsentText,
+                legalEvidence.ComputeTextHash(LegalEvidenceTextSnapshots.AdvertisingConsentText),
+                LegalEvidenceTextSnapshots.AdvertisingConsentText,
                 LegalEventResults.Declared,
                 request.Ip,
                 request.UserAgent,
