@@ -37,14 +37,16 @@ public sealed class EfLegalEvidenceRepository(LegalEvidenceDbContext db) : ILega
     public LegalDocumentVersion? GetDocumentVersion(string documentKey, string version) => db.LegalDocumentVersions
         .AsNoTracking()
         .Where(x => x.DocumentKey == documentKey && x.Version == version)
-        .Select(ToDomainExpression)
+        .AsEnumerable()
+        .Select(ToDomain)
         .SingleOrDefault();
 
     public LegalDocumentVersion? GetActiveDocumentVersion(string documentKey) => db.LegalDocumentVersions
         .AsNoTracking()
         .Where(x => x.DocumentKey == documentKey && x.IsActive)
         .OrderByDescending(x => x.CreatedAt)
-        .Select(ToDomainExpression)
+        .AsEnumerable()
+        .Select(ToDomain)
         .FirstOrDefault();
 
     public IReadOnlyCollection<LegalDocumentVersion> ListDocumentVersions(string? documentKey = null)
@@ -58,7 +60,8 @@ public sealed class EfLegalEvidenceRepository(LegalEvidenceDbContext db) : ILega
         return query
             .OrderBy(x => x.DocumentKey)
             .ThenByDescending(x => x.CreatedAt)
-            .Select(ToDomainExpression)
+            .AsEnumerable()
+            .Select(ToDomain)
             .ToList();
     }
 
@@ -78,7 +81,8 @@ public sealed class EfLegalEvidenceRepository(LegalEvidenceDbContext db) : ILega
             .Where(x => x.ClientId == normalizedClientId)
             .OrderByDescending(x => x.CreatedAt)
             .Take(take)
-            .Select(ToDomainExpression)
+            .AsEnumerable()
+            .Select(ToDomain)
             .ToList();
     }
 
@@ -114,7 +118,7 @@ public sealed class EfLegalEvidenceRepository(LegalEvidenceDbContext db) : ILega
         CreatedAt = legalEvent.CreatedAt
     };
 
-    private static readonly System.Linq.Expressions.Expression<Func<LegalDocumentVersionEntity, LegalDocumentVersion>> ToDomainExpression = entity => new LegalDocumentVersion(
+    private static LegalDocumentVersion ToDomain(LegalDocumentVersionEntity entity) => new(
         entity.Id,
         entity.DocumentKey,
         entity.Version,
@@ -124,7 +128,7 @@ public sealed class EfLegalEvidenceRepository(LegalEvidenceDbContext db) : ILega
         entity.IsActive,
         entity.CreatedAt);
 
-    private static readonly System.Linq.Expressions.Expression<Func<LegalEventEntity, LegalEvidenceEvent>> ToDomainExpression = entity => new LegalEvidenceEvent(
+    private static LegalEvidenceEvent ToDomain(LegalEventEntity entity) => new(
         entity.Id,
         entity.EventType,
         entity.ClientId,
