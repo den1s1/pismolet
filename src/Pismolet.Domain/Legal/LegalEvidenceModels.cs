@@ -32,6 +32,7 @@ public static class LegalDocumentKeys
 {
     public const string OfferAndRules = "offer_and_rules";
     public const string ClientPersonalDataConsent = "client_personal_data_consent";
+    public const string BaseSourceSelection = "base_source_selection";
     public const string BaseLawfulnessDeclaration = "base_lawfulness_declaration";
     public const string RecipientDataProcessingInstruction = "recipient_data_processing_instruction";
     public const string AdvertisingConsentDeclaration = "advertising_consent_declaration";
