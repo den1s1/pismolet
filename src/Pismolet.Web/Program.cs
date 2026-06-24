@@ -91,6 +91,7 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAdminMenuVisibility();
+app.UseUnifiedAdminSidebar();
 app.UseLegalDeclarationEvidenceCapture();
 app.UseMailingLaunchEvidenceCapture();
 app.UseAdminSuppressionDetail();
