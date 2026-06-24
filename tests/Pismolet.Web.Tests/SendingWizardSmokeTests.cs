@@ -210,7 +210,7 @@ public sealed class SendingWizardSmokeTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "Password123!", "Sending Smoke"), Request());
+        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "Password123!", "Sending Smoke", "+79990000000"), Request());
         Assert.True(result.Ok, result.Error);
     }
 
