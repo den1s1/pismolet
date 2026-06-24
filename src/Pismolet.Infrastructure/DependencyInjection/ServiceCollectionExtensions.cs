@@ -5,6 +5,7 @@ using Pismolet.Web.Application.Admin;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Imports;
+using Pismolet.Web.Application.Legal;
 using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
@@ -47,6 +48,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IProviderWebhookEventRepository, InMemoryProviderWebhookEventRepository>();
         services.AddSingleton<IClientSuppressionRepository, InMemoryClientSuppressionRepository>();
         services.AddSingleton<IReplyEventRepository, InMemoryReplyEventRepository>();
+        services.AddSingleton<ILegalEvidenceRepository, InMemoryLegalEvidenceRepository>();
         services.AddSingleton<IBackgroundMailingSendQueue, InlineMailingSendQueue>();
         services.AddSingleton<IBackgroundReplyQueue, InlineMailingSendQueue>();
         services.AddSingleton(new MailingSendOptions(ReadBatchSize(configuration)));
@@ -71,6 +73,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailWebhookProcessingService, EmailWebhookProcessingService>();
         services.AddScoped<IInboundReplyMatchingService, InboundReplyMatchingService>();
         services.AddScoped<IInboundReplyProcessingService, InboundReplyProcessingService>();
+        services.AddScoped<ILegalEvidenceService, LegalEvidenceService>();
         services.AddScoped<PostfixDeliveryLogIngestionService>();
         services.AddScoped<PostfixDeliveryLogReaderService>();
         services.AddScoped<DevSeedDataInitializer>();
@@ -92,6 +95,7 @@ public static class ServiceCollectionExtensions
         var connectionString = configuration.GetConnectionString("PismoletDb") ?? configuration.GetConnectionString("Pismolet") ?? configuration["PISMOLET_CONNECTION_STRING"] ?? Environment.GetEnvironmentVariable("PISMOLET_CONNECTION_STRING");
         if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("Для Postgres задайте строку подключения PismoletDb.");
         services.AddDbContext<PismoletDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<LegalEvidenceDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IMailingRepository, EfMailingRepository>();
         services.AddScoped<IGlobalSuppressionRepository, EfGlobalSuppressionRepository>();
