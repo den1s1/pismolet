@@ -98,7 +98,7 @@ public sealed class ProfileEndpointsTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(email, "Password123!", displayName), Request());
+        var result = accounts.Register(new RegisterUserCommand(email, "Password123!", displayName, "+79990000000"), Request());
         Assert.True(result.Ok, result.Error);
     }
 
