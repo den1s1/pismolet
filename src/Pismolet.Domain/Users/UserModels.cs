@@ -110,4 +110,7 @@ public sealed record UserAccount(
     string ConfirmationToken,
     bool EmailConfirmed,
     ClientProfile Profile,
-    List<Mailing> Mailings);
+    List<Mailing> Mailings)
+{
+    public string Phone { get; init; } = string.Empty;
+}
