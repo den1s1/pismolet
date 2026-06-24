@@ -11,7 +11,7 @@ using Pismolet.Web.Domain.Users;
 
 namespace Pismolet.Web.Application.Auth;
 
-public sealed record RegisterUserCommand(string Email, string Password, string DisplayName, string Phone = "+79990000000");
+public sealed record RegisterUserCommand(string Email, string Password, string DisplayName, string Phone);
 
 public sealed record LoginUserCommand(string Email, string Password);
 
