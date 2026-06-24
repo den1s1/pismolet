@@ -104,11 +104,10 @@ public static class HtmlRenderer
                 <p class='eyebrow'>Профиль</p>
                 <h1>{H(user.DisplayName)}</h1>
                 <p>Здесь собраны данные аккаунта, отправитель по умолчанию и лимиты, которые используются при подготовке рассылок.</p>
-                {(profileConfirmed ? "<div class='notice ok'>Актуальность профиля подтверждена и зафиксирована.</div>" : string.Empty)}
+                {(profileConfirmed ? "<div class='notice ok'>Профиль подтверждён через e-mail.</div>" : string.Empty)}
                 <div class='actions'>
                     <a class='btn' href='/mailings/new'>Создать рассылку</a>
                     <a class='btn secondary' href='/payments'>Открыть платежи</a>
-                    <form method='post' action='/profile/confirm'><button class='btn secondary' type='submit'>Подтвердить актуальность профиля</button></form>
                 </div>
             </section>
 
