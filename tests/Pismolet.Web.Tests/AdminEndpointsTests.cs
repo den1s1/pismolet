@@ -58,6 +58,33 @@ public sealed class AdminEndpointsTests
     }
 
     [Fact]
+    public async Task Non_admin_menu_does_not_show_admin_link()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Owner User");
+        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+
+        var html = await client.GetStringAsync("/dashboard");
+
+        Assert.Contains("href='/profile'", html);
+        Assert.DoesNotContain("href='/admin'", html);
+        Assert.DoesNotContain("Админка</a>", html);
+    }
+
+    [Fact]
+    public async Task Admin_menu_shows_admin_link()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, AdminEmail, "Admin User");
+        using var client = CreateAuthenticatedClient(factory, AdminEmail);
+
+        var html = await client.GetStringAsync("/dashboard");
+
+        Assert.Contains("href='/admin'", html);
+        Assert.Contains("Админка</a>", html);
+    }
+
+    [Fact]
     public async Task Admin_users_page_shows_compact_user_table()
     {
         using var factory = CreateAuthorizedFactory();
