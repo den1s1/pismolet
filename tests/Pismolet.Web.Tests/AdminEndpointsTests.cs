@@ -58,7 +58,7 @@ public sealed class AdminEndpointsTests
     }
 
     [Fact]
-    public async Task Admin_users_page_shows_sidebar_stats_and_users()
+    public async Task Admin_users_page_shows_compact_user_table()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Owner User");
@@ -75,10 +75,35 @@ public sealed class AdminEndpointsTests
         Assert.Contains("Настройки", html);
         Assert.Contains("Администратор", html);
         Assert.Contains(AdminEmail, html);
+        Assert.Contains("<th>ФИО</th><th>Email</th><th>Телефон</th>", html);
+        Assert.Contains("Owner User", html);
+        Assert.Contains("Other User", html);
         Assert.Contains(OwnerEmail, html);
         Assert.Contains(OtherEmail, html);
+        Assert.Contains("+79990000000", html);
         Assert.Contains("Экспорт CSV - скоро", html);
-        Assert.Contains("Кампаний всего", html);
+        Assert.Contains("href='/admin/users/owner%40example.test'", html);
+        Assert.DoesNotContain("Кампаний всего", html);
+        Assert.DoesNotContain("Реальные аккаунты, статусы email", html);
+        Assert.DoesNotContain("<th>Клиент</th>", html);
+        Assert.DoesNotContain("<th>Email подтверждён</th>", html);
+        Assert.DoesNotContain(">Профиль</a>", html);
+    }
+
+    [Fact]
+    public async Task Admin_clients_redirects_to_users()
+    {
+        using var factory = CreateAuthorizedFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, AdminEmail);
+
+        var response = await client.GetAsync("/admin/clients");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/admin/users", response.Headers.Location?.OriginalString);
     }
 
     [Fact]
