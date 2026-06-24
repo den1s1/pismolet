@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Configuration;
+using Pismolet.Web.Application.Mail;
 using Pismolet.Web.BackgroundServices;
 using Pismolet.Web.Endpoints;
 using Pismolet.Web.Infrastructure.DependencyInjection;
@@ -53,6 +54,10 @@ builder.Services.AddAuthorization(options =>
         }));
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
+if (!isRunningUnderTests && ShouldUseSmtpConfirmation(builder.Configuration))
+{
+    builder.Services.AddSingleton<IFakeMailer, SmtpAccountConfirmationMailer>();
+}
 builder.Services.AddPismoletLegalEvidenceStorage(builder.Configuration);
 builder.Services.AddPismoletEfSendingStorage(builder.Configuration);
 builder.Services.AddSingleton(ReadPostfixDeliveryAutomationSettingsOptions(builder.Configuration));
@@ -138,6 +143,23 @@ static bool DevToolsEnabled(IConfiguration configuration) => bool.TryParse(
     ?? configuration["DevTools__Enabled"]
     ?? Environment.GetEnvironmentVariable("PISMOLET_DEV_TOOLS_ENABLED"),
     out var enabled) && enabled;
+
+static bool ShouldUseSmtpConfirmation(IConfiguration configuration)
+{
+    var provider = configuration["MailProvider"]
+        ?? configuration["Mail:Provider"]
+        ?? configuration["Email:Provider"]
+        ?? configuration["Sending:MailProvider"];
+
+    if (!string.IsNullOrWhiteSpace(provider))
+    {
+        return provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase);
+    }
+
+    return !string.IsNullOrWhiteSpace(configuration["Smtp:Host"]
+        ?? configuration["Smtp__Host"]
+        ?? Environment.GetEnvironmentVariable("Smtp__Host"));
+}
 
 static IReadOnlySet<string> ReadAdminEmails(IConfiguration configuration)
 {
