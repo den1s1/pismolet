@@ -28,7 +28,7 @@ public sealed class SendingWizardSmokeTests
         SeedUser(factory);
         var mailingId = SeedMailing(factory, "Launch smoke campaign");
         using var client = CreateAuthenticatedClient(factory);
-        await PrepareAndApprove(factory, client, mailingId);
+        await PrepareAndApprove(factory, client, mailingId, "Launch smoke campaign");
 
         var launchHtml = await client.GetStringAsync($"/mailings/{mailingId}/send");
         Assert.Contains("Запуск рассылки", launchHtml);
@@ -63,7 +63,7 @@ public sealed class SendingWizardSmokeTests
         SeedUser(factory);
         var mailingId = SeedMailing(factory, "Excel report campaign");
         using var client = CreateAuthenticatedClient(factory);
-        await PrepareAndApprove(factory, client, mailingId);
+        await PrepareAndApprove(factory, client, mailingId, "Excel report campaign");
         await client.PostAsync($"/mailings/{mailingId}/send/start", new FormUrlEncodedContent(new Dictionary<string, string>()));
 
         var response = await client.GetAsync($"/mailings/{mailingId}/send/export.xlsx");
@@ -88,7 +88,7 @@ public sealed class SendingWizardSmokeTests
         SeedUser(factory);
         var mailingId = SeedMailing(factory, "History launch campaign");
         using var client = CreateAuthenticatedClient(factory);
-        await PrepareAndApprove(factory, client, mailingId);
+        await PrepareAndApprove(factory, client, mailingId, "History launch campaign");
         await client.PostAsync($"/mailings/{mailingId}/send/start", new FormUrlEncodedContent(new Dictionary<string, string>()));
 
         var html = await client.GetStringAsync("/dashboard");
@@ -115,11 +115,11 @@ public sealed class SendingWizardSmokeTests
         return builder.ToString();
     }
 
-    private static async Task PrepareAndApprove(WebApplicationFactory<Program> factory, HttpClient client, Guid mailingId)
+    private static async Task PrepareAndApprove(WebApplicationFactory<Program> factory, HttpClient client, Guid mailingId, string subject)
     {
         await ImportAcceptedAddresses(client, mailingId);
         await ConfirmBaseDeclaration(client, mailingId);
-        await SaveMessage(client, mailingId);
+        await SaveMessage(client, mailingId, subject);
 
         using var scope = factory.Services.CreateScope();
         var payments = scope.ServiceProvider.GetRequiredService<IMailingPaymentService>();
@@ -171,12 +171,12 @@ public sealed class SendingWizardSmokeTests
         Assert.True(response.IsSuccessStatusCode, $"Unexpected declaration response: {(int)response.StatusCode}");
     }
 
-    private static async Task SaveMessage(HttpClient client, Guid mailingId)
+    private static async Task SaveMessage(HttpClient client, Guid mailingId, string subject)
     {
         using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["senderName"] = "Sender",
-            ["subject"] = "Subject",
+            ["subject"] = subject,
             ["body"] = "Hello from Pismolet.",
             ["messageType"] = "Transactional"
         });
@@ -210,7 +210,7 @@ public sealed class SendingWizardSmokeTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "Password123!", "Sending Smoke", "+79990000000"), Request());
+        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "TestPassword123!", "Sending Smoke", "+79990000000"), Request());
         Assert.True(result.Ok, result.Error);
     }
 
