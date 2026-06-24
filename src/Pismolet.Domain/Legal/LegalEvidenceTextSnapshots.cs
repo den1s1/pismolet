@@ -10,4 +10,7 @@ public static class LegalEvidenceTextSnapshots
 
     public const string AdvertisingConsentText =
         "Для рекламной рассылки подтверждаю, что у меня есть предварительное согласие адресатов на получение рекламных сообщений.";
+
+    public const string CampaignLaunchConfirmationText =
+        "Клиент подтвердил финальный запуск рассылки и поручил Письмолёту поставить письма в очередь отправки.";
 }
