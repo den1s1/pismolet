@@ -75,7 +75,7 @@ public static class UnsubscribeEndpoints
             null,
             payload.MailingId,
             LegalDocumentKeys.GlobalUnsubscribeConfirmation,
-            BaseDeclarationText.CurrentVersion,
+            LegalEvidenceTextSnapshots.CurrentVersion,
             legalEvidence.ComputeTextHash(LegalEvidenceTextSnapshots.GlobalUnsubscribeConfirmationText),
             snapshot,
             LegalEventResults.Confirmed,
