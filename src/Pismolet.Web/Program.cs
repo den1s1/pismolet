@@ -90,6 +90,7 @@ if (app.Environment.IsDevelopment() && !isRunningUnderTests)
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAdminMenuVisibility();
 app.UseLegalDeclarationEvidenceCapture();
 app.UseMailingLaunchEvidenceCapture();
 app.UseAdminSuppressionDetail();
