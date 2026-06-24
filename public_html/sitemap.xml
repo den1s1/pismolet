@@ -66,6 +66,21 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://pismolet.ru/articles/rassylka-iz-excel/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://pismolet.ru/articles/bez-nastroiki-domena/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://pismolet.ru/articles/email-rassylka-dlya-malogo-biznesa/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://pismolet.ru/bcc-alternative/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
