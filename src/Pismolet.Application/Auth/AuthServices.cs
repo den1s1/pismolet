@@ -1,8 +1,11 @@
+using System.Text.Json;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Legal;
 using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Audit;
+using Pismolet.Web.Domain.Legal;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Domain.Users;
 
@@ -38,8 +41,11 @@ public sealed class UserAccountService(
     IUserRepository users,
     IFakeMailer fakeMailer,
     IAuditLogger auditLogger,
-    IAdminMvpSettingsRepository settingsRepository) : IUserAccountService
+    IAdminMvpSettingsRepository settingsRepository,
+    ILegalEvidenceService legalEvidence) : IUserAccountService
 {
+    private const string EmailConfirmationSnapshot = "Клиент подтвердил владение email-адресом переходом по ссылке подтверждения.";
+
     public RegisterUserResult Register(RegisterUserCommand command, RequestMetadata request)
     {
         var email = NormalizeEmail(command.Email);
@@ -91,6 +97,24 @@ public sealed class UserAccountService(
 
         users.Update(user with { EmailConfirmed = true });
         Audit(user.Email, "email_confirmed", request);
+        legalEvidence.RecordEvent(new LegalEvidenceEventDraft(
+            EventType: LegalEventTypes.ClientEmailConfirmed,
+            ClientId: user.Email,
+            UserId: user.Email,
+            ImportBatchId: null,
+            MailingId: null,
+            DocumentKey: null,
+            DocumentVersion: null,
+            TextHash: null,
+            EventTextSnapshot: EmailConfirmationSnapshot,
+            Result: LegalEventResults.Confirmed,
+            Ip: request.Ip,
+            UserAgent: request.UserAgent,
+            Route: "/account/confirm-email",
+            MetadataJson: JsonSerializer.Serialize(new
+            {
+                source = "email_confirmation_link"
+            })));
         return true;
     }
 
