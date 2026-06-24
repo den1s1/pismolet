@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Письмолёт — конверт и самолётик">
+  <rect x="8" y="13" width="42" height="34" rx="10" fill="#2563EB"/>
+  <path d="M14 24L27.8 33.7C28.9 34.4 30.2 34.4 31.2 33.7L44 24" fill="none" stroke="#FFFFFF" stroke-width="3.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M31 28L55 14L46.5 39L38.5 30.5L31 28Z" fill="#FFFFFF"/>
+  <path d="M38.5 30.5L46.5 39L44.3 29" fill="#BFDBFE"/>
+</svg>
