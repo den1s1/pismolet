@@ -207,3 +207,5 @@ static int ReadInt(IConfiguration configuration, string key, int fallback, int m
 static IEnumerable<string> Split(string? value) => string.IsNullOrWhiteSpace(value)
     ? Array.Empty<string>()
     : value.Split(new[] { ',', ';', '\n', '\r', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+public partial class Program;
