@@ -38,10 +38,10 @@ public sealed class HtmlRendererLayoutTests
     }
 
     [Fact]
-    public void Authenticated_page_renders_dev_link_only_when_requested()
+    public void Authenticated_page_does_not_render_fake_mailer_even_when_dev_tools_requested()
     {
         var html = HtmlRenderer.Page("Dev", "<p>ok</p>", authenticated: true, showDevTools: true);
 
-        Assert.Contains("/dev/fake-mailer", html);
+        Assert.DoesNotContain("/dev/fake-mailer", html);
     }
 }
