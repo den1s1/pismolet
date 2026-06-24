@@ -4,6 +4,12 @@ public static class LegalEvidenceTextSnapshots
 {
     public const string CurrentVersion = "2026-06-16-v1";
 
+    public const string OfferAndRulesAcceptanceText =
+        "Клиент принимает правила сервиса Письмолёт и условия использования сервиса.";
+
+    public const string ClientPersonalDataConsentText =
+        "Клиент даёт согласие на обработку данных, указанных при регистрации: ФИО, email и телефон.";
+
     public const string ClientProfileConfirmationText =
         "Клиент подтвердил актуальность данных профиля, email для входа, отправителя по умолчанию и email для пересылки ответов.";
 
