@@ -44,6 +44,7 @@ public static class LegalEventTypes
     public const string OfferAndRulesAccepted = "offer_and_rules_accepted";
     public const string ClientPersonalDataConsentAccepted = "client_personal_data_consent_accepted";
     public const string ClientProfileConfirmed = "client_profile_confirmed";
+    public const string ClientEmailConfirmed = "client_email_confirmed";
     public const string BaseSourceSelected = "base_source_selected";
     public const string BaseLawfulnessDeclared = "base_lawfulness_declared";
     public const string RecipientDataProcessingInstructionAccepted = "recipient_data_processing_instruction_accepted";
