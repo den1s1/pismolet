@@ -73,7 +73,7 @@ public sealed class ImportWarningUiSmokeTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "Password123!", "Import Warning"), Request());
+        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "Password123!", "Import Warning", "+79990000000"), Request());
         Assert.True(result.Ok, result.Error);
     }
 
