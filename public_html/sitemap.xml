@@ -26,6 +26,36 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://pismolet.ru/legal/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://pismolet.ru/legal/offer/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://pismolet.ru/legal/privacy/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://pismolet.ru/legal/rules/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://pismolet.ru/legal/refund/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://pismolet.ru/legal/data-processing/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://pismolet.ru/articles/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
