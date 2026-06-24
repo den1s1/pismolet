@@ -16,6 +16,7 @@ public static class DashboardEndpoints
     private const int MaxRecipientUploadBytes = 1024 * 1024;
     private const int MaxManualAddressBytes = MaxRecipientUploadBytes;
     private const int MaxManualAddressRows = RecipientImportService.MaxRows;
+    private const string InitialMailingSubject = "Новая рассылка";
 
     public static IEndpointRouteBuilder MapDashboardEndpoints(this IEndpointRouteBuilder app)
     {
@@ -37,11 +38,7 @@ public static class DashboardEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Личный кабинет", HtmlRenderer.Dashboard(shownUser), authenticated: true));
         }).RequireAuthorization();
 
-        app.MapGet("/mailings/new", () => HtmlRenderer.Html(HtmlRenderer.Page(
-            "Новая рассылка",
-            NewMailingWizard(),
-            authenticated: true))).RequireAuthorization();
-
+        app.MapGet("/mailings/new", StartNewMailing).RequireAuthorization();
         app.MapPost("/mailings", CreateMailing).RequireAuthorization();
         app.MapGet("/mailings/{id:guid}", ShowMailing).RequireAuthorization();
         app.MapGet("/mailings/{id:guid}/recipients", ShowUploadForm).RequireAuthorization();
@@ -54,6 +51,23 @@ public static class DashboardEndpoints
         return app;
     }
 
+    private static IResult StartNewMailing(HttpContext http, IMailingService mailings)
+    {
+        var email = CurrentEmail(http);
+        if (email is null)
+        {
+            return Results.Redirect("/account/login");
+        }
+
+        var result = mailings.CreateDraft(new CreateMailingCommand(email, InitialMailingSubject), ToRequestMetadata(http));
+        if (!result.Ok || result.Mailing is null)
+        {
+            return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error(result.Error), authenticated: true));
+        }
+
+        return Results.Redirect($"/mailings/{result.Mailing.Id}/recipients");
+    }
+
     private static async Task<IResult> CreateMailing(HttpContext http, IMailingService mailings)
     {
         var email = CurrentEmail(http);
@@ -63,7 +77,13 @@ public static class DashboardEndpoints
         }
 
         var form = await http.Request.ReadFormAsync();
-        var result = mailings.CreateDraft(new CreateMailingCommand(email, form["subject"].ToString()), ToRequestMetadata(http));
+        var subject = form["subject"].ToString();
+        if (string.IsNullOrWhiteSpace(subject))
+        {
+            subject = InitialMailingSubject;
+        }
+
+        var result = mailings.CreateDraft(new CreateMailingCommand(email, subject), ToRequestMetadata(http));
         if (!result.Ok || result.Mailing is null)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error(result.Error), authenticated: true));
@@ -89,7 +109,7 @@ public static class DashboardEndpoints
         var replyInfo = replySummary.TotalReplies == 0
             ? "Ответов пока нет."
             : $"Ответы: {replySummary.TotalReplies}; последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC; статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}.";
-        var body = $"<section class='card'><h1>{H(mailing.Subject)}</h1><p><span class='badge'>{mailing.StatusRu}</span></p>{importInfo}<p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных: {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}; исключены из-за ошибок доставки {stats.ClientSuppressed}.</p><h2>Ответы получателей</h2><p>{replyInfo}</p><p class='muted'>Ответы пересылаются клиенту на email отправителя; здесь показывается только счётчик и безопасный статус.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
+        var body = $"<section class='card'><h1>{H(DisplayTitle(mailing))}</h1><p><span class='badge'>{mailing.StatusRu}</span></p>{importInfo}<p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных: {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}; исключены из-за ошибок доставки {stats.ClientSuppressed}.</p><h2>Ответы получателей</h2><p>{replyInfo}</p><p class='muted'>Ответы пересылаются клиенту на email отправителя; здесь показывается только счётчик и безопасный статус.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
         return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка", body, authenticated: true));
     }
 
@@ -249,64 +269,44 @@ public static class DashboardEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Письмо подготовлено", MessageForm(mailing, renderer, null, saved: true), authenticated: true));
     }
 
-    private static string NewMailingWizard() => @"
-<section class='wizard-shell'>
+    private static string WizardSteps(int currentStep) => $@"
   <div class='wizard-steps' aria-label='Шаги создания рассылки'>
-    <span class='wizard-step current'>Черновик</span>
-    <span class='wizard-step'>1. Адреса</span>
-    <span class='wizard-step'>2. Письмо</span>
-    <span class='wizard-step'>3. Проверка и оплата</span>
-  </div>
-  <section class='panel wizard-intro'>
-    <p class='eyebrow'>Новая рассылка</p>
-    <h1>Создайте черновик рассылки</h1>
-    <p class='muted'>Сначала задайте рабочее название. На следующем шаге добавите адреса через файл или ручную вставку.</p>
-    <form method='post' action='/mailings' class='form-grid'>
-      <label>Название рассылки<input name='subject' required maxlength='160' placeholder='Например: Новости школы за июнь'></label>
-      <div class='actions'>
-        <button class='button'>Создать черновик</button>
-        <a class='btn secondary' href='/dashboard'>Вернуться в ЛК</a>
-      </div>
-    </form>
-  </section>
-</section>";
+    <span class='wizard-step {(currentStep > 1 ? "done" : currentStep == 1 ? "current" : string.Empty)}'>1. Адреса</span>
+    <span class='wizard-step {(currentStep > 2 ? "done" : currentStep == 2 ? "current" : string.Empty)}'>2. Письмо</span>
+    <span class='wizard-step {(currentStep > 3 ? "done" : currentStep == 3 ? "current" : string.Empty)}'>3. Расчёт и оплата</span>
+    <span class='wizard-step {(currentStep == 4 ? "current" : string.Empty)}'>4. Готово</span>
+  </div>";
 
     private static string AddressStepWizard(Mailing mailing, string? error)
     {
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         return $@"
 <section class='wizard-shell'>
-  <div class='wizard-steps' aria-label='Шаги создания рассылки'>
-    <span class='wizard-step done'>Черновик</span>
-    <span class='wizard-step current'>1. Адреса</span>
-    <span class='wizard-step'>2. Письмо</span>
-    <span class='wizard-step'>3. Проверка и оплата</span>
-  </div>
+  {WizardSteps(1)}
   <section class='panel'>
     <div class='topline'>
       <div>
-        <p class='eyebrow'>Шаг 1 из 3</p>
+        <p class='eyebrow'>Шаг 1 из 4</p>
         <h1>1. Добавьте список адресов</h1>
-        <p class='muted'>{H(mailing.Subject)}</p>
+        <p class='muted'>Не используйте купленные или чужие базы.</p>
       </div>
       <span class='badge warn'>Проверка базы</span>
     </div>
-    <div class='legal-warning'>Не используйте купленные или чужие базы. Добавляйте только адреса, по которым у вас есть законное основание для обращения.</div>
     {alert}
     <form method='post' action='/mailings/{mailing.Id}/recipients' enctype='multipart/form-data' class='wizard-grid'>
       <label class='dropzone'>
-        <span>Загрузите Excel или CSV</span>
-        <small>Файл `.xlsx` или `.csv` с колонкой email. Максимум 1000 строк на MVP-этапе.</small>
+        <span>Перетащите таблицу Excel сюда</span>
+        <small>или нажмите, чтобы выбрать файл. Подойдут `.xlsx` или `.csv` с колонкой email.</small>
         <input type='file' name='file' accept='.csv,.xlsx'>
       </label>
       <label class='manual-addresses'>
         <span>Или вставьте адреса вручную</span>
-        <small>Один адрес на строку. Максимум 1000 строк и 1 МБ. Дубликаты и отписавшиеся адреса будут исключены автоматически.</small>
-        <textarea name='manualAddresses' rows='12' placeholder='client@example.ru&#10;reader@example.com'></textarea>
+        <small>Каждый адрес — с новой строки. Дубликаты и отписавшиеся адреса будут исключены автоматически.</small>
+        <textarea name='manualAddresses' rows='12' placeholder='anna@example.ru&#10;club@example.ru&#10;ivan@example.ru'></textarea>
       </label>
       <div class='actions wizard-actions'>
-        <button class='button'>Проверить адреса</button>
-        <a class='btn secondary' href='/mailings/{mailing.Id}'>Вернуться к рассылке</a>
+        <button class='button'>Адреса добавлены, дальше</button>
+        <a class='btn secondary' href='/dashboard'>Вернуться в ЛК</a>
       </div>
     </form>
   </section>
@@ -327,16 +327,10 @@ public static class DashboardEndpoints
 
         return $@"
 <section class='wizard-shell'>
-  <div class='wizard-steps' aria-label='Шаги создания рассылки'>
-    <span class='wizard-step done'>Черновик</span>
-    <span class='wizard-step current'>1. Адреса</span>
-    <span class='wizard-step'>2. Письмо</span>
-    <span class='wizard-step'>3. Проверка и оплата</span>
-  </div>
+  {WizardSteps(1)}
   <section class='panel'>
     <p class='eyebrow'>Результат проверки</p>
     <h1>Адреса проверены</h1>
-    <p class='muted'>{H(mailing.Subject)}</p>
     <div class='stats import-summary'>
       <div class='stat'><b>{stats.TotalRows}</b><span>Строк в файле</span></div>
       <div class='stat'><b>{stats.Accepted}</b><span>Принято к отправке</span></div>
@@ -404,7 +398,7 @@ public static class DashboardEndpoints
         var options = string.Join("", BaseSourceLabels.All.Select(x => $"<option value='{x.Key}'>{H(x.Value)}</option>"));
         var stats = mailing.LastImportStats;
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error'>{H(error)}</p>";
-        return $"<section class='card form-card'><h1>Подтверждение базы</h1><p class='muted'>{H(mailing.Subject)}</p>{alert}<p>Принято адресов: {stats.Accepted}. Дублей: {stats.Duplicates}. Невалидных: {stats.Invalid}.</p><form method='post' action='/mailings/{mailing.Id}/declaration'><label>Источник базы<select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label><label>Тип письма<select name='messageType'><option value='Transactional'>Информационное</option><option value='Advertising'>Рекламное</option></select></label><label><input type='checkbox' name='baseLegality'> Подтверждаю правомерность использования базы</label><label><input type='checkbox' name='advertisingConsent'> Для рекламного письма подтверждаю наличие рекламного согласия адресатов</label><div class='card'><strong>Текст декларации, версия {BaseDeclarationText.CurrentVersion}</strong><p>{H(BaseDeclarationText.Text)}</p></div><button class='button'>Подтвердить базу</button></form><p><a href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></p></section>";
+        return $"<section class='card form-card'><h1>Подтверждение базы</h1>{MailingTitleHint(mailing)}{alert}<p>Принято адресов: {stats.Accepted}. Дублей: {stats.Duplicates}. Невалидных: {stats.Invalid}.</p><form method='post' action='/mailings/{mailing.Id}/declaration'><label>Источник базы<select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label><label>Тип письма<select name='messageType'><option value='Transactional'>Информационное</option><option value='Advertising'>Рекламное</option></select></label><label><input type='checkbox' name='baseLegality'> Подтверждаю правомерность использования базы</label><label><input type='checkbox' name='advertisingConsent'> Для рекламного письма подтверждаю наличие рекламного согласия адресатов</label><div class='card'><strong>Текст декларации, версия {BaseDeclarationText.CurrentVersion}</strong><p>{H(BaseDeclarationText.Text)}</p></div><button class='button'>Подтвердить базу</button></form><p><a href='/mailings/{mailing.Id}/recipients'>Назад к адресам</a></p></section>";
     }
 
     private static string MessageForm(Mailing? mailing, IMessageRenderingService renderer, string? error, bool saved = false)
@@ -419,10 +413,10 @@ public static class DashboardEndpoints
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         var success = saved ? "<p class='notice'>Письмо сохранено. Проверьте превью и переходите к расчёту.</p>" : string.Empty;
         var senderName = H(draft?.SenderName ?? string.Empty);
-        var messageSubject = H(draft?.Subject ?? mailing.Subject);
+        var messageSubject = H(draft?.Subject ?? string.Empty);
         var bodyText = draft?.Body ?? string.Empty;
         var previewSender = string.IsNullOrWhiteSpace(draft?.SenderName) ? "Письмолёт" : H(draft!.SenderName);
-        var previewSubject = string.IsNullOrWhiteSpace(draft?.Subject) ? H(mailing.Subject) : H(draft!.Subject);
+        var previewSubject = string.IsNullOrWhiteSpace(draft?.Subject) ? "Тема письма" : H(draft!.Subject);
         var previewBody = string.IsNullOrWhiteSpace(bodyText)
             ? "<p class='muted'>Сохраните текст письма, чтобы увидеть его в превью.</p>"
             : $"<p>{ToHtmlText(bodyText)}</p>";
@@ -441,20 +435,14 @@ public static class DashboardEndpoints
 
         return $@"
 <section class='wizard-shell'>
-  <div class='wizard-steps' aria-label='Шаги создания рассылки'>
-    <span class='wizard-step done'>Черновик</span>
-    <span class='wizard-step done'>1. Адреса</span>
-    <span class='wizard-step current'>2. Письмо</span>
-    <span class='wizard-step'>3. Проверка и оплата</span>
-  </div>
+  {WizardSteps(2)}
   <section class='panel'>
     <div class='topline'>
       <div>
-        <p class='eyebrow'>Шаг 2 из 3</p>
+        <p class='eyebrow'>Шаг 2 из 4</p>
         <h1>2. Напишите письмо</h1>
-        <p class='muted'>{H(mailing.Subject)}</p>
       </div>
-      <span class='badge warn'>Черновик письма</span>
+      <span class='badge warn'>Письмо</span>
     </div>
     {alert}
     {success}
@@ -536,6 +524,14 @@ public static class DashboardEndpoints
 
         return $"<a class='button' href='/mailings/{mailing.Id}/payment'>Перейти к проверке и оплате</a>";
     }
+
+    private static string DisplayTitle(Mailing mailing) => string.IsNullOrWhiteSpace(mailing.MessageDraft?.Subject)
+        ? "Новая рассылка"
+        : mailing.MessageDraft!.Subject;
+
+    private static string MailingTitleHint(Mailing mailing) => string.IsNullOrWhiteSpace(mailing.MessageDraft?.Subject)
+        ? "<p class='muted'>Название появится из темы письма на следующем шаге.</p>"
+        : $"<p class='muted'>{H(mailing.MessageDraft!.Subject)}</p>";
 
     private static BaseSource? TryParseBaseSource(string value) => Enum.TryParse<BaseSource>(value, out var source) ? source : null;
 
