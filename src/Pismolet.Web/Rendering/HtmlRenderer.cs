@@ -50,7 +50,7 @@ public static class HtmlRenderer
             ? "<label>ФИО<input name='displayName' autocomplete='name' required></label><label>Телефон<input type='tel' name='phone' autocomplete='tel' required></label>"
             : string.Empty;
         var consentFields = registrationConsents
-            ? "<div class='form-consents'><label><input type='checkbox' name='acceptOffer' value='true' required> Принимаю правила и оферту сервиса.</label><label><input type='checkbox' name='acceptPrivacy' value='true' required> Даю согласие на обработку персональных данных.</label></div>"
+            ? "<div class='form-consents'><label><input type='checkbox' name='acceptOffer' value='true' required> Принимаю <a href='/legal/offer' target='_blank' rel='noopener'>правила и оферту сервиса</a>.</label><label><input type='checkbox' name='acceptPrivacy' value='true' required> Даю согласие на обработку персональных данных согласно <a href='/legal/privacy' target='_blank' rel='noopener'>политике обработки персональных данных</a>.</label></div>"
             : string.Empty;
 
         return $"<section class='panel form-card'><h1>{H(title)}</h1><form method='post' action='{H(action)}'>{profileFields}<label>Email<input type='email' name='email' autocomplete='email' required></label>{(password ? "<label>Пароль<input type='password' minlength='8' name='password' required></label>" : string.Empty)}{consentFields}<button class='btn'>{H(title)}</button></form><p><a href='/account/resend-confirmation'>Повторить подтверждение email</a></p></section>";
