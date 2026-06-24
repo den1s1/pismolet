@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Pismolet.Web.Infrastructure.Database;
 
@@ -12,7 +13,7 @@ public static class AdminLegalEvidenceEndpoints
         return app;
     }
 
-    private static IResult ShowLegalEvents(HttpContext http, LegalEvidenceDbContext db)
+    private static IResult ShowLegalEvents(HttpContext http, [FromServices] LegalEvidenceDbContext db)
     {
         var client = http.Request.Query["client"].ToString().Trim().ToLowerInvariant();
         var eventType = http.Request.Query["event"].ToString().Trim();
