@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using MailKit.Net.Smtp;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MimeKit;
 using MimeKit.Utils;
@@ -9,12 +10,22 @@ using Pismolet.Web.Domain.Mail;
 
 namespace Pismolet.Web.Infrastructure.Mail;
 
-public sealed class SmtpAccountConfirmationMailer(
-    SmtpEmailProviderOptions options,
-    PublicUrlOptions publicUrlOptions,
-    ILogger<SmtpAccountConfirmationMailer> logger) : IFakeMailer
+public sealed class SmtpAccountConfirmationMailer : IFakeMailer
 {
     private readonly ConcurrentQueue<FakeMail> _outbox = new();
+    private readonly SmtpEmailProviderOptions _options;
+    private readonly PublicUrlOptions _publicUrlOptions;
+    private readonly ILogger<SmtpAccountConfirmationMailer> _logger;
+
+    public SmtpAccountConfirmationMailer(
+        IConfiguration configuration,
+        PublicUrlOptions publicUrlOptions,
+        ILogger<SmtpAccountConfirmationMailer> logger)
+    {
+        _options = ReadOptions(configuration);
+        _publicUrlOptions = publicUrlOptions;
+        _logger = logger;
+    }
 
     public void SendConfirmation(string to, string subject, string link)
     {
@@ -25,19 +36,19 @@ public sealed class SmtpAccountConfirmationMailer(
         {
             var message = BuildMessage(to, subject, absoluteLink);
             Send(message);
-            logger.LogInformation(
+            _logger.LogInformation(
                 "Account confirmation email sent. host={Host} port={Port} recipientDomain={RecipientDomain}",
-                options.Host,
-                options.Port,
+                _options.Host,
+                _options.Port,
                 GetEmailDomain(to));
         }
         catch (Exception ex)
         {
-            logger.LogError(
+            _logger.LogError(
                 ex,
                 "Account confirmation email failed. host={Host} port={Port} recipientDomain={RecipientDomain}",
-                options.Host,
-                options.Port,
+                _options.Host,
+                _options.Port,
                 GetEmailDomain(to));
         }
     }
@@ -74,7 +85,7 @@ public sealed class SmtpAccountConfirmationMailer(
     private MimeMessage BuildMessage(string to, string subject, string link)
     {
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(options.FromName, options.FromEmail));
+        message.From.Add(new MailboxAddress(_options.FromName, _options.FromEmail));
         message.To.Add(MailboxAddress.Parse(to));
         message.Subject = subject;
         message.MessageId = MimeUtils.GenerateMessageId(GetMessageIdDomain());
@@ -100,11 +111,11 @@ public sealed class SmtpAccountConfirmationMailer(
 
     private void Send(MimeMessage message)
     {
-        using var client = new SmtpClient { Timeout = Math.Max(1, options.TimeoutSeconds) * 1000 };
-        client.Connect(options.Host, options.Port, SmtpEmailProviderAdapterSafeOptions.Parse(options.SecureSocketOptions, options.Port));
-        if (!string.IsNullOrWhiteSpace(options.Username))
+        using var client = new SmtpClient { Timeout = Math.Max(1, _options.TimeoutSeconds) * 1000 };
+        client.Connect(_options.Host, _options.Port, SmtpEmailProviderAdapterSafeOptions.Parse(_options.SecureSocketOptions, _options.Port));
+        if (!string.IsNullOrWhiteSpace(_options.Username))
         {
-            client.Authenticate(options.Username, options.Password);
+            client.Authenticate(_options.Username, _options.Password);
         }
 
         client.Send(message);
@@ -119,17 +130,44 @@ public sealed class SmtpAccountConfirmationMailer(
             return absolute.ToString();
         }
 
-        var baseUrl = publicUrlOptions.PublicBaseUrl.TrimEnd('/');
+        var baseUrl = _publicUrlOptions.PublicBaseUrl.TrimEnd('/');
         var path = link.StartsWith('/') ? link : $"/{link}";
         return $"{baseUrl}{path}";
     }
 
     private string GetMessageIdDomain()
     {
-        var at = options.FromEmail.LastIndexOf('@');
-        return at >= 0 && at < options.FromEmail.Length - 1
-            ? options.FromEmail[(at + 1)..].Trim()
+        var at = _options.FromEmail.LastIndexOf('@');
+        return at >= 0 && at < _options.FromEmail.Length - 1
+            ? _options.FromEmail[(at + 1)..].Trim()
             : "pismolet.local";
+    }
+
+    private static SmtpEmailProviderOptions ReadOptions(IConfiguration configuration)
+    {
+        var host = Required(configuration, "Smtp:Host", "Smtp__Host");
+        var port = ReadInt(configuration, "Smtp:Port", 587, 1, 65535);
+        var username = configuration["Smtp:Username"] ?? string.Empty;
+        var password = configuration["Smtp:Password"] ?? string.Empty;
+        var fromEmail = configuration["Smtp:FromEmail"] ?? username;
+        var fromName = configuration["Smtp:FromName"] ?? "Письмолёт";
+        var secureSocketOptions = configuration["Smtp:SecureSocketOptions"] ?? configuration["Smtp:Security"] ?? (port == 465 ? "SslOnConnect" : "StartTlsWhenAvailable");
+        var timeoutSeconds = ReadInt(configuration, "Smtp:TimeoutSeconds", 30, 1, 300);
+        if (string.IsNullOrWhiteSpace(fromEmail)) throw new InvalidOperationException("Для SMTP задайте Smtp:FromEmail или Smtp:Username.");
+        return new SmtpEmailProviderOptions(host.Trim(), port, username.Trim(), password, fromEmail.Trim(), string.IsNullOrWhiteSpace(fromName) ? "Письмолёт" : fromName.Trim(), secureSocketOptions.Trim(), timeoutSeconds);
+    }
+
+    private static int ReadInt(IConfiguration configuration, string key, int fallback, int min, int max)
+    {
+        var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
+        return int.TryParse(value, out var parsed) ? Math.Clamp(parsed, min, max) : fallback;
+    }
+
+    private static string Required(IConfiguration configuration, string key, string envKey)
+    {
+        var value = configuration[key] ?? configuration[envKey] ?? Environment.GetEnvironmentVariable(envKey);
+        if (string.IsNullOrWhiteSpace(value)) throw new InvalidOperationException($"Не задан обязательный параметр {key}.");
+        return value;
     }
 
     private static string GetEmailDomain(string email)
