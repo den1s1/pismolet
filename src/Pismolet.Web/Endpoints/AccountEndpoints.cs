@@ -13,7 +13,7 @@ public static class AccountEndpoints
     {
         app.MapGet("/account/register", () => HtmlRenderer.Html(HtmlRenderer.Page(
             "Регистрация",
-            HtmlRenderer.AccountForm("/account/register", "Создать аккаунт", name: true))));
+            HtmlRenderer.AccountForm("/account/register", "Создать аккаунт", name: true, registrationConsents: true))));
 
         app.MapPost("/account/register", Register);
 
@@ -47,6 +47,11 @@ public static class AccountEndpoints
     private static async Task<IResult> Register(HttpContext http, IUserAccountService accounts)
     {
         var form = await http.Request.ReadFormAsync();
+        if (!IsChecked(form, "acceptOffer") || !IsChecked(form, "acceptPrivacy"))
+        {
+            return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Подтвердите обязательные условия регистрации.")));
+        }
+
         var command = new RegisterUserCommand(
             Email: form["email"].ToString(),
             Password: form["password"].ToString(),
@@ -113,6 +118,14 @@ public static class AccountEndpoints
 
         await http.SignOutAsync();
         return Results.Redirect("/");
+    }
+
+    private static bool IsChecked(IFormCollection form, string key)
+    {
+        var value = form[key].ToString();
+        return value.Equals("true", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("on", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("1", StringComparison.OrdinalIgnoreCase);
     }
 
     private static RequestMetadata ToRequestMetadata(HttpContext http)
