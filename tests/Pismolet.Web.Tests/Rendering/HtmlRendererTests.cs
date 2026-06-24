@@ -44,7 +44,7 @@ public sealed class HtmlRendererTests
             ConfirmationToken: "token",
             EmailConfirmed: true,
             Profile: ClientProfile.NewClientDefault(),
-            Mailings: [Mailing.Draft("Тестовая рассылка")]);
+            Mailings: [Mailing.Draft("Внутренний черновик").WithMessageDraft(MailingMessageDraft.Create("Письмолёт", "Тестовая рассылка", "Текст", MessageType.Transactional, DateTimeOffset.UtcNow))]);
 
         var html = HtmlRenderer.Page("Личный кабинет", HtmlRenderer.Dashboard(user), authenticated: true);
 
@@ -52,7 +52,7 @@ public sealed class HtmlRendererTests
         Assert.Contains("Создать рассылку", html);
         Assert.Contains("История рассылок", html);
         Assert.Contains("Тестовая рассылка", html);
-        Assert.Contains("Черновик", html);
+        Assert.Contains("Тема письма", html);
     }
 
     [Fact]
@@ -73,8 +73,8 @@ public sealed class HtmlRendererTests
     [Fact]
     public void Payments_page_contains_payment_sections_and_mailing_statuses()
     {
-        var pending = Mailing.Draft("Ждёт оплаты").WithMessageDraft(MailingMessageDraft.Create("Письмолёт", "Ждёт оплаты", "Текст", MessageType.Transactional, DateTimeOffset.UtcNow));
-        var paid = Mailing.Draft("Оплачена").WithStatus(MailingStatus.Paid);
+        var pending = Mailing.Draft("Старое название").WithMessageDraft(MailingMessageDraft.Create("Письмолёт", "Ждёт оплаты", "Текст", MessageType.Transactional, DateTimeOffset.UtcNow));
+        var paid = Mailing.Draft("Старое название").WithMessageDraft(MailingMessageDraft.Create("Письмолёт", "Оплачена", "Текст", MessageType.Transactional, DateTimeOffset.UtcNow)).WithStatus(MailingStatus.Paid);
         var user = TestUser() with { Mailings = [pending, paid] };
 
         var html = HtmlRenderer.Page("Платежи", HtmlRenderer.Payments(user), authenticated: true);
