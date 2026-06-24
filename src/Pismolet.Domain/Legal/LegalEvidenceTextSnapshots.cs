@@ -18,4 +18,7 @@ public static class LegalEvidenceTextSnapshots
 
     public const string GlobalUnsubscribeConfirmationText =
         "Получатель подтвердил отписку от писем через сервис Письмолёт по ссылке отписки.";
+
+    public const string RecipientComplaintReceivedText =
+        "Письмолёт получил от почтового провайдера событие жалобы получателя на письмо или его пометку как нежелательного.";
 }
