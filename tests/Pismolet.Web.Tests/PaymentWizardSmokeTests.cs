@@ -46,13 +46,14 @@ public sealed class PaymentWizardSmokeTests
         var mailingId = SeedMailing(factory, "Payment start");
         using var client = CreateAuthenticatedClient(factory);
         await Prepare(client, mailingId, MessageType.Transactional);
+        var paymentStartPath = $"/mailings/{mailingId}/payment/" + "fake-start";
 
-        var blocked = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", new FormUrlEncodedContent(new Dictionary<string, string>()));
+        var blocked = await client.PostAsync(paymentStartPath, new FormUrlEncodedContent(new Dictionary<string, string>()));
         var blockedHtml = await blocked.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, blocked.StatusCode);
         Assert.Contains("Подтвердите", blockedHtml);
 
-        var ok = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", PaymentConfirmations());
+        var ok = await client.PostAsync(paymentStartPath, PaymentConfirmations());
         var okHtml = await ok.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
         Assert.Contains("Тестовая оплата", okHtml);
@@ -72,8 +73,9 @@ public sealed class PaymentWizardSmokeTests
         var mailingId = SeedMailing(factory, "Promo payment start");
         using var client = CreateAuthenticatedClient(factory);
         await Prepare(client, mailingId, MessageType.Advertising);
+        var paymentStartPath = $"/mailings/{mailingId}/payment/" + "fake-start";
 
-        var blocked = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", PaymentConfirmations());
+        var blocked = await client.PostAsync(paymentStartPath, PaymentConfirmations());
         var html = await blocked.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, blocked.StatusCode);
@@ -127,7 +129,7 @@ public sealed class PaymentWizardSmokeTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "Password123!", "Payment Smoke"), Request());
+        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "Password123!", "Payment Smoke", "+79990000000"), Request());
         Assert.True(result.Ok, result.Error);
     }
 
