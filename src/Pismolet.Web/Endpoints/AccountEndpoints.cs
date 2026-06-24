@@ -50,7 +50,8 @@ public static class AccountEndpoints
         var command = new RegisterUserCommand(
             Email: form["email"].ToString(),
             Password: form["password"].ToString(),
-            DisplayName: form["displayName"].ToString());
+            DisplayName: form["displayName"].ToString(),
+            Phone: form["phone"].ToString());
 
         var result = accounts.Register(command, ToRequestMetadata(http));
         if (!result.Ok)
@@ -58,17 +59,15 @@ public static class AccountEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error(result.Error)));
         }
 
-        var body = $"<section class='card'><h1>Аккаунт создан</h1><p>Dev/fake mailer подготовил ссылку подтверждения.</p><p><a class='button' href='{result.ConfirmLink}'>Подтвердить email</a></p><p><a href='/dev/fake-mailer'>Открыть fake mailer</a></p></section>";
+        const string body = "<section class='card'><h1>Аккаунт создан</h1><p>Мы отправили ссылку подтверждения на указанный email. Перейдите по ней, чтобы активировать аккаунт.</p><p><a class='button' href='/account/login'>К странице входа</a></p></section>";
         return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение", body));
     }
 
     private static async Task<IResult> ResendConfirmation(HttpContext http, IUserAccountService accounts)
     {
         var form = await http.Request.ReadFormAsync();
-        var link = accounts.ResendConfirmation(form["email"].ToString());
-        var message = link is null
-            ? "Если пользователь существует, письмо будет подготовлено."
-            : $"<a class='button' href='{link}'>Dev-ссылка</a>";
+        accounts.ResendConfirmation(form["email"].ToString());
+        const string message = "Если пользователь существует, мы отправили повторную ссылку подтверждения на email.";
 
         return HtmlRenderer.Html(HtmlRenderer.Page(
             "Повторить подтверждение",
