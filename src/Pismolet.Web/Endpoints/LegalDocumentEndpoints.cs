@@ -11,10 +11,6 @@ public static class LegalDocumentEndpoints
             "Юридические документы",
             LegalIndexPage())));
 
-        app.MapGet("/legal/", () => HtmlRenderer.Html(HtmlRenderer.Page(
-            "Юридические документы",
-            LegalIndexPage())));
-
         app.MapGet("/legal/offer", () => HtmlRenderer.Html(HtmlRenderer.Page(
             "Правила и оферта",
             LegalDocumentPage(
