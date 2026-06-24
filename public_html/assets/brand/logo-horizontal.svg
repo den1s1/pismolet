@@ -6,9 +6,10 @@
     </linearGradient>
   </defs>
   <rect x="4" y="6" width="56" height="52" rx="14" fill="url(#bg)"/>
-  <path d="M13 23.5L32 37L51 23.5" fill="none" stroke="#FFFFFF" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M14 46L27 35.5" fill="none" stroke="#FFFFFF" stroke-width="4.4" stroke-linecap="round"/>
-  <path d="M50 46L37 35.5" fill="none" stroke="#FFFFFF" stroke-width="4.4" stroke-linecap="round"/>
-  <path d="M32.5 24.5L53 14.5L45.5 43.5L39 34.5L32.5 24.5Z" fill="#FFFFFF"/>
-  <path d="M39 34.5L45.5 43.5L43 32.5" fill="#BFDBFE"/>
+  <path d="M13.5 24.5L30.2 36.3C31.3 37.1 32.8 37.1 33.9 36.3L50.5 24.5" fill="none" stroke="#FFFFFF" stroke-width="4.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M14 45.5L27.3 35.5" fill="none" stroke="#FFFFFF" stroke-width="4.1" stroke-linecap="round" opacity="0.95"/>
+  <path d="M50 45.5L38 36.2" fill="none" stroke="#FFFFFF" stroke-width="4.1" stroke-linecap="round" opacity="0.95"/>
+  <path d="M31.5 25.5L55 14L45.4 45.4L38.2 34.3L31.5 25.5Z" fill="#FFFFFF"/>
+  <path d="M38.2 34.3L55 14L43.5 37.8" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M38.2 34.3L32.8 43.2L43.5 37.8" fill="#DBEAFE"/>
 </svg>
