@@ -109,6 +109,7 @@ app.MapPaymentEndpoints();
 app.MapCheckEndpoints();
 app.MapSendEndpoints();
 app.MapAdminEndpoints();
+app.MapAdminUsersPageEndpoints();
 app.MapAdminLegalEvidenceEndpoints();
 app.MapAdminDeliveryEndpoints();
 app.MapAdminPaymentEndpoints();
