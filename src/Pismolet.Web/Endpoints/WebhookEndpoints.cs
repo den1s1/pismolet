@@ -2,8 +2,10 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Legal;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
+using Pismolet.Web.Domain.Legal;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Rendering;
 
@@ -25,13 +27,13 @@ public static class WebhookEndpoints
         return app;
     }
 
-    private static Task<IResult> ReceiveProviderWebhook(string provider, HttpContext http, IEmailProviderAdapter adapter, IEmailWebhookProcessingService processor, IConfiguration configuration, IHostEnvironment environment) =>
-        Receive(http, adapter, processor, configuration, environment);
+    private static Task<IResult> ReceiveProviderWebhook(string provider, HttpContext http, IEmailProviderAdapter adapter, IEmailWebhookProcessingService processor, ILegalEvidenceService legalEvidence, IConfiguration configuration, IHostEnvironment environment) =>
+        Receive(http, adapter, processor, legalEvidence, configuration, environment);
 
-    private static Task<IResult> ReceiveFakeWebhook(HttpContext http, IEmailProviderAdapter adapter, IEmailWebhookProcessingService processor, IConfiguration configuration, IHostEnvironment environment) =>
-        Receive(http, adapter, processor, configuration, environment);
+    private static Task<IResult> ReceiveFakeWebhook(HttpContext http, IEmailProviderAdapter adapter, IEmailWebhookProcessingService processor, ILegalEvidenceService legalEvidence, IConfiguration configuration, IHostEnvironment environment) =>
+        Receive(http, adapter, processor, legalEvidence, configuration, environment);
 
-    private static async Task<IResult> Receive(HttpContext http, IEmailProviderAdapter adapter, IEmailWebhookProcessingService processor, IConfiguration configuration, IHostEnvironment environment)
+    private static async Task<IResult> Receive(HttpContext http, IEmailProviderAdapter adapter, IEmailWebhookProcessingService processor, ILegalEvidenceService legalEvidence, IConfiguration configuration, IHostEnvironment environment)
     {
         if (!IsWebhookAllowed(http, configuration, environment))
         {
@@ -47,7 +49,9 @@ public static class WebhookEndpoints
             return Results.BadRequest(new { status = "invalid_payload" });
         }
 
-        var result = processor.Process(parsed.Event, ToRequestMetadata(http));
+        var requestMetadata = ToRequestMetadata(http);
+        var result = processor.Process(parsed.Event, requestMetadata);
+        RecordComplaintLegalEvidence(parsed.Event, requestMetadata, http.Request.Path.ToString(), result.Status, legalEvidence);
         return Results.Ok(new { status = result.Status, correlationId = result.CorrelationId });
     }
 
@@ -114,6 +118,48 @@ public static class WebhookEndpoints
         var result = processor.Process(providerEvent, ToRequestMetadata(http));
         var body = $"<section class='card'><h1>Fake webhook sender</h1><p class='success'>Событие обработано: {H(result.Status)}</p><p>CorrelationId: {H(result.CorrelationId.ToString())}</p><p><a href='/dev/webhooks/fake'>Отправить ещё</a></p></section>";
         return HtmlRenderer.Html(HtmlRenderer.Page("Fake webhook sender", body));
+    }
+
+    private static void RecordComplaintLegalEvidence(EmailProviderWebhookEvent providerEvent, RequestMetadata requestMetadata, string route, string processingStatus, ILegalEvidenceService legalEvidence)
+    {
+        if (providerEvent.EventType != ProviderWebhookEventType.Complaint)
+        {
+            return;
+        }
+
+        var snapshot = LegalEvidenceTextSnapshots.RecipientComplaintReceivedText;
+        var clientId = string.IsNullOrWhiteSpace(providerEvent.RecipientEmail)
+            ? "unknown-recipient"
+            : providerEvent.RecipientEmail.Trim().ToLowerInvariant();
+        var metadataJson = JsonSerializer.Serialize(new
+        {
+            provider = providerEvent.Provider,
+            providerEventId = providerEvent.ProviderEventId,
+            providerMessageId = providerEvent.ProviderMessageId,
+            mailingId = providerEvent.MailingId,
+            recipientEmail = providerEvent.RecipientEmail,
+            rawEventType = providerEvent.RawEventType,
+            description = providerEvent.Description,
+            occurredAt = providerEvent.OccurredAt,
+            processingStatus,
+            rawPayload = providerEvent.RawPayload
+        });
+
+        legalEvidence.RecordEvent(new LegalEvidenceEventDraft(
+            LegalEventTypes.RecipientComplaintReceived,
+            clientId,
+            null,
+            null,
+            providerEvent.MailingId,
+            LegalDocumentKeys.RecipientComplaint,
+            LegalEvidenceTextSnapshots.CurrentVersion,
+            legalEvidence.ComputeTextHash(snapshot),
+            snapshot,
+            LegalEventResults.Received,
+            requestMetadata.Ip,
+            requestMetadata.UserAgent,
+            route,
+            metadataJson));
     }
 
     private static bool IsWebhookAllowed(HttpContext http, IConfiguration configuration, IHostEnvironment environment)
