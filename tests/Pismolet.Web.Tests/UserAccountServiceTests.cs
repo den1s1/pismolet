@@ -1,5 +1,6 @@
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Legal;
 using Pismolet.Web.Infrastructure.Audit;
 using Pismolet.Web.Infrastructure.Mail;
 using Pismolet.Web.Infrastructure.Persistence;
@@ -17,7 +18,7 @@ public sealed class UserAccountServiceTests
         var users = new InMemoryUserRepository();
         var mailer = new InMemoryFakeMailer();
         var audit = new InMemoryAuditLogger();
-        var service = new UserAccountService(users, mailer, audit, new InMemoryAdminMvpSettingsRepository());
+        var service = new UserAccountService(users, mailer, audit, new InMemoryAdminMvpSettingsRepository(), LegalEvidence());
 
         var result = service.Register(new RegisterUserCommand("CLIENT@EXAMPLE.COM", "password123", "Клиент"), Request);
 
@@ -39,7 +40,7 @@ public sealed class UserAccountServiceTests
     public void Authenticate_rejects_user_before_email_confirmation()
     {
         var users = new InMemoryUserRepository();
-        var service = new UserAccountService(users, new InMemoryFakeMailer(), new InMemoryAuditLogger(), new InMemoryAdminMvpSettingsRepository());
+        var service = new UserAccountService(users, new InMemoryFakeMailer(), new InMemoryAuditLogger(), new InMemoryAdminMvpSettingsRepository(), LegalEvidence());
 
         service.Register(new RegisterUserCommand("client@example.com", "password123", "Клиент"), Request);
 
@@ -53,7 +54,13 @@ public sealed class UserAccountServiceTests
     {
         var users = new InMemoryUserRepository();
         var audit = new InMemoryAuditLogger();
-        var service = new UserAccountService(users, new InMemoryFakeMailer(), audit, new InMemoryAdminMvpSettingsRepository());
+        var legalEvidenceRepository = new InMemoryLegalEvidenceRepository();
+        var service = new UserAccountService(
+            users,
+            new InMemoryFakeMailer(),
+            audit,
+            new InMemoryAdminMvpSettingsRepository(),
+            new LegalEvidenceService(legalEvidenceRepository));
         var result = service.Register(new RegisterUserCommand("client@example.com", "password123", "Клиент"), Request);
         var token = result.ConfirmLink!.Split("token=")[1];
 
@@ -64,5 +71,8 @@ public sealed class UserAccountServiceTests
         Assert.True(authenticated.EmailConfirmed);
         Assert.Contains(audit.GetRecords(), record => record.EventType == "email_confirmed");
         Assert.Contains(audit.GetRecords(), record => record.EventType == "login");
+        Assert.Contains(legalEvidenceRepository.ListEventsForClient("client@example.com"), record => record.EventType == "client_email_confirmed");
     }
+
+    private static LegalEvidenceService LegalEvidence() => new(new InMemoryLegalEvidenceRepository());
 }
