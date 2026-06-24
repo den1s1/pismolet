@@ -1,14 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="180" viewBox="0 0 720 180" role="img" aria-label="Письмолёт">
-  <rect width="720" height="180" fill="#0F172A"/>
-  <g transform="translate(38 36)">
-    <rect x="10" y="18" width="126" height="92" rx="24" fill="#ffffff"/>
-    <path d="M22 42L73 78L124 42" stroke="#0F172A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <path d="M24 96L61 66" stroke="#0F172A" stroke-width="9" stroke-linecap="round" fill="none" opacity=".96"/>
-    <path d="M122 96L85 66" stroke="#0F172A" stroke-width="9" stroke-linecap="round" fill="none" opacity=".96"/>
-    <path d="M80 48L166 14L132 104L105 73L80 48Z" fill="#ffffff"/>
-    <path d="M108 74L132 104L121 70" fill="#BFDBFE" opacity=".95"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="120" viewBox="0 0 560 120" role="img" aria-label="Письмолёт">
+  <defs>
+    <linearGradient id="logoBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(8 14)">
+    <rect x="0" y="24" width="106" height="72" rx="18" fill="#FFFFFF"/>
+    <path d="M10 45L53 76L96 45" fill="none" stroke="#2563EB" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M11 86L40 62" fill="none" stroke="#2563EB" stroke-width="7" stroke-linecap="round" opacity=".96"/>
+    <path d="M95 86L66 62" fill="none" stroke="#2563EB" stroke-width="7" stroke-linecap="round" opacity=".96"/>
+    <path d="M78 48L144 18L118 92L98 66L78 48Z" fill="url(#logoBlue)"/>
+    <path d="M98 66L118 92L111 62" fill="#BFDBFE" opacity=".95"/>
+    <path d="M78 48L144 18L98 66" fill="#0F172A" opacity=".10"/>
+    <path d="M78 48L144 18L118 92L98 66L78 48Z" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round" opacity=".96"/>
   </g>
-  <text x="220" y="82" fill="#ffffff" font-family="Arial, sans-serif" font-size="58" font-weight="800">Письмо</text>
-  <text x="441" y="82" fill="#93C5FD" font-family="Arial, sans-serif" font-size="58" font-weight="800">лёт</text>
-  <text x="222" y="122" fill="#CBD5E1" font-family="Arial, sans-serif" font-size="24">Простые email-рассылки</text>
+  <text x="172" y="60" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="800" letter-spacing="-1.2">
+    <tspan fill="#FFFFFF">Письмо</tspan><tspan fill="#93C5FD">лёт</tspan>
+  </text>
+  <text x="174" y="91" fill="#CBD5E1" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="500">Простые email-рассылки</text>
 </svg>
