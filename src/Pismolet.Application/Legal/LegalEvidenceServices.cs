@@ -11,7 +11,6 @@ public interface ILegalEvidenceRepository
     LegalDocumentVersion? GetActiveDocumentVersion(string documentKey);
     IReadOnlyCollection<LegalDocumentVersion> ListDocumentVersions(string? documentKey = null);
     void SaveEvent(LegalEvidenceEvent legalEvent);
-    IReadOnlyCollection<LegalEvidenceEvent> ListEvents(int limit = 100);
     IReadOnlyCollection<LegalEvidenceEvent> ListEventsForClient(string clientId, int limit = 100);
 }
 
