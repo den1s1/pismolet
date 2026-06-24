@@ -53,6 +53,7 @@ builder.Services.AddAuthorization(options =>
         }));
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
+builder.Services.AddPismoletLegalEvidenceStorage(builder.Configuration);
 builder.Services.AddPismoletEfSendingStorage(builder.Configuration);
 builder.Services.AddSingleton(ReadPostfixDeliveryAutomationSettingsOptions(builder.Configuration));
 builder.Services.AddSingleton<IPostfixDeliveryAutomationSettingsRepository, FilePostfixDeliveryAutomationSettingsRepository>();
@@ -62,6 +63,11 @@ if (!isRunningUnderTests)
 }
 
 var app = builder.Build();
+
+if (!isRunningUnderTests)
+{
+    app.Services.MigrateLegalEvidenceDatabase();
+}
 
 if (app.Environment.IsDevelopment() && !isRunningUnderTests)
 {
@@ -161,8 +167,4 @@ static int ReadInt(IConfiguration configuration, string key, int fallback, int m
 
 static IEnumerable<string> Split(string? value) => string.IsNullOrWhiteSpace(value)
     ? Array.Empty<string>()
-    : value.Split([',', ';', '\n', '\r', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-public partial class Program
-{
-}
+    : value.Split(new[] { ',', ';', '\n', '\r', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
