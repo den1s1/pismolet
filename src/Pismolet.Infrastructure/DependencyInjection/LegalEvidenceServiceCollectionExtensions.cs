@@ -72,7 +72,7 @@ public static class LegalEvidenceServiceCollectionExtensions
                 ip varchar(80) NULL,
                 user_agent varchar(512) NULL,
                 route varchar(512) NULL,
-                metadata_json text NOT NULL DEFAULT '{}',
+                metadata_json text NOT NULL DEFAULT '{{}}',
                 created_at timestamp with time zone NOT NULL
             );
 
