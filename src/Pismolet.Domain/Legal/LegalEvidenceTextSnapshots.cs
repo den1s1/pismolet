@@ -5,10 +5,10 @@ public static class LegalEvidenceTextSnapshots
     public const string CurrentVersion = "2026-06-16-v1";
 
     public const string OfferAndRulesAcceptanceText =
-        "Клиент принимает правила сервиса Письмолёт и условия использования сервиса.";
+        "Клиент принимает правила сервиса Письмолёт и условия использования сервиса. document_key=offer_and_rules; document_version=2026-06-16-v1; document_url=/legal/offer.";
 
     public const string ClientPersonalDataConsentText =
-        "Клиент даёт согласие на обработку данных, указанных при регистрации: ФИО, email и телефон.";
+        "Клиент даёт согласие на обработку данных, указанных при регистрации: ФИО, email и телефон. document_key=client_personal_data_consent; document_version=2026-06-16-v1; document_url=/legal/privacy.";
 
     public const string ClientProfileConfirmationText =
         "Клиент подтвердил актуальность данных профиля, email для входа, отправителя по умолчанию и email для пересылки ответов.";
