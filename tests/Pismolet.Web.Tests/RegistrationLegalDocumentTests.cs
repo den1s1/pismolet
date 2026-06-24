@@ -16,6 +16,24 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         this.factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
     }
 
+    [Fact]
+    public async Task LegalIndexIsPublic()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var response = await client.GetAsync("/legal");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Юридические документы Письмолёта", html);
+        Assert.Contains("href='/legal/offer'", html);
+        Assert.Contains("href='/legal/privacy'", html);
+        Assert.Contains("href='/legal/rules'", html);
+    }
+
     [Theory]
     [InlineData("/legal/offer", "Правила и оферта сервиса Письмолёт", "document_key: <code>offer_and_rules</code>")]
     [InlineData("/legal/privacy", "Политика обработки персональных данных", "document_key: <code>client_personal_data_consent</code>")]
