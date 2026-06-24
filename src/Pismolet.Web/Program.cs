@@ -66,7 +66,14 @@ var app = builder.Build();
 
 if (!isRunningUnderTests)
 {
-    app.Services.MigrateLegalEvidenceDatabase();
+    try
+    {
+        app.Services.MigrateLegalEvidenceDatabase();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Не удалось инициализировать хранилище legal evidence. Приложение продолжит запуск без блокировки старта.");
+    }
 }
 
 if (app.Environment.IsDevelopment() && !isRunningUnderTests)
