@@ -2,6 +2,8 @@ namespace Pismolet.Web.Domain.Legal;
 
 public static class LegalEvidenceTextSnapshots
 {
+    public const string CurrentVersion = "2026-06-16-v1";
+
     public const string BaseSourceSelectionText =
         "Клиент выбрал источник загруженной адресной базы и подтвердил, что использует его как основание для дальнейшей проверки законности базы.";
 
