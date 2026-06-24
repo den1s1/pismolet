@@ -35,7 +35,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     }
 
     [Theory]
-    [InlineData("/legal/offer", "Правила и оферта сервиса Письмолёт", "document_key: <code>offer_and_rules</code>")]
+    [InlineData("/legal/offer", "Пользовательское соглашение и оферта сервиса Письмолёт", "document_key: <code>offer_and_rules</code>")]
     [InlineData("/legal/privacy", "Политика обработки персональных данных", "document_key: <code>client_personal_data_consent</code>")]
     public async Task LegalDocumentsArePublic(string path, string title, string documentKey)
     {
@@ -50,6 +50,24 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(title, html);
         Assert.Contains(documentKey, html);
+    }
+
+    [Fact]
+    public async Task OfferContainsFullLegalSections()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var html = await client.GetStringAsync("/legal/offer");
+
+        Assert.Contains("Редакция:</strong> 2026-06-24-v1", html);
+        Assert.Contains("Акцепт соглашения", html);
+        Assert.Contains("База адресатов", html);
+        Assert.Contains("Отписка через Письмолёт", html);
+        Assert.Contains("Ограничения ответственности", html);
+        Assert.Contains("Связанные документы", html);
     }
 
     [Fact]
