@@ -44,8 +44,14 @@ public static class HtmlRenderer
     public static string Error(string text) =>
         $"<section class='panel error'><h1>Ошибка</h1><p>{H(text)}</p><p><a class='btn secondary' href='/'>На главную</a></p></section>";
 
-    public static string AccountForm(string action, string title, bool name, bool password = true) =>
-        $"<section class='panel form-card'><h1>{H(title)}</h1><form method='post' action='{H(action)}'>{(name ? "<label>Название клиента<input name='displayName'></label>" : string.Empty)}<label>Email<input type='email' name='email' required></label>{(password ? "<label>Пароль<input type='password' minlength='8' name='password' required></label>" : string.Empty)}<button class='btn'>{H(title)}</button></form><p><a href='/account/resend-confirmation'>Повторить подтверждение email</a></p></section>";
+    public static string AccountForm(string action, string title, bool name, bool password = true)
+    {
+        var profileFields = name
+            ? "<label>ФИО<input name='displayName' autocomplete='name' required></label><label>Телефон<input type='tel' name='phone' autocomplete='tel' required></label>"
+            : string.Empty;
+
+        return $"<section class='panel form-card'><h1>{H(title)}</h1><form method='post' action='{H(action)}'>{profileFields}<label>Email<input type='email' name='email' autocomplete='email' required></label>{(password ? "<label>Пароль<input type='password' minlength='8' name='password' required></label>" : string.Empty)}<button class='btn'>{H(title)}</button></form><p><a href='/account/resend-confirmation'>Повторить подтверждение email</a></p></section>";
+    }
 
     public static string Dashboard(UserAccount user)
     {
@@ -114,7 +120,7 @@ public static class HtmlRenderer
             <section class='panel'>
                 <div class='profile-fields'>
                     <div class='profile-field'><span>Email для входа</span><b>{H(user.Email)}</b></div>
-                    <div class='profile-field'><span>Телефон для связи</span><b>Не указан</b></div>
+                    <div class='profile-field'><span>Телефон для связи</span><b>{H(string.IsNullOrWhiteSpace(user.Phone) ? "Не указан" : user.Phone)}</b></div>
                     <div class='profile-field'><span>Отправитель по умолчанию</span><b>Письмолёт</b></div>
                     <div class='profile-field'><span>Email для пересылки ответов</span><b>{H(user.Email)}</b></div>
                     <div class='profile-field'><span>Статус аккаунта</span><b>{H(user.Profile.Status)}</b></div>
@@ -263,7 +269,6 @@ public static class HtmlRenderer
 
     private static string AccountMenu(bool showDevTools)
     {
-        var devLink = showDevTools ? "<a href='/dev/fake-mailer'>Fake mailer</a>" : string.Empty;
         return $"""
             <div class='profile-menu'>
                 <button class='profile-button' type='button'>Профиль ▾</button>
@@ -273,7 +278,6 @@ public static class HtmlRenderer
                     <a href='/payments'>Платежи</a>
                     <a href='/profile'>Профиль</a>
                     <a href='/admin'>Админка</a>
-                    {devLink}
                     <form method='post' action='/account/logout'><button type='submit'>Выйти</button></form>
                 </div>
             </div>
