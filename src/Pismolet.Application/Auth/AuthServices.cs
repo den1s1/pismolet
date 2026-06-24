@@ -95,26 +95,11 @@ public sealed class UserAccountService(
             return false;
         }
 
-        users.Update(user with { EmailConfirmed = true });
+        var confirmedUser = user with { EmailConfirmed = true };
+        users.Update(confirmedUser);
         Audit(user.Email, "email_confirmed", request);
-        legalEvidence.RecordEvent(new LegalEvidenceEventDraft(
-            EventType: LegalEventTypes.ClientEmailConfirmed,
-            ClientId: user.Email,
-            UserId: user.Email,
-            ImportBatchId: null,
-            MailingId: null,
-            DocumentKey: null,
-            DocumentVersion: null,
-            TextHash: null,
-            EventTextSnapshot: EmailConfirmationSnapshot,
-            Result: LegalEventResults.Confirmed,
-            Ip: request.Ip,
-            UserAgent: request.UserAgent,
-            Route: "/account/confirm-email",
-            MetadataJson: JsonSerializer.Serialize(new
-            {
-                source = "email_confirmation_link"
-            })));
+        RecordEmailConfirmation(user, request);
+        RecordClientProfileConfirmation(confirmedUser, request);
         return true;
     }
 
@@ -148,6 +133,56 @@ public sealed class UserAccountService(
     public UserAccount? GetByEmail(string email) => users.GetByEmail(NormalizeEmail(email));
 
     public void AuditLogout(string email, RequestMetadata request) => Audit(NormalizeEmail(email), "logout", request);
+
+    private void RecordEmailConfirmation(UserAccount user, RequestMetadata request) => legalEvidence.RecordEvent(new LegalEvidenceEventDraft(
+        EventType: LegalEventTypes.ClientEmailConfirmed,
+        ClientId: user.Email,
+        UserId: user.Email,
+        ImportBatchId: null,
+        MailingId: null,
+        DocumentKey: null,
+        DocumentVersion: null,
+        TextHash: null,
+        EventTextSnapshot: EmailConfirmationSnapshot,
+        Result: LegalEventResults.Confirmed,
+        Ip: request.Ip,
+        UserAgent: request.UserAgent,
+        Route: "/account/confirm-email",
+        MetadataJson: JsonSerializer.Serialize(new
+        {
+            source = "email_confirmation_link"
+        })));
+
+    private void RecordClientProfileConfirmation(UserAccount user, RequestMetadata request)
+    {
+        var snapshot = LegalEvidenceTextSnapshots.ClientProfileConfirmationText;
+        legalEvidence.RecordEvent(new LegalEvidenceEventDraft(
+            EventType: LegalEventTypes.ClientProfileConfirmed,
+            ClientId: user.Email,
+            UserId: user.Email,
+            ImportBatchId: null,
+            MailingId: null,
+            DocumentKey: LegalDocumentKeys.ClientProfileConfirmation,
+            DocumentVersion: LegalEvidenceTextSnapshots.CurrentVersion,
+            TextHash: legalEvidence.ComputeTextHash(snapshot),
+            EventTextSnapshot: snapshot,
+            Result: LegalEventResults.Confirmed,
+            Ip: request.Ip,
+            UserAgent: request.UserAgent,
+            Route: "/account/confirm-email",
+            MetadataJson: JsonSerializer.Serialize(new
+            {
+                user.Email,
+                user.DisplayName,
+                ReplyToEmail = user.Email,
+                DefaultSenderName = "Письмолёт",
+                user.Profile.Status,
+                user.Profile.DailySendLimit,
+                user.Profile.TotalSendLimit,
+                user.Profile.PremoderationRequired,
+                source = "email_confirmation_link"
+            })));
+    }
 
     private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
