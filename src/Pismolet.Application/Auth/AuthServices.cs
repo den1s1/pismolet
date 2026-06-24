@@ -11,7 +11,7 @@ using Pismolet.Web.Domain.Users;
 
 namespace Pismolet.Web.Application.Auth;
 
-public sealed record RegisterUserCommand(string Email, string Password, string DisplayName);
+public sealed record RegisterUserCommand(string Email, string Password, string DisplayName, string Phone);
 
 public sealed record LoginUserCommand(string Email, string Password);
 
@@ -49,13 +49,22 @@ public sealed class UserAccountService(
     public RegisterUserResult Register(RegisterUserCommand command, RequestMetadata request)
     {
         var email = NormalizeEmail(command.Email);
-        var displayName = string.IsNullOrWhiteSpace(command.DisplayName)
-            ? email
-            : command.DisplayName.Trim();
+        var displayName = command.DisplayName.Trim();
+        var phone = NormalizePhone(command.Phone);
 
         if (string.IsNullOrWhiteSpace(email) || command.Password.Length < 8)
         {
             return RegisterUserResult.Failure("Укажите email и пароль от 8 символов.");
+        }
+
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return RegisterUserResult.Failure("Укажите ФИО.");
+        }
+
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return RegisterUserResult.Failure("Укажите номер телефона.");
         }
 
         if (users.Exists(email))
@@ -72,7 +81,10 @@ public sealed class UserAccountService(
             ConfirmationToken: token,
             EmailConfirmed: false,
             Profile: ClientProfile.NewClientDefault(settings),
-            Mailings: [Mailing.Draft("Первая рассылка")]);
+            Mailings: [Mailing.Draft("Первая рассылка")])
+        {
+            Phone = phone
+        };
 
         if (!users.TryAdd(user))
         {
@@ -174,6 +186,7 @@ public sealed class UserAccountService(
             {
                 user.Email,
                 user.DisplayName,
+                user.Phone,
                 ReplyToEmail = user.Email,
                 DefaultSenderName = "Письмолёт",
                 user.Profile.Status,
@@ -185,6 +198,8 @@ public sealed class UserAccountService(
     }
 
     private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+
+    private static string NormalizePhone(string phone) => phone.Trim();
 
     private static string HashPassword(string password) => "dev:" + password;
 
