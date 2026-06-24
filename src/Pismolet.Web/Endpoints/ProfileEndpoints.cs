@@ -11,6 +11,7 @@ public static class ProfileEndpoints
     public static IEndpointRouteBuilder MapProfileEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/profile", ShowProfile).RequireAuthorization();
+        app.MapPost("/profile/confirm", ConfirmProfile).RequireAuthorization();
         app.MapGet("/payments", ShowPayments).RequireAuthorization();
         return app;
     }
@@ -30,6 +31,11 @@ public static class ProfileEndpoints
         }
 
         return HtmlRenderer.Html(HtmlRenderer.Page("Профиль", HtmlRenderer.UserProfile(user), authenticated: true));
+    }
+
+    private static IResult ConfirmProfile()
+    {
+        return Results.Redirect("/profile");
     }
 
     private static IResult ShowPayments(HttpContext http, [FromServices] IUserAccountService accounts, [FromServices] IMailingService mailings)
