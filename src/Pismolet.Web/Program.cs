@@ -116,7 +116,7 @@ app.MapClickTrackingEndpoints();
 app.MapWebhookEndpoints();
 app.MapInboundReplyEndpoints();
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() && DevToolsEnabled(app.Configuration))
 {
     app.MapDevEndpoints();
     app.MapDevWebhookEndpoints();
@@ -132,6 +132,12 @@ static bool IsRunningUnderTests() => AppDomain.CurrentDomain.GetAssemblies().Any
     var name = assembly.GetName().Name;
     return name is "testhost" || (name?.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase) ?? false);
 });
+
+static bool DevToolsEnabled(IConfiguration configuration) => bool.TryParse(
+    configuration["DevTools:Enabled"]
+    ?? configuration["DevTools__Enabled"]
+    ?? Environment.GetEnvironmentVariable("PISMOLET_DEV_TOOLS_ENABLED"),
+    out var enabled) && enabled;
 
 static IReadOnlySet<string> ReadAdminEmails(IConfiguration configuration)
 {
