@@ -41,7 +41,7 @@ public static class AdminUsersPageEndpoints
             rows = rows.Where(row =>
                 row.User.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                 row.User.Email.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                row.User.Phone.Contains(search, StringComparison.OrdinalIgnoreCase));
+                (!string.IsNullOrWhiteSpace(row.User.Phone) && row.User.Phone.Contains(search, StringComparison.OrdinalIgnoreCase)));
         }
 
         rows = status switch
