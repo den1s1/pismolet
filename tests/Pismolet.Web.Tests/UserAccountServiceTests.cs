@@ -20,14 +20,15 @@ public sealed class UserAccountServiceTests
         var audit = new InMemoryAuditLogger();
         var service = new UserAccountService(users, mailer, audit, new InMemoryAdminMvpSettingsRepository(), LegalEvidence());
 
-        var result = service.Register(new RegisterUserCommand("CLIENT@EXAMPLE.COM", "password123", "Клиент"), Request);
+        var result = service.Register(new RegisterUserCommand("CLIENT@EXAMPLE.COM", "password123", "Иван Иванов", "+79990000000"), Request);
 
         Assert.True(result.Ok);
         Assert.NotNull(result.ConfirmLink);
 
         var user = users.GetByEmail("client@example.com");
         Assert.NotNull(user);
-        Assert.Equal("Клиент", user.DisplayName);
+        Assert.Equal("Иван Иванов", user.DisplayName);
+        Assert.Equal("+79990000000", user.Phone);
         Assert.False(user.EmailConfirmed);
         Assert.Equal(1000, user.Profile.DailySendLimit);
         Assert.True(user.Profile.PremoderationRequired);
@@ -37,12 +38,25 @@ public sealed class UserAccountServiceTests
     }
 
     [Fact]
+    public void Register_rejects_missing_required_profile_fields()
+    {
+        var users = new InMemoryUserRepository();
+        var service = new UserAccountService(users, new InMemoryFakeMailer(), new InMemoryAuditLogger(), new InMemoryAdminMvpSettingsRepository(), LegalEvidence());
+
+        var noName = service.Register(new RegisterUserCommand("client@example.com", "password123", "", "+79990000000"), Request);
+        var noPhone = service.Register(new RegisterUserCommand("client@example.com", "password123", "Иван Иванов", ""), Request);
+
+        Assert.False(noName.Ok);
+        Assert.False(noPhone.Ok);
+    }
+
+    [Fact]
     public void Authenticate_rejects_user_before_email_confirmation()
     {
         var users = new InMemoryUserRepository();
         var service = new UserAccountService(users, new InMemoryFakeMailer(), new InMemoryAuditLogger(), new InMemoryAdminMvpSettingsRepository(), LegalEvidence());
 
-        service.Register(new RegisterUserCommand("client@example.com", "password123", "Клиент"), Request);
+        service.Register(new RegisterUserCommand("client@example.com", "password123", "Клиент", "+79990000000"), Request);
 
         var authenticated = service.Authenticate(new LoginUserCommand("client@example.com", "password123"), Request);
 
@@ -61,7 +75,7 @@ public sealed class UserAccountServiceTests
             audit,
             new InMemoryAdminMvpSettingsRepository(),
             new LegalEvidenceService(legalEvidenceRepository));
-        var result = service.Register(new RegisterUserCommand("client@example.com", "password123", "Клиент"), Request);
+        var result = service.Register(new RegisterUserCommand("client@example.com", "password123", "Клиент", "+79990000000"), Request);
         var token = result.ConfirmLink!.Split("token=")[1];
 
         Assert.True(service.ConfirmEmail(token, Request));
@@ -72,6 +86,7 @@ public sealed class UserAccountServiceTests
         Assert.Contains(audit.GetRecords(), record => record.EventType == "email_confirmed");
         Assert.Contains(audit.GetRecords(), record => record.EventType == "login");
         Assert.Contains(legalEvidenceRepository.ListEventsForClient("client@example.com"), record => record.EventType == "client_email_confirmed");
+        Assert.Contains(legalEvidenceRepository.ListEventsForClient("client@example.com"), record => record.EventType == "client_profile_confirmed");
     }
 
     private static LegalEvidenceService LegalEvidence() => new(new InMemoryLegalEvidenceRepository());
