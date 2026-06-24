@@ -33,7 +33,7 @@ public static class AdminMenuVisibilityMiddlewareExtensions
 
     private static bool ShouldFilter(HttpContext context)
     {
-        if (!context.User.Identity?.IsAuthenticated ?? true)
+        if (context.User.Identity?.IsAuthenticated != true)
         {
             return false;
         }
