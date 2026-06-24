@@ -224,7 +224,7 @@ public static class HtmlRenderer
             return $"""
                 <div class='history-row campaign-history-row'>
                     <div class='campaign-main'>
-                        <b>{H(mailing.Subject)}</b>
+                        <b>{H(MailingTitle(mailing))}</b>
                         <span class='hint'>Создано: {mailing.CreatedAt:dd.MM.yyyy}</span>
                     </div>
                     <div><span class='history-label'>Письма</span><b>{accepted}</b></div>
@@ -238,7 +238,7 @@ public static class HtmlRenderer
         return $"""
             <div class='history-table'>
                 <div class='history-table-head'>
-                    <span>Название</span>
+                    <span>Тема письма</span>
                     <span>Количество писем</span>
                     <span>Стоимость</span>
                     <span>Статус</span>
@@ -259,7 +259,7 @@ public static class HtmlRenderer
         return string.Join(string.Empty, mailings.Select(m => $"""
             <div class='history-row'>
                 <div>
-                    <b>{H(m.Subject)}</b><br>
+                    <b>{H(MailingTitle(m))}</b><br>
                     <span class='hint'>Статус: {H(m.StatusRu)}</span>
                 </div>
                 <div class='history-actions'>
@@ -318,6 +318,10 @@ public static class HtmlRenderer
             _ => ($"/mailings/{mailing.Id}/payment", "К оплате")
         };
     }
+
+    private static string MailingTitle(Mailing mailing) => string.IsNullOrWhiteSpace(mailing.MessageDraft?.Subject)
+        ? "Новая рассылка"
+        : mailing.MessageDraft!.Subject;
 
     private static string BadgeClass(Mailing mailing) => mailing.Status switch
     {
