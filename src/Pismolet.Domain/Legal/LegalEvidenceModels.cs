@@ -38,6 +38,7 @@ public static class LegalDocumentKeys
     public const string AdvertisingConsentDeclaration = "advertising_consent_declaration";
     public const string CampaignLaunchConfirmation = "campaign_launch_confirmation";
     public const string GlobalUnsubscribeConfirmation = "global_unsubscribe_confirmation";
+    public const string RecipientComplaint = "recipient_complaint";
 }
 
 public static class LegalEventTypes
