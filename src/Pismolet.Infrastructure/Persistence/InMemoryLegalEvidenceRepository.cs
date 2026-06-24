@@ -51,6 +51,11 @@ public sealed class InMemoryLegalEvidenceRepository : ILegalEvidenceRepository
 
     public void SaveEvent(LegalEvidenceEvent legalEvent) => _events[legalEvent.Id] = legalEvent with { ClientId = Normalize(legalEvent.ClientId) };
 
+    public IReadOnlyCollection<LegalEvidenceEvent> ListEvents(int limit = 100) => _events.Values
+        .OrderByDescending(item => item.CreatedAt)
+        .Take(Math.Clamp(limit, 1, 1000))
+        .ToArray();
+
     public IReadOnlyCollection<LegalEvidenceEvent> ListEventsForClient(string clientId, int limit = 100)
     {
         var normalized = Normalize(clientId);
