@@ -5,7 +5,7 @@ namespace Pismolet.Web.Endpoints;
 
 public static class AdminMenuVisibilityMiddlewareExtensions
 {
-    private const string AdminMenuLink = "                    <a href='/admin'>Админка</a>\n";
+    private const string AdminMenuLink = "<a href='/admin'>Админка</a>";
 
     public static IApplicationBuilder UseAdminMenuVisibility(this IApplicationBuilder app) => app.Use(async (context, next) =>
     {
