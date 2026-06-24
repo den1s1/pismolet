@@ -138,8 +138,7 @@ public static class WebhookEndpoints
             providerMessageId = providerEvent.ProviderMessageId,
             mailingId = providerEvent.MailingId,
             recipientEmail = providerEvent.RecipientEmail,
-            rawEventType = providerEvent.RawEventType,
-            description = providerEvent.Description,
+            eventType = providerEvent.EventType.ToString(),
             occurredAt = providerEvent.OccurredAt,
             processingStatus,
             rawPayload = providerEvent.RawPayload
