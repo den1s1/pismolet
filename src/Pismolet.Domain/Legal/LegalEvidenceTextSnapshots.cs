@@ -4,6 +4,9 @@ public static class LegalEvidenceTextSnapshots
 {
     public const string CurrentVersion = "2026-06-16-v1";
 
+    public const string ClientProfileConfirmationText =
+        "Клиент подтвердил актуальность данных профиля, email для входа, отправителя по умолчанию и email для пересылки ответов.";
+
     public const string BaseSourceSelectionText =
         "Клиент выбрал источник загруженной адресной базы и подтвердил, что использует его как основание для дальнейшей проверки законности базы.";
 
