@@ -7,6 +7,14 @@ public static class LegalDocumentEndpoints
 {
     public static IEndpointRouteBuilder MapLegalDocumentEndpoints(this IEndpointRouteBuilder app)
     {
+        app.MapGet("/legal", () => HtmlRenderer.Html(HtmlRenderer.Page(
+            "Юридические документы",
+            LegalIndexPage())));
+
+        app.MapGet("/legal/", () => HtmlRenderer.Html(HtmlRenderer.Page(
+            "Юридические документы",
+            LegalIndexPage())));
+
         app.MapGet("/legal/offer", () => HtmlRenderer.Html(HtmlRenderer.Page(
             "Правила и оферта",
             LegalDocumentPage(
@@ -26,9 +34,39 @@ public static class LegalDocumentEndpoints
         return app;
     }
 
+    private static string LegalIndexPage() => """
+        <section class='panel legal-document'>
+            <p><a href='/'>← На главную</a></p>
+            <p class='eyebrow'>Юридические документы</p>
+            <h1>Юридические документы Письмолёта</h1>
+            <p class='hint'>Индекс публичных документов сервиса. Полные тексты добавляются поэтапно по legal-плану.</p>
+
+            <h2>Доступно сейчас</h2>
+            <ul>
+                <li><a href='/legal/offer'>Правила и оферта сервиса Письмолёт</a></li>
+                <li><a href='/legal/privacy'>Политика обработки персональных данных</a></li>
+            </ul>
+
+            <h2>Планируется к публикации</h2>
+            <ul>
+                <li><a href='/legal/rules'>Правила рассылок</a></li>
+                <li><a href='/legal/client-consent'>Согласие клиента на обработку его персональных данных</a></li>
+                <li><a href='/legal/data-processing'>Поручение на обработку данных адресатов</a></li>
+                <li><a href='/legal/base-lawfulness'>Декларация законности базы</a></li>
+                <li><a href='/legal/advertising-consent'>Подтверждение рекламного согласия</a></li>
+                <li><a href='/legal/anti-spam'>Антиспам-политика</a></li>
+                <li><a href='/legal/unsubscribe'>Правила отписки через сервис</a></li>
+                <li><a href='/legal/prohibited-content'>Политика запрещённого контента</a></li>
+                <li><a href='/legal/payment-and-refund'>Правила оплаты, запуска и возвратов</a></li>
+                <li><a href='/legal/reply-retention'>Правила хранения и удаления ответов</a></li>
+                <li><a href='/legal/service-email-footer'>Служебный блок письма</a></li>
+            </ul>
+        </section>
+        """;
+
     private static string LegalDocumentPage(string title, string documentKey, string version, string body) => $$"""
         <section class='panel legal-document'>
-            <p><a href='/account/register'>← К регистрации</a></p>
+            <p><a href='/legal'>← К юридическим документам</a></p>
             <p class='eyebrow'>Юридический документ</p>
             <h1>{{title}}</h1>
             <p class='hint'>document_key: <code>{{documentKey}}</code>, version: <code>{{version}}</code></p>
