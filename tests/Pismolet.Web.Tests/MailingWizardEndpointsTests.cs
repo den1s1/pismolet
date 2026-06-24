@@ -20,18 +20,22 @@ public sealed class MailingWizardEndpointsTests
     private const string OwnerEmail = "wizard-owner@example.test";
 
     [Fact]
-    public async Task Authenticated_user_can_open_new_mailing_wizard()
+    public async Task Authenticated_user_can_start_new_mailing_from_addresses_step()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Wizard Owner");
-        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
 
-        var html = await client.GetStringAsync("/mailings/new");
+        var response = await client.GetAsync("/mailings/new");
 
-        Assert.Contains("Новая рассылка", html);
-        Assert.Contains("Создать черновик", html);
-        Assert.Contains("1. Адреса", html);
-        Assert.Contains("wizard-steps", html);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.StartsWith("/mailings/", location, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("/recipients", location, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -48,7 +52,10 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("Не используйте купленные или чужие базы", html);
         Assert.Contains("name='manualAddresses'", html);
         Assert.Contains("dropzone", html);
-        Assert.Contains("Проверить адреса", html);
+        Assert.Contains("Адреса добавлены, дальше", html);
+        Assert.Contains("3. Расчёт и оплата", html);
+        Assert.Contains("4. Готово", html);
+        Assert.DoesNotContain(">Черновик<", html);
     }
 
     [Fact]
@@ -193,7 +200,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("Приглашаем на встречу", html);
         Assert.Contains("Здравствуйте!", html);
         Assert.Contains("Будем рады видеть вас.", html);
-        Assert.Contains("Почему вы получили это письмо", html);
+        Assert.Contains("Вы получили это письмо", html);
         Assert.Contains("/unsubscribe/example-token", html);
 
         using var scope = factory.Services.CreateScope();
