@@ -42,7 +42,7 @@ h3 { font-size: 22px; }
 .topbar {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 15px 24px;
+  padding: 14px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -51,24 +51,25 @@ h3 { font-size: 22px; }
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-width: 205px;
   text-decoration: none;
-  min-width: 178px;
+  color: var(--text);
 }
 .brand-logo {
-  width: 38px;
-  height: 38px;
+  width: 48px;
+  height: 48px;
   display: block;
-  flex: 0 0 auto;
+  flex: 0 0 48px;
 }
 .brand::after {
-  content: "Письмолёт\A Простые email-рассылки";
-  white-space: pre;
+  content: "Письмолёт";
+  display: block;
   color: var(--text);
   font-weight: 900;
-  font-size: 17px;
-  line-height: 1.05;
-  letter-spacing: -0.035em;
+  font-size: 25px;
+  line-height: 1;
+  letter-spacing: -0.045em;
 }
 .nav { display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 14px; flex-wrap: wrap; }
 .nav a { text-decoration: none; }
@@ -202,4 +203,6 @@ dl.details a,
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .panel-head { grid-template-columns: 1fr; }
   .brand { min-width: 0; }
+  .brand-logo { width: 44px; height: 44px; flex-basis: 44px; }
+  .brand::after { font-size: 23px; }
 }
