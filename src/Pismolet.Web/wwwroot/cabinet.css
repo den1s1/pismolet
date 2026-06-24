@@ -456,6 +456,44 @@
   word-break: break-word;
 }
 
+.admin-users-page .compact-title {
+  margin-bottom: 10px;
+}
+
+.admin-users-page .compact-filters {
+  grid-template-columns: minmax(180px, 320px) minmax(140px, 180px) auto auto;
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+
+.admin-users-page .compact-filters label {
+  gap: 5px;
+  font-size: 12px;
+}
+
+.admin-users-page .compact-filters input,
+.admin-users-page .compact-filters select {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.admin-users-page .compact-action,
+.admin-users-page .compact-reset {
+  align-self: end;
+  min-height: 34px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.admin-users-page .compact-table th,
+.admin-users-page .compact-table td {
+  padding: 9px 8px;
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
   .history-table-head {
     display: none;
@@ -468,7 +506,8 @@
 
   .admin-shell,
   .admin-title-row,
-  .admin-filters {
+  .admin-filters,
+  .admin-users-page .compact-filters {
     grid-template-columns: 1fr;
   }
 
