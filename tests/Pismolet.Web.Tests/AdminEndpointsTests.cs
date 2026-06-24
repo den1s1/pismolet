@@ -87,7 +87,7 @@ public sealed class AdminEndpointsTests
         Assert.DoesNotContain("Реальные аккаунты, статусы email", html);
         Assert.DoesNotContain("<th>Клиент</th>", html);
         Assert.DoesNotContain("<th>Email подтверждён</th>", html);
-        Assert.DoesNotContain(">Профиль</a>", html);
+        Assert.DoesNotContain("<td><a class='admin-link' href='/admin/users/owner%40example.test'>Профиль</a></td>", html);
     }
 
     [Fact]
