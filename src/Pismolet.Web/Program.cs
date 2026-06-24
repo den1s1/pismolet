@@ -101,6 +101,7 @@ app.UseAdminDeliveryMailingDrilldown();
 app.UseAdminDeliveryClientDrilldown();
 
 app.MapHomeEndpoints();
+app.MapLegalDocumentEndpoints();
 app.MapAccountEndpoints();
 app.MapDashboardEndpoints();
 app.MapProfileEndpoints();
