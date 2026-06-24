@@ -1,4 +1,6 @@
 using System.Net;
+using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Pismolet.Web.Infrastructure.Database;
@@ -10,6 +12,8 @@ public static class AdminLegalEvidenceEndpoints
     public static IEndpointRouteBuilder MapAdminLegalEvidenceEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/admin/legal-events", ShowLegalEvents).RequireAuthorization(AdminEndpoints.AdminPolicyName);
+        app.MapGet("/admin/legal-events/export.csv", ExportLegalEventsCsv).RequireAuthorization(AdminEndpoints.AdminPolicyName);
+        app.MapGet("/admin/legal-events/export.json", ExportLegalEventsJson).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         app.MapGet("/admin/legal-events/{id:guid}", ShowLegalEvent).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         return app;
     }
@@ -20,22 +24,7 @@ public static class AdminLegalEvidenceEndpoints
         var eventType = http.Request.Query["event"].ToString().Trim();
         var mailing = http.Request.Query["mailing"].ToString().Trim();
         var limit = ReadLimit(http.Request.Query["limit"].ToString());
-        var query = db.LegalEvents.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(client))
-        {
-            query = query.Where(item => item.ClientId == client);
-        }
-
-        if (!string.IsNullOrWhiteSpace(eventType))
-        {
-            query = query.Where(item => item.EventType == eventType);
-        }
-
-        if (Guid.TryParse(mailing, out var mailingId))
-        {
-            query = query.Where(item => item.MailingId == mailingId);
-        }
+        var query = BuildFilteredQuery(db, client, eventType, mailing);
 
         var items = query
             .OrderByDescending(item => item.CreatedAt)
@@ -45,6 +34,10 @@ public static class AdminLegalEvidenceEndpoints
         var rows = items.Length == 0
             ? "<tr><td colspan='11'>События не найдены.</td></tr>"
             : string.Join(string.Empty, items.Select(Row));
+
+        var exportQuery = BuildExportQuery(client, eventType, mailing, limit);
+        var csvHref = "/admin/legal-events/export.csv" + exportQuery;
+        var jsonHref = "/admin/legal-events/export.json" + exportQuery;
 
         var body = $$"""
             <!doctype html>
@@ -58,6 +51,7 @@ public static class AdminLegalEvidenceEndpoints
                     a{color:#315efb;text-decoration:none}
                     .panel{background:white;border:1px solid #e6e6ef;border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(15,23,42,.04)}
                     .filters{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.filters label{display:flex;flex-direction:column;font-size:12px;color:#5b5b66}.filters input{padding:8px 10px;border:1px solid #d7d7e0;border-radius:10px}.filters button{align-self:end;padding:9px 14px;border:0;border-radius:10px;background:#1b1b1f;color:white}
+                    .exports{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 16px}.exports a{display:inline-block;padding:8px 12px;border:1px solid #d7d7e0;border-radius:10px;background:#f8fafc}
                     table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #ececf3;padding:8px;text-align:left;vertical-align:top}th{font-size:12px;color:#6b7280;text-transform:uppercase}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.muted{color:#6b7280}.wrap{overflow:auto}.meta{max-width:420px;white-space:pre-wrap;word-break:break-word}
                 </style>
             </head>
@@ -73,6 +67,10 @@ public static class AdminLegalEvidenceEndpoints
                         <label>Лимит<input name="limit" value="{{limit}}"></label>
                         <button type="submit">Показать</button>
                     </form>
+                    <div class="exports">
+                        <a href="{{H(csvHref)}}">Экспорт CSV</a>
+                        <a href="{{H(jsonHref)}}">Экспорт JSON</a>
+                    </div>
                     <div class="wrap">
                         <table>
                             <thead><tr><th>Время</th><th>Событие</th><th>Клиент</th><th>Рассылка</th><th>Импорт</th><th>Документ</th><th>Версия</th><th>Результат</th><th>Маршрут</th><th>Metadata</th><th></th></tr></thead>
@@ -85,6 +83,47 @@ public static class AdminLegalEvidenceEndpoints
             """;
 
         return Results.Content(body, "text/html; charset=utf-8");
+    }
+
+    private static IResult ExportLegalEventsCsv(HttpContext http, [FromServices] LegalEvidenceDbContext db)
+    {
+        var items = ReadExportItems(http, db);
+        var csv = BuildCsv(items);
+        return Results.File(
+            Encoding.UTF8.GetBytes(csv),
+            "text/csv; charset=utf-8",
+            $"legal-events-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.csv");
+    }
+
+    private static IResult ExportLegalEventsJson(HttpContext http, [FromServices] LegalEvidenceDbContext db)
+    {
+        var items = ReadExportItems(http, db)
+            .Select(item => new
+            {
+                event_id = item.Id,
+                created_at = item.CreatedAt,
+                event_type = item.EventType,
+                client_id = item.ClientId,
+                user_id = item.UserId,
+                mailing_id = item.MailingId,
+                import_batch_id = item.ImportBatchId,
+                document_key = item.DocumentKey,
+                document_version = item.DocumentVersion,
+                text_hash = item.TextHash,
+                result = item.Result,
+                ip = item.Ip,
+                user_agent = item.UserAgent,
+                route = item.Route,
+                event_text_snapshot = item.EventTextSnapshot,
+                metadata_json = item.MetadataJson
+            })
+            .ToArray();
+
+        var json = JsonSerializer.Serialize(items, new JsonSerializerOptions { WriteIndented = true });
+        return Results.File(
+            Encoding.UTF8.GetBytes(json),
+            "application/json; charset=utf-8",
+            $"legal-events-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.json");
     }
 
     private static IResult ShowLegalEvent(Guid id, [FromServices] LegalEvidenceDbContext db)
@@ -147,6 +186,94 @@ public static class AdminLegalEvidenceEndpoints
         return Results.Content(body, "text/html; charset=utf-8");
     }
 
+    private static LegalEventEntity[] ReadExportItems(HttpContext http, LegalEvidenceDbContext db)
+    {
+        var client = http.Request.Query["client"].ToString().Trim().ToLowerInvariant();
+        var eventType = http.Request.Query["event"].ToString().Trim();
+        var mailing = http.Request.Query["mailing"].ToString().Trim();
+        var limit = ReadExportLimit(http.Request.Query["limit"].ToString());
+
+        return BuildFilteredQuery(db, client, eventType, mailing)
+            .OrderByDescending(item => item.CreatedAt)
+            .Take(limit)
+            .ToArray();
+    }
+
+    private static IQueryable<LegalEventEntity> BuildFilteredQuery(
+        LegalEvidenceDbContext db,
+        string client,
+        string eventType,
+        string mailing)
+    {
+        var query = db.LegalEvents.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(client))
+        {
+            query = query.Where(item => item.ClientId == client);
+        }
+
+        if (!string.IsNullOrWhiteSpace(eventType))
+        {
+            query = query.Where(item => item.EventType == eventType);
+        }
+
+        if (Guid.TryParse(mailing, out var mailingId))
+        {
+            query = query.Where(item => item.MailingId == mailingId);
+        }
+
+        return query;
+    }
+
+    private static string BuildCsv(IReadOnlyCollection<LegalEventEntity> items)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine(string.Join(',', new[]
+        {
+            "event_id",
+            "created_at",
+            "event_type",
+            "client_id",
+            "user_id",
+            "mailing_id",
+            "import_batch_id",
+            "document_key",
+            "document_version",
+            "text_hash",
+            "result",
+            "ip",
+            "user_agent",
+            "route",
+            "event_text_snapshot",
+            "metadata_json"
+        }));
+
+        foreach (var item in items)
+        {
+            sb.AppendLine(string.Join(',', new[]
+            {
+                Csv(item.Id.ToString()),
+                Csv(item.CreatedAt.ToString("O")),
+                Csv(item.EventType),
+                Csv(item.ClientId),
+                Csv(item.UserId),
+                Csv(item.MailingId?.ToString()),
+                Csv(item.ImportBatchId?.ToString()),
+                Csv(item.DocumentKey),
+                Csv(item.DocumentVersion),
+                Csv(item.TextHash),
+                Csv(item.Result),
+                Csv(item.Ip),
+                Csv(item.UserAgent),
+                Csv(item.Route),
+                Csv(item.EventTextSnapshot),
+                Csv(item.MetadataJson)
+            }));
+        }
+
+        return sb.ToString();
+    }
+
     private static string Row(LegalEventEntity item) => $"""
         <tr>
             <td class="mono">{H(item.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss 'UTC'"))}</td>
@@ -163,7 +290,33 @@ public static class AdminLegalEvidenceEndpoints
         </tr>
         """;
 
+    private static string BuildExportQuery(string client, string eventType, string mailing, int limit)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(client))
+        {
+            parts.Add("client=" + WebUtility.UrlEncode(client));
+        }
+
+        if (!string.IsNullOrWhiteSpace(eventType))
+        {
+            parts.Add("event=" + WebUtility.UrlEncode(eventType));
+        }
+
+        if (!string.IsNullOrWhiteSpace(mailing))
+        {
+            parts.Add("mailing=" + WebUtility.UrlEncode(mailing));
+        }
+
+        parts.Add("limit=" + limit.ToString());
+        return "?" + string.Join('&', parts);
+    }
+
     private static int ReadLimit(string value) => int.TryParse(value, out var limit) ? Math.Clamp(limit, 1, 500) : 100;
+
+    private static int ReadExportLimit(string value) => int.TryParse(value, out var limit) ? Math.Clamp(limit, 1, 5000) : 1000;
+
+    private static string Csv(string? value) => '"' + (value ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Replace("\"", "\"\"") + '"';
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
