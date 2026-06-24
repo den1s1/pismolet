@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-label="Иллюстрация отправки email-рассылки">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#EFF6FF"/>
+      <stop offset="1" stop-color="#DBEAFE"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <rect x="18" y="24" width="684" height="472" rx="44" fill="url(#bg)"/>
+  <circle cx="590" cy="110" r="54" fill="#BFDBFE" opacity=".55"/>
+  <circle cx="116" cy="410" r="74" fill="#93C5FD" opacity=".32"/>
+  <rect x="92" y="96" width="370" height="270" rx="34" fill="#ffffff" stroke="#DBEAFE" stroke-width="4"/>
+  <rect x="128" y="138" width="204" height="18" rx="9" fill="#CBD5E1"/>
+  <rect x="128" y="182" width="284" height="14" rx="7" fill="#E2E8F0"/>
+  <rect x="128" y="216" width="246" height="14" rx="7" fill="#E2E8F0"/>
+  <rect x="128" y="250" width="170" height="14" rx="7" fill="#E2E8F0"/>
+  <rect x="128" y="302" width="134" height="42" rx="21" fill="url(#blue)"/>
+  <path d="M452 208L640 120L566 354L504 285L452 208Z" fill="#2563EB"/>
+  <path d="M504 285L566 354L540 262" fill="#93C5FD"/>
+  <path d="M452 208L540 262L640 120" fill="none" stroke="#BFDBFE" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+  <path d="M80 84C154 52 258 50 324 82" fill="none" stroke="#93C5FD" stroke-width="7" stroke-linecap="round" stroke-dasharray="2 20"/>
+  <path d="M438 402C506 428 592 420 642 374" fill="none" stroke="#60A5FA" stroke-width="7" stroke-linecap="round" stroke-dasharray="2 20"/>
+  <g transform="translate(386 338)">
+    <rect width="176" height="78" rx="24" fill="#0F172A"/>
+    <circle cx="42" cy="39" r="18" fill="#22C55E"/>
+    <path d="M34 39L40 45L51 32" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="72" y="34" fill="#ffffff" font-family="Arial, sans-serif" font-size="17" font-weight="700">681 письмо</text>
+    <text x="72" y="56" fill="#BFDBFE" font-family="Arial, sans-serif" font-size="14">готово к отправке</text>
+  </g>
+</svg>
