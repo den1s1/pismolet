@@ -15,11 +15,14 @@ public sealed class LegalEvidenceDbContext(DbContextOptions<LegalEvidenceDbConte
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => new { x.DocumentKey, x.Version }).IsUnique();
             entity.HasIndex(x => new { x.DocumentKey, x.IsActive });
-            entity.Property(x => x.DocumentKey).HasMaxLength(120).IsRequired();
-            entity.Property(x => x.Version).HasMaxLength(80).IsRequired();
-            entity.Property(x => x.TextHash).HasMaxLength(64).IsRequired();
-            entity.Property(x => x.Text).IsRequired();
-            entity.Property(x => x.Url).HasMaxLength(512);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.DocumentKey).HasColumnName("document_key").HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Version).HasColumnName("version").HasMaxLength(80).IsRequired();
+            entity.Property(x => x.TextHash).HasColumnName("text_hash").HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Text).HasColumnName("text").IsRequired();
+            entity.Property(x => x.Url).HasColumnName("url").HasMaxLength(512);
+            entity.Property(x => x.IsActive).HasColumnName("is_active");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
         });
 
         modelBuilder.Entity<LegalEventEntity>(entity =>
@@ -30,18 +33,22 @@ public sealed class LegalEvidenceDbContext(DbContextOptions<LegalEvidenceDbConte
             entity.HasIndex(x => new { x.MailingId, x.CreatedAt });
             entity.HasIndex(x => new { x.ImportBatchId, x.CreatedAt });
             entity.HasIndex(x => x.EventType);
-            entity.Property(x => x.EventType).HasMaxLength(120).IsRequired();
-            entity.Property(x => x.ClientId).HasMaxLength(254).IsRequired();
-            entity.Property(x => x.UserId).HasMaxLength(254);
-            entity.Property(x => x.DocumentKey).HasMaxLength(120);
-            entity.Property(x => x.DocumentVersion).HasMaxLength(80);
-            entity.Property(x => x.TextHash).HasMaxLength(64);
-            entity.Property(x => x.EventTextSnapshot).HasMaxLength(16000);
-            entity.Property(x => x.Result).HasMaxLength(80).IsRequired();
-            entity.Property(x => x.Ip).HasMaxLength(80);
-            entity.Property(x => x.UserAgent).HasMaxLength(512);
-            entity.Property(x => x.Route).HasMaxLength(512);
-            entity.Property(x => x.MetadataJson).IsRequired();
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.EventType).HasColumnName("event_type").HasMaxLength(120).IsRequired();
+            entity.Property(x => x.ClientId).HasColumnName("client_id").HasMaxLength(254).IsRequired();
+            entity.Property(x => x.UserId).HasColumnName("user_id").HasMaxLength(254);
+            entity.Property(x => x.ImportBatchId).HasColumnName("import_batch_id");
+            entity.Property(x => x.MailingId).HasColumnName("mailing_id");
+            entity.Property(x => x.DocumentKey).HasColumnName("document_key").HasMaxLength(120);
+            entity.Property(x => x.DocumentVersion).HasColumnName("document_version").HasMaxLength(80);
+            entity.Property(x => x.TextHash).HasColumnName("text_hash").HasMaxLength(64);
+            entity.Property(x => x.EventTextSnapshot).HasColumnName("event_text_snapshot").HasMaxLength(16000);
+            entity.Property(x => x.Result).HasColumnName("result").HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Ip).HasColumnName("ip").HasMaxLength(80);
+            entity.Property(x => x.UserAgent).HasColumnName("user_agent").HasMaxLength(512);
+            entity.Property(x => x.Route).HasColumnName("route").HasMaxLength(512);
+            entity.Property(x => x.MetadataJson).HasColumnName("metadata_json").IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
         });
     }
 }
