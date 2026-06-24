@@ -2,7 +2,7 @@
 
 Дата: 2026-06-24  
 Раздел: SEO, маркетинг, юридическая и платёжная готовность  
-Статус: этап 1 выполнен, этап 2 в работе
+Статус: этапы 1, 3 и 4 выполнены; этап 2 в работе
 
 ## 1. Исходные вводные из спецификации
 
@@ -146,12 +146,12 @@
 
 ## 6. Долги по статьям
 
-### Уже есть черновики в `docs/seo/articles/`
+### Уже опубликованы из `docs/seo/articles/`
 
-- `bez-skrytyh-kopiy.md` → `/articles/bez-skrytyh-kopiy/`
-- `rassylka-iz-excel.md` → `/articles/rassylka-iz-excel/`
-- `bez-nastroiki-domena.md` → `/articles/bez-nastroiki-domena/`
-- `email-rassylka-dlya-malogo-biznesa.md` → `/articles/email-rassylka-dlya-malogo-biznesa/`
+- [x] `bez-skrytyh-kopiy.md` → `/articles/bez-skrytyh-kopiy/`
+- [x] `rassylka-iz-excel.md` → `/articles/rassylka-iz-excel/`
+- [x] `bez-nastroiki-domena.md` → `/articles/bez-nastroiki-domena/`
+- [x] `email-rassylka-dlya-malogo-biznesa.md` → `/articles/email-rassylka-dlya-malogo-biznesa/`
 
 ### Нужно дописать или создать
 
@@ -206,7 +206,7 @@
 
 ### Этап 3. Многостраничная SEO-структура
 
-Статус: базовая структура выполнена.
+Статус: выполнено.
 
 - [x] вынести общие стили в общий CSS;
 - [x] собрать общий header/footer в каждой опубликованной HTML-странице;
@@ -216,16 +216,20 @@
 
 ### Этап 4. Публикация первых SEO-статей
 
-- перенести 4 существующих черновика из `docs/seo/articles/` в HTML-страницы;
-- сделать индекс `/articles/`;
-- добавить перелинковку с главной и посадочными;
-- обновить `sitemap.xml`.
+Статус: выполнено.
+
+- [x] перенести 4 существующих черновика из `docs/seo/articles/` в HTML-страницы;
+- [x] сделать индекс `/articles/`;
+- [x] добавить перелинковку с главной и статьями;
+- [x] обновить `sitemap.xml`.
 
 ### Этап 5. Посадочные страницы
 
-- сделать `/bcc-alternative/`, `/excel-email-list/`, `/no-domain-setup/`;
-- затем `/for-small-business/`, `/for-nko/`, `/for-events/`;
-- проверить, чтобы тексты не обещали юридическую безопасность и не привлекали холодный спам.
+Статус: следующий этап.
+
+- [ ] сделать `/bcc-alternative/`, `/excel-email-list/`, `/no-domain-setup`;
+- [ ] затем `/for-small-business/`, `/for-nko/`, `/for-events/`;
+- [ ] проверить, чтобы тексты не обещали юридическую безопасность и не привлекали холодный спам.
 
 ### Этап 6. Подготовка к модерации Robokassa
 
