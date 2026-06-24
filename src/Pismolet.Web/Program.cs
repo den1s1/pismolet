@@ -86,6 +86,7 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseLegalDeclarationEvidenceCapture();
+app.UseMailingLaunchEvidenceCapture();
 app.UseAdminSuppressionDetail();
 app.UseAdminSuppressions();
 app.UseAdminCampaignDeliveryAnalytics();
