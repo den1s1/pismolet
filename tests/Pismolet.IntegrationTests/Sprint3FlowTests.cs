@@ -121,7 +121,9 @@ public sealed class Sprint3FlowTests
             ["email"] = email,
             ["password"] = password,
             ["displayName"] = "Тестовый Пользователь",
-            ["phone"] = "+79990000000"
+            ["phone"] = "+79990000000",
+            ["acceptOffer"] = "true",
+            ["acceptPrivacy"] = "true"
         }));
 
         Assert.Equal(HttpStatusCode.OK, register.StatusCode);
