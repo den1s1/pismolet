@@ -1,6 +1,8 @@
 using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Pismolet.Web.Application.Legal;
 using Pismolet.Web.Domain.Legal;
 
 namespace Pismolet.Web.Tests;
@@ -71,6 +73,50 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     }
 
     [Fact]
+    public async Task SuccessfulRegistrationRecordsLegalEvidenceEvents()
+    {
+        var email = $"legal-{Guid.NewGuid():N}@example.test";
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["displayName"] = "Иван Иванов",
+            ["phone"] = "+79990000000",
+            ["email"] = email,
+            ["password"] = "password123",
+            ["acceptOffer"] = "true",
+            ["acceptPrivacy"] = "true"
+        });
+
+        var response = await client.PostAsync("/account/register", form);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Аккаунт создан", html);
+
+        using var scope = factory.Services.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<ILegalEvidenceRepository>();
+        var events = repository.ListEventsForClient(email, 10);
+
+        AssertRegistrationEvent(
+            events,
+            LegalEventTypes.OfferAndRulesAccepted,
+            LegalDocumentKeys.OfferAndRules,
+            LegalEvidenceTextSnapshots.OfferAndRulesAcceptanceText,
+            "offerAccepted");
+
+        AssertRegistrationEvent(
+            events,
+            LegalEventTypes.ClientPersonalDataConsentAccepted,
+            LegalDocumentKeys.ClientPersonalDataConsent,
+            LegalEvidenceTextSnapshots.ClientPersonalDataConsentText,
+            "personalDataConsentAccepted");
+    }
+
+    [Fact]
     public void RegistrationLegalEvidenceSnapshotsReferenceCurrentDocuments()
     {
         Assert.Contains("document_key=offer_and_rules", LegalEvidenceTextSnapshots.OfferAndRulesAcceptanceText);
@@ -80,5 +126,25 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("document_key=client_personal_data_consent", LegalEvidenceTextSnapshots.ClientPersonalDataConsentText);
         Assert.Contains($"document_version={LegalEvidenceTextSnapshots.CurrentVersion}", LegalEvidenceTextSnapshots.ClientPersonalDataConsentText);
         Assert.Contains("document_url=/legal/privacy", LegalEvidenceTextSnapshots.ClientPersonalDataConsentText);
+    }
+
+    private static void AssertRegistrationEvent(
+        IReadOnlyCollection<LegalEvidenceEvent> events,
+        string eventType,
+        string documentKey,
+        string snapshot,
+        string metadataFlag)
+    {
+        var item = Assert.Single(events.Where(x => x.EventType == eventType));
+
+        Assert.Equal(documentKey, item.DocumentKey);
+        Assert.Equal(LegalEvidenceTextSnapshots.CurrentVersion, item.DocumentVersion);
+        Assert.False(string.IsNullOrWhiteSpace(item.TextHash));
+        Assert.Equal(snapshot, item.EventTextSnapshot);
+        Assert.Equal(LegalEventResults.Accepted, item.Result);
+        Assert.Equal("/account/register", item.Route);
+        Assert.Contains("source", item.MetadataJson);
+        Assert.Contains("registration_form", item.MetadataJson);
+        Assert.Contains(metadataFlag, item.MetadataJson);
     }
 }
