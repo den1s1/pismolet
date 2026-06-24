@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pismolet.Web.Application.Legal;
+using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Domain.Legal;
 
 namespace Pismolet.Web.Tests;
@@ -81,15 +82,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
             AllowAutoRedirect = false
         });
 
-        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["displayName"] = "Иван Иванов",
-            ["phone"] = "+79990000000",
-            ["email"] = email,
-            ["password"] = "password123",
-            ["acceptOffer"] = "true",
-            ["acceptPrivacy"] = "true"
-        });
+        using var form = CreateRegistrationForm(email);
 
         var response = await client.PostAsync("/account/register", form);
         var html = await response.Content.ReadAsStringAsync();
@@ -117,6 +110,51 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     }
 
     [Fact]
+    public async Task LoginIsBlockedUntilEmailIsConfirmed()
+    {
+        var email = $"confirm-{Guid.NewGuid():N}@example.test";
+        const string password = "password123";
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using (var registrationForm = CreateRegistrationForm(email, password))
+        {
+            var registration = await client.PostAsync("/account/register", registrationForm);
+            Assert.Equal(HttpStatusCode.OK, registration.StatusCode);
+        }
+
+        using (var loginForm = CreateLoginForm(email, password))
+        {
+            var blockedLogin = await client.PostAsync("/account/login", loginForm);
+            var blockedHtml = await blockedLogin.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, blockedLogin.StatusCode);
+            Assert.Contains("Неверный email/пароль или email ещё не подтверждён.", blockedHtml);
+        }
+
+        using var scope = factory.Services.CreateScope();
+        var mailer = scope.ServiceProvider.GetRequiredService<IFakeMailer>();
+        var confirmationMail = Assert.Single(mailer.GetOutbox(), mail => mail.To.Equals(email, StringComparison.OrdinalIgnoreCase));
+        var confirmationPath = ToPathAndQuery(confirmationMail.Link);
+
+        var confirmation = await client.GetAsync(confirmationPath);
+        var confirmationHtml = await confirmation.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, confirmation.StatusCode);
+        Assert.Contains("Email подтверждён", confirmationHtml);
+
+        using (var loginForm = CreateLoginForm(email, password))
+        {
+            var allowedLogin = await client.PostAsync("/account/login", loginForm);
+
+            Assert.Equal(HttpStatusCode.Redirect, allowedLogin.StatusCode);
+            Assert.Equal("/dashboard", allowedLogin.Headers.Location?.OriginalString);
+        }
+    }
+
+    [Fact]
     public void RegistrationLegalEvidenceSnapshotsReferenceCurrentDocuments()
     {
         Assert.Contains("document_key=offer_and_rules", LegalEvidenceTextSnapshots.OfferAndRulesAcceptanceText);
@@ -128,6 +166,22 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("document_url=/legal/privacy", LegalEvidenceTextSnapshots.ClientPersonalDataConsentText);
     }
 
+    private static FormUrlEncodedContent CreateRegistrationForm(string email, string password = "password123") => new(new Dictionary<string, string>
+    {
+        ["displayName"] = "Иван Иванов",
+        ["phone"] = "+79990000000",
+        ["email"] = email,
+        ["password"] = password,
+        ["acceptOffer"] = "true",
+        ["acceptPrivacy"] = "true"
+    });
+
+    private static FormUrlEncodedContent CreateLoginForm(string email, string password) => new(new Dictionary<string, string>
+    {
+        ["email"] = email,
+        ["password"] = password
+    });
+
     private static void AssertRegistrationEvent(
         IReadOnlyCollection<LegalEvidenceEvent> events,
         string eventType,
@@ -135,7 +189,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         string snapshot,
         string metadataFlag)
     {
-        var item = Assert.Single(events.Where(x => x.EventType == eventType));
+        var item = Assert.Single(events, x => x.EventType == eventType);
 
         Assert.Equal(documentKey, item.DocumentKey);
         Assert.Equal(LegalEvidenceTextSnapshots.CurrentVersion, item.DocumentVersion);
@@ -146,5 +200,15 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("source", item.MetadataJson);
         Assert.Contains("registration_form", item.MetadataJson);
         Assert.Contains(metadataFlag, item.MetadataJson);
+    }
+
+    private static string ToPathAndQuery(string link)
+    {
+        if (Uri.TryCreate(link, UriKind.Absolute, out var absolute))
+        {
+            return absolute.PathAndQuery;
+        }
+
+        return link;
     }
 }
