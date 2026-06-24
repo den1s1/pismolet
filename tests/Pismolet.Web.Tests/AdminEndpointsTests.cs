@@ -95,11 +95,8 @@ public sealed class AdminEndpointsTests
 
         var html = await client.GetStringAsync("/admin/users");
 
+        AssertAdminSidebar(html);
         Assert.Contains("Пользователи", html);
-        Assert.Contains("Получатели", html);
-        Assert.Contains("Кампании", html);
-        Assert.Contains("Оплаты", html);
-        Assert.Contains("Настройки", html);
         Assert.Contains("Администратор", html);
         Assert.Contains(AdminEmail, html);
         Assert.Contains("<th>ФИО</th><th>Email</th><th>Телефон</th>", html);
@@ -115,6 +112,19 @@ public sealed class AdminEndpointsTests
         Assert.DoesNotContain("<th>Клиент</th>", html);
         Assert.DoesNotContain("<th>Email подтверждён</th>", html);
         Assert.DoesNotContain("<td><a class='admin-link' href='/admin/users/owner%40example.test'>Профиль</a></td>", html);
+    }
+
+    [Fact]
+    public async Task Admin_campaigns_page_uses_same_sidebar()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Owner User");
+        SeedMailing(factory, OwnerEmail, "Owner campaign");
+        using var client = CreateAuthenticatedClient(factory, AdminEmail);
+
+        var html = await client.GetStringAsync("/admin/campaigns");
+
+        AssertAdminSidebar(html);
     }
 
     [Fact]
@@ -213,6 +223,23 @@ public sealed class AdminEndpointsTests
         response.EnsureSuccessStatusCode();
         var updated = await client.GetStringAsync("/admin/recipients/" + Uri.EscapeDataString("lead@example.test"));
         Assert.Contains("Заблокирован вручную", updated);
+    }
+
+    private static void AssertAdminSidebar(string html)
+    {
+        Assert.Contains("href='/admin'>Dashboard</a>", html);
+        Assert.Contains("href='/admin/users'>Пользователи</a>", html);
+        Assert.Contains("href='/admin/campaigns'>Рассылки</a>", html);
+        Assert.Contains("href='/admin/imports'>Импорты</a>", html);
+        Assert.Contains("href='/admin/payments'>Платежи</a>", html);
+        Assert.Contains("href='/admin/recipients'>Отписки</a>", html);
+        Assert.Contains("href='/admin/complaints'>Жалобы</a>", html);
+        Assert.Contains("href='/admin/delivery-errors'>Ошибки доставки</a>", html);
+        Assert.Contains("href='/admin/replies'>Ответы</a>", html);
+        Assert.Contains("href='/admin/audit'>Audit log</a>", html);
+        Assert.Contains("href='/admin/settings/mvp'>Настройки</a>", html);
+        Assert.DoesNotContain("href='/admin/clients'>Клиенты</a>", html);
+        Assert.DoesNotContain("admin-sidebar-links", html);
     }
 
     private static WebApplicationFactory<Program> CreateFactory() =>
