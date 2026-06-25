@@ -107,8 +107,11 @@ public sealed class MailingWizardEndpointsTests
         Assert.Equal(1, mailing.LastImportStats.Duplicates);
         Assert.Equal(1, mailing.LastImportStats.Invalid);
         Assert.Equal(0, mailing.LastImportStats.GloballySuppressed);
-        var recipient = Assert.Single(mailing.Recipients);
-        Assert.Equal(RecipientStatus.Accepted, recipient.Status);
+        Assert.Equal(3, mailing.Recipients.Count);
+        var acceptedRecipient = Assert.Single(mailing.Recipients.Where(x => x.Status == RecipientStatus.Accepted));
+        Assert.Equal("first@example.test", acceptedRecipient.Email);
+        Assert.Contains(mailing.Recipients, x => x.Status == RecipientStatus.Invalid && x.SourceEmail == "wrong-email");
+        Assert.Contains(mailing.Recipients, x => x.Status == RecipientStatus.Duplicate && x.Email == "first@example.test");
         Assert.NotNull(mailing.LastImportBatch);
         Assert.Equal(3, mailing.LastImportBatch.TotalRows);
         Assert.Equal(1, mailing.LastImportBatch.Accepted);
