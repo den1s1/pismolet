@@ -155,7 +155,7 @@ public static class SimplifiedRecipientStepEndpoints
   <section class='panel'>
     <p class='eyebrow'>Шаг 1 из 4</p>
     <h1>1. Добавьте список адресов</h1>
-    <p class='muted'>Не используйте купленные или чужие базы.</p>
+    <p class='muted'>Не используйте купленные или чужие базы. <a href='/legal/anti-spam?returnUrl=/mailings/__ID__/recipients'>Антиспам-политика</a></p>
     <form method='post' action='/mailings/__ID__/recipients' enctype='multipart/form-data' class='simple-recipient-form'>
       <div class='wizard-grid'>
         <label class='dropzone'><span>Перетащите таблицу Excel сюда</span><small>или нажмите, чтобы выбрать файл.</small><input type='file' name='file' accept='.csv,.xlsx'></label>
@@ -168,8 +168,8 @@ public static class SimplifiedRecipientStepEndpoints
           <label class='compact-base-field'><span>Источник базы</span><select name='baseSource' required><option value=''>Выберите источник</option>__OPTIONS__</select></label>
           <label class='compact-base-field'><span>Тип письма</span><select name='messageType' id='messageTypeSelect'><option value='Transactional'__TX__>Информационное</option><option value='Advertising'__AD__>Рекламное</option></select></label>
         </div>
-        <label class='compact-base-check'><input type='checkbox' name='baseLegality'__BASE_CHECKED__><span>подтверждаю правомерность использования базы</span></label>
-        <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'__AD_CHECKED__><span><a href='/legal/advertising-consent'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
+        <label class='compact-base-check'><input type='checkbox' name='baseLegality'__BASE_CHECKED__><span>подтверждаю правомерность использования базы и <a href='/legal/data-processing?returnUrl=/mailings/__ID__/recipients'>поручаю техническую обработку email-адресов</a></span></label>
+        <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'__AD_CHECKED__><span><a href='/legal/advertising-consent?returnUrl=/mailings/__ID__/recipients'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
         <p class='compact-legal-link'><a href='/legal/base-lawfulness?returnUrl=/mailings/__ID__/recipients'>Декларация законности базы</a></p>
       </section>
       <div class='actions wizard-actions'><button class='button'>Адреса добавлены, дальше</button><a class='btn secondary' href='/dashboard'>Вернуться в ЛК</a></div>

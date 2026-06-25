@@ -1,3 +1,4 @@
+using System.Net;
 using Pismolet.Web.Domain.Legal;
 using Pismolet.Web.Rendering;
 
@@ -11,53 +12,68 @@ public static class LegalDocumentEndpoints
             "Юридические документы",
             LegalIndexPage())));
 
-        app.MapGet("/legal/offer", () => HtmlRenderer.Html(HtmlRenderer.Page(
+        app.MapGet("/legal/offer", (HttpContext http) => HtmlRenderer.Html(HtmlRenderer.Page(
             "Пользовательское соглашение и оферта",
             LegalDocumentPage(
+                http,
                 "Пользовательское соглашение и оферта сервиса Письмолёт",
                 LegalDocumentKeys.OfferAndRules,
                 LegalEvidenceTextSnapshots.CurrentVersion,
                 OfferBody()))));
 
-        app.MapGet("/legal/privacy", () => HtmlRenderer.Html(HtmlRenderer.Page(
+        app.MapGet("/legal/privacy", (HttpContext http) => HtmlRenderer.Html(HtmlRenderer.Page(
             "Политика обработки персональных данных",
             LegalDocumentPage(
+                http,
                 "Политика обработки персональных данных",
                 LegalDocumentKeys.PrivacyPolicy,
                 LegalEvidenceTextSnapshots.CurrentVersion,
                 PrivacyBody()))));
 
-        app.MapGet("/legal/client-consent", () => HtmlRenderer.Html(HtmlRenderer.Page(
+        app.MapGet("/legal/client-consent", (HttpContext http) => HtmlRenderer.Html(HtmlRenderer.Page(
             "Согласие клиента на обработку персональных данных",
             LegalDocumentPage(
+                http,
                 "Согласие клиента на обработку персональных данных",
                 LegalDocumentKeys.ClientPersonalDataConsent,
                 LegalEvidenceTextSnapshots.CurrentVersion,
                 ClientConsentBody()))));
 
-        app.MapGet("/legal/data-processing", () => HtmlRenderer.Html(HtmlRenderer.Page(
+        app.MapGet("/legal/data-processing", (HttpContext http) => HtmlRenderer.Html(HtmlRenderer.Page(
             "Поручение на обработку данных адресатов",
             LegalDocumentPage(
+                http,
                 "Поручение на обработку данных адресатов",
                 LegalDocumentKeys.RecipientDataProcessingInstruction,
                 LegalEvidenceTextSnapshots.CurrentVersion,
                 DataProcessingBody()))));
 
-        app.MapGet("/legal/rules", () => HtmlRenderer.Html(HtmlRenderer.Page(
+        app.MapGet("/legal/rules", (HttpContext http) => HtmlRenderer.Html(HtmlRenderer.Page(
             "Правила рассылок",
             LegalDocumentPage(
+                http,
                 "Правила рассылок Письмолёта",
                 LegalDocumentKeys.MailingRules,
                 LegalEvidenceTextSnapshots.CurrentVersion,
                 RulesBody()))));
 
-        app.MapGet("/legal/advertising-consent", () => HtmlRenderer.Html(HtmlRenderer.Page(
+        app.MapGet("/legal/advertising-consent", (HttpContext http) => HtmlRenderer.Html(HtmlRenderer.Page(
             "Подтверждение рекламного согласия",
             LegalDocumentPage(
+                http,
                 "Подтверждение рекламного согласия адресатов",
                 LegalDocumentKeys.AdvertisingConsentDeclaration,
                 LegalEvidenceTextSnapshots.CurrentVersion,
                 AdvertisingConsentBody()))));
+
+        app.MapGet("/legal/anti-spam", (HttpContext http) => HtmlRenderer.Html(HtmlRenderer.Page(
+            "Антиспам-политика",
+            LegalDocumentPage(
+                http,
+                "Антиспам-политика Письмолёта",
+                LegalDocumentKeys.AntiSpamPolicy,
+                LegalEvidenceTextSnapshots.CurrentVersion,
+                AntiSpamBody()))));
 
         return app;
     }
@@ -78,11 +94,11 @@ public static class LegalDocumentEndpoints
                 <li><a href='/legal/data-processing'>Поручение на обработку данных адресатов</a></li>
                 <li><a href='/legal/base-lawfulness'>Декларация законности базы</a></li>
                 <li><a href='/legal/advertising-consent'>Подтверждение рекламного согласия</a></li>
+                <li><a href='/legal/anti-spam'>Антиспам-политика</a></li>
             </ul>
 
             <h2>Планируется к публикации</h2>
             <ul>
-                <li><a href='/legal/anti-spam'>Антиспам-политика</a></li>
                 <li><a href='/legal/unsubscribe'>Правила отписки через сервис</a></li>
                 <li><a href='/legal/prohibited-content'>Политика запрещённого контента</a></li>
                 <li><a href='/legal/payment-and-refund'>Правила оплаты, запуска и возвратов</a></li>
@@ -92,15 +108,36 @@ public static class LegalDocumentEndpoints
         </section>
         """;
 
-    private static string LegalDocumentPage(string title, string documentKey, string version, string body) => $$"""
+    private static string LegalDocumentPage(HttpContext http, string title, string documentKey, string version, string body)
+    {
+        var backHref = BackHref(http);
+        var backText = backHref == "/legal" ? "← К юридическим документам" : "← Назад";
+
+        return $$"""
         <section class='panel legal-document'>
-            <p><a href='/legal'>← К юридическим документам</a></p>
+            <p><a href='{{H(backHref)}}'>{{H(backText)}}</a></p>
             <p class='eyebrow'>Юридический документ</p>
             <h1>{{title}}</h1>
             <p class='hint'>document_key: <code>{{documentKey}}</code>, version: <code>{{version}}</code></p>
             {{body}}
         </section>
         """;
+    }
+
+    private static string BackHref(HttpContext http)
+    {
+        var returnUrl = http.Request.Query["returnUrl"].ToString();
+        if (string.IsNullOrWhiteSpace(returnUrl) ||
+            !returnUrl.StartsWith("/", StringComparison.Ordinal) ||
+            returnUrl.StartsWith("//", StringComparison.Ordinal))
+        {
+            return "/legal";
+        }
+
+        return returnUrl;
+    }
+
+    private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 
     private static string OfferBody() => """
         <p><strong>Редакция:</strong> 2026-06-24-v1.</p>
@@ -340,5 +377,37 @@ public static class LegalDocumentEndpoints
 
         <h2>5. Связанные документы</h2>
         <p>Это подтверждение применяется вместе с <a href='/legal/base-lawfulness'>декларацией законности базы</a>, <a href='/legal/rules'>правилами рассылок</a> и <a href='/legal/data-processing'>поручением на обработку данных адресатов</a>.</p>
+        """;
+
+    private static string AntiSpamBody() => """
+        <p><strong>Редакция:</strong> 2026-06-24-v1.</p>
+        <p><strong>Статус:</strong> антиспам-политика сервиса для защиты получателей, клиентов и почтовой репутации Письмолёта.</p>
+
+        <h2>1. Для каких рассылок предназначен сервис</h2>
+        <p>Письмолёт предназначен для аккуратной коммуникации по собственной законной базе клиента: клиентам, участникам, подписчикам, волонтёрам, партнёрам и людям, с которыми у отправителя есть основание для связи.</p>
+        <p>Сервис не предназначен для холодного спама, массовой отправки по чужим спискам и проверки купленных баз.</p>
+
+        <h2>2. Что запрещено</h2>
+        <p>Запрещено загружать купленные, украденные, спарсенные, чужие, скачанные из открытых источников или иным образом незаконно полученные базы email-адресов.</p>
+        <p>Запрещено использовать адреса, собранные автоматически без понятного законного основания, а также списки, происхождение и права на использование которых клиент не может подтвердить.</p>
+
+        <h2>3. Что проверяет сервис</h2>
+        <ul>
+            <li>клиент подтверждает законность базы при импорте;</li>
+            <li>для рекламной рассылки нужно отдельное подтверждение согласия на рекламу;</li>
+            <li>адреса, которые уже отписались через Письмолёт, исключаются из отправки;</li>
+            <li>первые и рискованные рассылки могут уйти на ручную проверку;</li>
+            <li>сервис может отказать в отправке при нарушении правил.</li>
+        </ul>
+
+        <h2>4. Отписки, жалобы и ошибки доставки</h2>
+        <p>Письмолёт учитывает отписки, жалобы, ошибки доставки и технические признаки риска. При росте жалоб, ошибочных адресов или подозрительных признаков сервис может остановить рассылку, снизить лимиты или отправить аккаунт на дополнительную проверку.</p>
+
+        <h2>5. Запрос подтверждений и ограничения</h2>
+        <p>Если у сервиса возникают сомнения по базе или письму, Письмолёт может запросить у клиента подтверждение источника адресов, рекламного согласия, договора, заявки, регистрации или другой законной связи с адресатом.</p>
+        <p>Если подтверждения не предоставлены или выглядят недостаточными, сервис может отказать в отправке, ограничить аккаунт или прекратить обслуживание.</p>
+
+        <h2>6. Связанные документы</h2>
+        <p>Эта политика применяется вместе с <a href='/legal/rules'>правилами рассылок</a>, <a href='/legal/base-lawfulness'>декларацией законности базы</a>, <a href='/legal/advertising-consent'>подтверждением рекламного согласия</a> и <a href='/legal/unsubscribe'>правилами отписки через сервис</a>.</p>
         """;
 }

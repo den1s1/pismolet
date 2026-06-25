@@ -50,6 +50,7 @@ public sealed class MailingWizardEndpointsTests
 
         Assert.Contains("1. Добавьте список адресов", html);
         Assert.Contains("Не используйте купленные или чужие базы", html);
+        Assert.Contains("/legal/anti-spam", html);
         Assert.Contains("name='manualAddresses'", html);
         Assert.Contains("dropzone", html);
         Assert.Contains("Адреса добавлены, дальше", html);

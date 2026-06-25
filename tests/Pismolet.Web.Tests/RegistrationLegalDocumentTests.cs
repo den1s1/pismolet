@@ -37,6 +37,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("href='/legal/data-processing'", html);
         Assert.Contains("href='/legal/base-lawfulness'", html);
         Assert.Contains("href='/legal/advertising-consent'", html);
+        Assert.Contains("href='/legal/anti-spam'", html);
     }
 
     [Theory]
@@ -47,6 +48,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     [InlineData("/legal/data-processing", "Поручение на обработку данных адресатов", "document_key: <code>recipient_data_processing_instruction</code>")]
     [InlineData("/legal/base-lawfulness", "Декларация законности базы", "document_key: <code>base_lawfulness_declaration</code>")]
     [InlineData("/legal/advertising-consent", "Подтверждение рекламного согласия адресатов", "document_key: <code>advertising_consent_declaration</code>")]
+    [InlineData("/legal/anti-spam", "Антиспам-политика Письмолёта", "document_key: <code>anti_spam_policy</code>")]
     public async Task LegalDocumentsArePublic(string path, string title, string documentKey)
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -60,6 +62,21 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(title, html);
         Assert.Contains(documentKey, html);
+    }
+
+    [Fact]
+    public async Task LegalDocumentBackLinkUsesSafeReturnUrl()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var fromRegister = await client.GetStringAsync("/legal/offer?returnUrl=/account/register");
+        Assert.Contains("href='/account/register'>← Назад</a>", fromRegister);
+
+        var unsafeReturn = await client.GetStringAsync("/legal/offer?returnUrl=//example.test");
+        Assert.Contains("href='/legal'>← К юридическим документам</a>", unsafeReturn);
     }
 
     [Fact]
@@ -188,19 +205,37 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     }
 
     [Fact]
+    public async Task AntiSpamContainsFullLegalSections()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var html = await client.GetStringAsync("/legal/anti-spam");
+
+        Assert.Contains("Редакция:</strong> 2026-06-24-v1", html);
+        Assert.Contains("Для каких рассылок предназначен сервис", html);
+        Assert.Contains("Что запрещено", html);
+        Assert.Contains("Что проверяет сервис", html);
+        Assert.Contains("Отписки, жалобы и ошибки доставки", html);
+        Assert.Contains("Запрос подтверждений и ограничения", html);
+    }
+
+    [Fact]
     public async Task RegistrationFormContainsLegalDocumentLinksInSameTab()
     {
         using var client = factory.CreateClient();
 
         var html = await client.GetStringAsync("/account/register");
 
-        Assert.Contains("href='/legal/offer'", html);
-        Assert.Contains("href='/legal/rules'", html);
+        Assert.Contains("href='/legal/offer?returnUrl=/account/register'", html);
+        Assert.Contains("href='/legal/rules?returnUrl=/account/register'", html);
         Assert.Contains("оферту", html);
         Assert.Contains("правила рассылок", html);
-        Assert.Contains("href='/legal/client-consent'", html);
+        Assert.Contains("href='/legal/client-consent?returnUrl=/account/register'", html);
         Assert.Contains("согласие на обработку моих персональных данных", html);
-        Assert.Contains("href='/legal/privacy'", html);
+        Assert.Contains("href='/legal/privacy?returnUrl=/account/register'", html);
         Assert.Contains("сведения профиля", html);
         Assert.Contains("данные об оплатах", html);
         Assert.Contains("политика обработки персональных данных", html);
