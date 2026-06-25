@@ -74,16 +74,21 @@ public sealed class MailingWizardEndpointsTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Адреса проверены", html);
+        Assert.Contains("1. Добавьте список адресов", html);
+        Assert.DoesNotContain("Адреса проверены", html);
         Assert.Contains("Принято к отправке", html);
         Assert.Contains("<b>1</b><span>Принято к отправке</span>", html);
         Assert.Contains("<b>2</b><span>Дублей и ошибок</span>", html);
         Assert.Contains("Ранее отписались", html);
+        Assert.DoesNotContain("Что исключено", html);
+        Assert.DoesNotContain("Исключённых адресов нет", html);
         Assert.Contains("Подтвердите базу", html);
+        Assert.DoesNotContain("Источник и подтверждения фиксируются", html);
         Assert.Contains("Источник базы", html);
         Assert.Contains("Тип письма", html);
         Assert.Contains("compact-base-fields", html);
         Assert.Contains("advertisingConsentBlock", html);
+        Assert.Contains("подтверждаю правомерность использования базы", html);
         Assert.Contains("подтверждаю наличие рекламного согласия адресатов", html);
         Assert.Contains("Декларация законности базы", html);
         Assert.Contains("/legal/base-lawfulness", html);
