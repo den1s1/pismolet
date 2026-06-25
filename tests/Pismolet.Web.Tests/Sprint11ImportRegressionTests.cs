@@ -34,7 +34,7 @@ public sealed class Sprint11ImportRegressionTests
     }
 
     [Fact]
-    public async Task Csv_with_only_invalid_and_duplicate_rows_has_no_accepted_recipients()
+    public async Task Csv_with_only_invalid_rows_has_no_accepted_recipients_but_keeps_rows_for_management()
     {
         var service = CreateService(out var mailings, out _);
         var mailing = AddMailing(mailings);
@@ -45,11 +45,12 @@ public sealed class Sprint11ImportRegressionTests
         Assert.NotNull(result.Mailing);
         Assert.Equal(0, result.Stats.Accepted);
         Assert.Equal(2, result.Stats.Invalid);
-        Assert.Empty(result.Mailing!.Recipients);
+        Assert.Empty(result.Mailing!.Recipients.Where(x => x.Status == RecipientStatus.Accepted));
+        Assert.Equal(2, result.Mailing.Recipients.Count(x => x.Status == RecipientStatus.Invalid));
     }
 
     [Fact]
-    public async Task Global_and_client_suppressed_recipients_are_reported_only_as_counts()
+    public async Task Global_and_client_suppressed_recipients_are_reported_and_kept_for_management()
     {
         var service = CreateService(out var mailings, out var state);
         var mailing = AddMailing(mailings);
@@ -63,8 +64,10 @@ public sealed class Sprint11ImportRegressionTests
         Assert.Equal(1, result.Stats.Accepted);
         Assert.Equal(1, result.Stats.GloballySuppressed);
         Assert.Equal(1, result.Stats.ClientSuppressed);
-        Assert.Single(result.Mailing!.Recipients);
-        Assert.Equal("ok@example.test", result.Mailing.Recipients.Single().Email);
+        var accepted = Assert.Single(result.Mailing!.Recipients.Where(x => x.Status == RecipientStatus.Accepted));
+        Assert.Equal("ok@example.test", accepted.Email);
+        Assert.Contains(result.Mailing.Recipients, x => x.Email == "unsubscribed@example.test" && x.Status == RecipientStatus.GloballySuppressed);
+        Assert.Contains(result.Mailing.Recipients, x => x.Email == "hard@example.test" && x.Status == RecipientStatus.ClientSuppressed);
     }
 
     private static RecipientImportService CreateService(out InMemoryMailingRepository mailings, out TestImportState state)
