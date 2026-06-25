@@ -14,7 +14,7 @@ public static class LegalBaseLawfulnessEndpoints
     private static IResult ShowBaseLawfulness(HttpContext http)
     {
         var returnUrl = http.Request.Query["returnUrl"].ToString();
-        if (string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith('/', StringComparison.Ordinal) || returnUrl.StartsWith("//", StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith("/", StringComparison.Ordinal) || returnUrl.StartsWith("//", StringComparison.Ordinal))
         {
             returnUrl = "/legal";
         }
