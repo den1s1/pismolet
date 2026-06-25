@@ -82,11 +82,16 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("Подтвердите базу", html);
         Assert.Contains("Источник базы", html);
         Assert.Contains("Тип письма", html);
-        Assert.Contains("Открыть декларацию", html);
+        Assert.Contains("compact-base-fields", html);
+        Assert.Contains("advertisingConsentBlock", html);
+        Assert.Contains("подтверждаю наличие рекламного согласия адресатов", html);
+        Assert.Contains("Декларация законности базы", html);
         Assert.Contains("/legal/base-lawfulness", html);
         Assert.Contains("Перейти к письму", html);
         Assert.Contains($"/mailings/{mailingId}/declaration", html);
         Assert.DoesNotContain("Текст декларации", html);
+        Assert.DoesNotContain("Полный текст вынесен", html);
+        Assert.DoesNotContain("Открыть декларацию", html);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
