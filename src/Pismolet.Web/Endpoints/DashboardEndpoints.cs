@@ -121,7 +121,10 @@ public static class DashboardEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена."), authenticated: true));
         }
 
-        return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", AddressStepWizard(mailing, null), authenticated: true));
+        var body = mailing.LastImportStats.TotalRows > 0
+            ? ImportResultWizard(mailing)
+            : AddressStepWizard(mailing, null);
+        return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", body, authenticated: true));
     }
 
     private static async Task<IResult> ImportRecipients(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports)
@@ -181,7 +184,7 @@ public static class DashboardEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", AddressStepWizard(mailing, result.Error), authenticated: true));
         }
 
-        return HtmlRenderer.Html(HtmlRenderer.Page("Результат проверки", ImportResultWizard(result.Mailing), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", ImportResultWizard(result.Mailing), authenticated: true));
     }
 
     private static IResult ShowDeclaration(Guid id, HttpContext http, IMailingService mailings)
@@ -197,7 +200,7 @@ public static class DashboardEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Сначала загрузите адреса для рассылки."), authenticated: true));
         }
 
-        return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение базы", DeclarationForm(mailing, null), authenticated: true));
+        return Results.Redirect($"/mailings/{id}/recipients");
     }
 
     private static async Task<IResult> ConfirmDeclaration(Guid id, HttpContext http, IMailingDeclarationService declarations)
@@ -220,7 +223,8 @@ public static class DashboardEndpoints
 
         if (!result.Ok || result.Mailing is null)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение базы", DeclarationForm(result.Mailing, result.Error), authenticated: true));
+            var mailing = result.Mailing ?? GetMailing(id, http, declarations as IMailingService);
+            return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", mailing is null ? HtmlRenderer.Error(result.Error) : ImportResultWizard(mailing, result.Error), authenticated: true));
         }
 
         return Results.Redirect($"/mailings/{id}/message");
@@ -236,7 +240,7 @@ public static class DashboardEndpoints
 
         if (mailing.Declaration is null)
         {
-            return Results.Redirect($"/mailings/{id}/declaration");
+            return Results.Redirect($"/mailings/{id}/recipients");
         }
 
         return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(mailing, renderer, null), authenticated: true));
@@ -250,17 +254,19 @@ public static class DashboardEndpoints
             return Results.Redirect("/account/login");
         }
 
+        var existing = mailings.GetForOwner(id, email);
         var form = await http.Request.ReadFormAsync();
+        var messageType = ResolveMessageType(form, existing);
         var result = messages.Save(new SaveMailingMessageCommand(
             email,
             id,
             form["senderName"].ToString(),
             form["subject"].ToString(),
             form["body"].ToString(),
-            TryParseMessageType(form["messageType"].ToString()),
+            messageType,
             ToRequestMetadata(http)));
 
-        var mailing = result.Mailing ?? mailings.GetForOwner(id, email);
+        var mailing = result.Mailing ?? existing;
         if (!result.Ok || mailing is null)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(mailing, renderer, result.Error), authenticated: true));
@@ -313,7 +319,7 @@ public static class DashboardEndpoints
 </section>";
     }
 
-    private static string ImportResultWizard(Mailing mailing)
+    private static string ImportResultWizard(Mailing mailing, string? error = null)
     {
         var stats = mailing.LastImportStats;
         var allIssues = mailing.LastImportBatch?.Issues.ToArray() ?? Array.Empty<RecipientImportIssue>();
@@ -324,12 +330,13 @@ public static class DashboardEndpoints
             ? string.Empty
             : $"<h2>Предупреждения</h2>{IssueBlock(warningIssues, "Предупреждений нет.")}";
         var excludedBlock = IssueBlock(excludedIssues, "Исключённых адресов нет.");
+        var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
 
         return $@"
 <section class='wizard-shell'>
   {WizardSteps(1)}
   <section class='panel'>
-    <p class='eyebrow'>Результат проверки</p>
+    <p class='eyebrow'>Шаг 1 из 4</p>
     <h1>Адреса проверены</h1>
     <div class='stats import-summary'>
       <div class='stat'><b>{stats.TotalRows}</b><span>Строк в файле</span></div>
@@ -341,12 +348,34 @@ public static class DashboardEndpoints
     {warningsBlock}
     <h2>Что исключено</h2>
     {excludedBlock}
-    <div class='actions'>
-      <a class='button' href='/mailings/{mailing.Id}/declaration'>Перейти к следующему шагу</a>
-      <a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Загрузить другой список</a>
+    <div class='split-grid'>
+      <section class='box'>
+        <h2>Подтвердите базу</h2>
+        <p class='muted'>Источник и подтверждения фиксируются вместе с этим шагом.</p>
+        {alert}
+        {BaseConfirmationForm(mailing)}
+      </section>
+      <section class='box muted-box'>
+        <h2>Декларация законности базы</h2>
+        <p>Полный текст вынесен в отдельный юридический документ.</p>
+        <a class='btn secondary' href='/legal/base-lawfulness?returnUrl=/mailings/{mailing.Id}/recipients'>Открыть декларацию</a>
+      </section>
     </div>
   </section>
 </section>";
+    }
+
+    private static string BaseConfirmationForm(Mailing mailing)
+    {
+        var options = string.Join("", BaseSourceLabels.All.Select(x => $"<option value='{x.Key}'>{H(x.Value)}</option>"));
+        return $@"
+<form method='post' action='/mailings/{mailing.Id}/declaration' class='form-grid confirmation-list'>
+  <label>Источник базы<select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label>
+  <label>Тип письма<select name='messageType'><option value='Transactional'>Информационное</option><option value='Advertising'>Рекламное</option></select></label>
+  <label class='check'><input type='checkbox' name='baseLegality'><span>Подтверждаю правомерность использования базы</span></label>
+  <label class='check'><input type='checkbox' name='advertisingConsent'><span>Для рекламного письма подтверждаю наличие рекламного согласия адресатов</span></label>
+  <button class='button'>Перейти к письму</button>
+</form>";
     }
 
     private static string IssueBlock(IReadOnlyCollection<RecipientImportIssue> issues, string emptyText)
@@ -388,19 +417,6 @@ public static class DashboardEndpoints
         .Select(line => line.Trim())
         .Where(line => !string.IsNullOrWhiteSpace(line));
 
-    private static string DeclarationForm(Mailing? mailing, string? error)
-    {
-        if (mailing is null)
-        {
-            return HtmlRenderer.Error(error ?? "Рассылка не найдена.");
-        }
-
-        var options = string.Join("", BaseSourceLabels.All.Select(x => $"<option value='{x.Key}'>{H(x.Value)}</option>"));
-        var stats = mailing.LastImportStats;
-        var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error'>{H(error)}</p>";
-        return $"<section class='card form-card'><h1>Подтверждение базы</h1>{MailingTitleHint(mailing)}{alert}<p>Принято адресов: {stats.Accepted}. Дублей: {stats.Duplicates}. Невалидных: {stats.Invalid}.</p><form method='post' action='/mailings/{mailing.Id}/declaration'><label>Источник базы<select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label><label>Тип письма<select name='messageType'><option value='Transactional'>Информационное</option><option value='Advertising'>Рекламное</option></select></label><label><input type='checkbox' name='baseLegality'> Подтверждаю правомерность использования базы</label><label><input type='checkbox' name='advertisingConsent'> Для рекламного письма подтверждаю наличие рекламного согласия адресатов</label><div class='card'><strong>Текст декларации, версия {BaseDeclarationText.CurrentVersion}</strong><p>{H(BaseDeclarationText.Text)}</p></div><button class='button'>Подтвердить базу</button></form><p><a href='/mailings/{mailing.Id}/recipients'>Назад к адресам</a></p></section>";
-    }
-
     private static string MessageForm(Mailing? mailing, IMessageRenderingService renderer, string? error, bool saved = false)
     {
         if (mailing is null)
@@ -427,8 +443,6 @@ public static class DashboardEndpoints
             ? H($"Служебный идентификатор рассылки: {mailing.PublicId}")
             : H(preview.ServiceIdentifier);
         var unsubscribeUrl = string.IsNullOrWhiteSpace(preview.UnsubscribeUrl) ? "/unsubscribe/example-token" : H(preview.UnsubscribeUrl);
-        var transactionalSelected = draft?.MessageType == MessageType.Advertising ? string.Empty : " selected";
-        var advertisingSelected = draft?.MessageType == MessageType.Advertising ? " selected" : string.Empty;
         var continueAction = draft is null
             ? "<button class='button'>Сохранить письмо</button>"
             : $"<button class='button'>Сохранить письмо</button><a class='btn secondary' href='/mailings/{mailing.Id}/payment'>Перейти к проверке и оплате</a>";
@@ -454,14 +468,6 @@ public static class DashboardEndpoints
             <input name='senderName' maxlength='{MailingMessageDraft.MaxSenderNameLength}' required value='{senderName}' placeholder='Например: Библиотека №5'>
             <span class='field-hint'>Получатели увидят это имя в письме.</span>
           </label>
-          <label class='write-field'>
-            <span class='field-title'>Тип письма</span>
-            <select name='messageType'>
-              <option value='Transactional'{transactionalSelected}>Информационное</option>
-              <option value='Advertising'{advertisingSelected}>Рекламное</option>
-            </select>
-            <span class='field-hint'>Для рекламы нужна подтверждённая рекламная база.</span>
-          </label>
         </div>
         <label>Тема письма
           <input name='subject' maxlength='{MailingMessageDraft.MaxSubjectLength}' required value='{messageSubject}' placeholder='Например: Приглашаем на встречу в субботу'>
@@ -472,7 +478,7 @@ public static class DashboardEndpoints
         <div class='notice warn'>Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки.</div>
         <div class='actions'>
           {continueAction}
-          <a class='btn ghost' href='/mailings/{mailing.Id}/declaration'>Назад к подтверждению базы</a>
+          <a class='btn ghost' href='/mailings/{mailing.Id}/recipients'>Назад к адресам</a>
         </div>
       </form>
       <aside class='box message-preview-card'>
@@ -509,7 +515,7 @@ public static class DashboardEndpoints
 
         if (mailing.Declaration is null)
         {
-            return $"<a class='button' href='/mailings/{mailing.Id}/declaration'>Подтвердить базу</a>";
+            return $"<a class='button' href='/mailings/{mailing.Id}/recipients'>Подтвердить базу</a>";
         }
 
         if (mailing.MessageDraft is null)
@@ -529,9 +535,13 @@ public static class DashboardEndpoints
         ? "Новая рассылка"
         : mailing.MessageDraft!.Subject;
 
-    private static string MailingTitleHint(Mailing mailing) => string.IsNullOrWhiteSpace(mailing.MessageDraft?.Subject)
-        ? "<p class='muted'>Название появится из темы письма на следующем шаге.</p>"
-        : $"<p class='muted'>{H(mailing.MessageDraft!.Subject)}</p>";
+    private static MessageType ResolveMessageType(IFormCollection form, Mailing? mailing)
+    {
+        var value = form["messageType"].ToString();
+        return string.IsNullOrWhiteSpace(value)
+            ? mailing?.Declaration?.MessageType ?? MessageType.Transactional
+            : TryParseMessageType(value);
+    }
 
     private static BaseSource? TryParseBaseSource(string value) => Enum.TryParse<BaseSource>(value, out var source) ? source : null;
 
