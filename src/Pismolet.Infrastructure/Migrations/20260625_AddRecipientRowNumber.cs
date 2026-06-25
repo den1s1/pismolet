@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Pismolet.Web.Infrastructure.Migrations;
 
+[Migration("20260625_AddRecipientRowNumber")]
 public partial class AddRecipientRowNumber : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
