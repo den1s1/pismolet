@@ -121,6 +121,81 @@ public sealed class MailingWizardEndpointsTests
     }
 
     [Fact]
+    public async Task Address_management_edit_keeps_bad_rows_and_import_stats()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Wizard Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Address management regression campaign");
+        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+        using var importContent = new MultipartFormDataContent
+        {
+            { new StringContent("first@example.test\nwrong-email\nsecond@example.test\nFIRST@example.test"), "manualAddresses" }
+        };
+        var importResponse = await client.PostAsync($"/mailings/{mailingId}/recipients", importContent);
+        Assert.Equal(HttpStatusCode.OK, importResponse.StatusCode);
+
+        using var addForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["email"] = "added@example.test"
+        });
+        var addResponse = await client.PostAsync($"/mailings/{mailingId}/recipients/add", addForm);
+        var htmlAfterAdd = await addResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, addResponse.StatusCode);
+        Assert.Contains("wrong-email", htmlAfterAdd);
+        Assert.Contains("FIRST@example.test", htmlAfterAdd);
+        Assert.Contains("<b>5</b><span>Строк в файле</span>", htmlAfterAdd);
+        Assert.Contains("<b>3</b><span>Принято к отправке</span>", htmlAfterAdd);
+        Assert.Contains("<b>2</b><span>Дублей и ошибок</span>", htmlAfterAdd);
+
+        Mailing? mailingAfterAdd;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+            mailingAfterAdd = mailings.GetForOwner(mailingId, OwnerEmail);
+        }
+
+        Assert.NotNull(mailingAfterAdd);
+        Assert.Equal(5, mailingAfterAdd.LastImportStats.TotalRows);
+        Assert.Equal(3, mailingAfterAdd.LastImportStats.Accepted);
+        Assert.Equal(1, mailingAfterAdd.LastImportStats.Invalid);
+        Assert.Equal(1, mailingAfterAdd.LastImportStats.Duplicates);
+        Assert.Equal(5, mailingAfterAdd.Recipients.Count);
+        Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Invalid && x.SourceEmail == "wrong-email");
+        Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Duplicate && x.SourceEmail == "FIRST@example.test");
+
+        var secondRecipient = Assert.Single(mailingAfterAdd.Recipients.Where(x => x.Email == "second@example.test" && x.Status == RecipientStatus.Accepted));
+        using var removeForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["email"] = secondRecipient.Email,
+            ["rowNumber"] = secondRecipient.RowNumber.ToString()
+        });
+        var removeResponse = await client.PostAsync($"/mailings/{mailingId}/recipients/remove", removeForm);
+        var htmlAfterRemove = await removeResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, removeResponse.StatusCode);
+        Assert.Contains("wrong-email", htmlAfterRemove);
+        Assert.Contains("FIRST@example.test", htmlAfterRemove);
+        Assert.Contains("<b>4</b><span>Строк в файле</span>", htmlAfterRemove);
+        Assert.Contains("<b>2</b><span>Принято к отправке</span>", htmlAfterRemove);
+        Assert.Contains("<b>2</b><span>Дублей и ошибок</span>", htmlAfterRemove);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+            var mailingAfterRemove = mailings.GetForOwner(mailingId, OwnerEmail);
+            Assert.NotNull(mailingAfterRemove);
+            Assert.Equal(4, mailingAfterRemove.LastImportStats.TotalRows);
+            Assert.Equal(2, mailingAfterRemove.LastImportStats.Accepted);
+            Assert.Equal(1, mailingAfterRemove.LastImportStats.Invalid);
+            Assert.Equal(1, mailingAfterRemove.LastImportStats.Duplicates);
+            Assert.Equal(4, mailingAfterRemove.Recipients.Count);
+            Assert.Contains(mailingAfterRemove.Recipients, x => x.Status == RecipientStatus.Invalid && x.SourceEmail == "wrong-email");
+            Assert.Contains(mailingAfterRemove.Recipients, x => x.Status == RecipientStatus.Duplicate && x.SourceEmail == "FIRST@example.test");
+        }
+    }
+
+    [Fact]
     public async Task Manual_address_import_rejects_oversized_input_before_import()
     {
         using var factory = CreateAuthorizedFactory();
