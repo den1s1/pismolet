@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Net;
 using System.Reflection;
 using System.Security.Claims;
@@ -19,12 +20,53 @@ public static class SimplifiedRecipientStepEndpoints
     {
         var email = http.User.FindFirstValue(ClaimTypes.Email);
         var mailing = email is null ? null : mailings.GetForOwner(id, email);
-        return mailing is null
-            ? HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена."), authenticated: true))
-            : HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", Page(mailing), authenticated: true));
+        if (mailing is null)
+        {
+            return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена."), authenticated: true));
+        }
+
+        var replaceMode = string.Equals(http.Request.Query["mode"].ToString(), "replace", StringComparison.OrdinalIgnoreCase);
+        var html = mailing.LastImportStats.TotalRows > 0 && !replaceMode
+            ? ManagementPage(mailing)
+            : UploadPage(mailing);
+        return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", html, authenticated: true));
     }
 
-    private static string Page(Mailing mailing)
+    private static string ManagementPage(Mailing mailing)
+    {
+        var declaration = DeclarationSummary(mailing);
+        var rows = RecipientRows(mailing);
+        return """
+<section class='wizard-shell'>
+  <div class='wizard-steps'><span class='wizard-step current'>1. Адреса</span><span class='wizard-step'>2. Письмо</span><span class='wizard-step'>3. Расчёт и оплата</span><span class='wizard-step'>4. Готово</span></div>
+  <section class='panel'>
+    <p class='eyebrow'>Шаг 1 из 4</p>
+    <h1>1. Адреса загружены</h1>
+    <p class='muted'>Вы остаетесь внутри этой рассылки. Загруженный список и подтверждения сохранены.</p>
+    __STATS__
+    <section class='inline-base-confirm'>
+      <h2>Подтверждение базы</h2>
+      __DECLARATION__
+    </section>
+    <section class='inline-base-confirm'>
+      <h2>Загруженные адреса</h2>
+      __ROWS__
+    </section>
+    <div class='actions wizard-actions'>
+      <a class='button' href='/mailings/__ID__/message'>Перейти к письму</a>
+      <a class='btn secondary' href='/mailings/__ID__/recipients?mode=replace'>Заменить список адресов</a>
+      <a class='btn ghost' href='/dashboard'>Вернуться в ЛК</a>
+    </div>
+  </section>
+</section>
+"""
+            .Replace("__ID__", mailing.Id.ToString(), StringComparison.Ordinal)
+            .Replace("__STATS__", Stats(mailing), StringComparison.Ordinal)
+            .Replace("__DECLARATION__", declaration, StringComparison.Ordinal)
+            .Replace("__ROWS__", rows, StringComparison.Ordinal);
+    }
+
+    private static string UploadPage(Mailing mailing)
     {
         var sourceValue = DeclarationValue(mailing.Declaration, "BaseSource");
         var typeValue = DeclarationValue(mailing.Declaration, "IntendedMessageType")
@@ -79,6 +121,49 @@ public static class SimplifiedRecipientStepEndpoints
         var stats = mailing.LastImportStats;
         var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
         return $"<div class='stats import-summary'><div class='stat'><b>{stats.TotalRows}</b><span>Строк в файле</span></div><div class='stat'><b>{stats.Accepted}</b><span>Принято к отправке</span></div><div class='stat'><b>{stats.Duplicates + stats.Invalid}</b><span>Дублей и ошибок</span></div><div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div><div class='stat'><b>{stats.GloballySuppressed}</b><span>Ранее отписались</span></div></div>";
+    }
+
+    private static string DeclarationSummary(Mailing mailing)
+    {
+        var source = DeclarationValue(mailing.Declaration, "BaseSource");
+        var sourceLabel = BaseSourceLabels.All.FirstOrDefault(x => string.Equals(x.Key.ToString(), source, StringComparison.OrdinalIgnoreCase)).Value ?? "не выбран";
+        var type = DeclarationValue(mailing.Declaration, "IntendedMessageType")
+            ?? DeclarationValue(mailing.Declaration, "MessageType")
+            ?? mailing.MessageDraft?.MessageType.ToString()
+            ?? MessageType.Transactional.ToString();
+        var typeLabel = type == MessageType.Advertising.ToString() ? "Рекламное" : "Информационное";
+        var baseStatus = mailing.Declaration is null ? "не подтверждена" : "подтверждена";
+        var adStatus = IsTrue(mailing.Declaration, "IsAdvertisingConsentConfirmed", "AdvertisingConsentConfirmed", "HasAdvertisingConsent") ? "подтверждено" : "не требуется или не подтверждено";
+        return $"<div class='compact-base-fields'><div class='box muted-box'><b>Источник базы</b><p>{H(sourceLabel)}</p></div><div class='box muted-box'><b>Тип письма</b><p>{H(typeLabel)}</p></div><div class='box muted-box'><b>Правомерность базы</b><p>{H(baseStatus)}</p></div><div class='box muted-box'><b>Рекламное согласие</b><p>{H(adStatus)}</p></div></div><p class='compact-legal-link'><a href='/legal/base-lawfulness?returnUrl=/mailings/{mailing.Id}/recipients'>Декларация законности базы</a></p>";
+    }
+
+    private static string RecipientRows(Mailing mailing)
+    {
+        var recipients = mailing.GetType().GetProperty("Recipients", BindingFlags.Instance | BindingFlags.Public)?.GetValue(mailing) as IEnumerable;
+        if (recipients is null) return "<p class='muted'>Список адресов сохранён. Детальный просмотр будет доступен позже.</p>";
+        var rows = new List<string>();
+        foreach (var recipient in recipients.Cast<object>().Take(100))
+        {
+            var email = Value(recipient, "Email", "Address") ?? "адрес";
+            var status = Value(recipient, "Status") ?? "принят";
+            rows.Add($"<tr><td>{H(email)}</td><td>{H(status)}</td></tr>");
+        }
+
+        return rows.Count == 0
+            ? "<p class='muted'>Адреса сохранены, но список пуст.</p>"
+            : $"<div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th></tr></thead><tbody>{string.Join("", rows)}</tbody></table></div><p class='muted'>Показаны первые 100 адресов.</p>";
+    }
+
+    private static string? Value(object target, params string[] names)
+    {
+        var type = target.GetType();
+        foreach (var name in names)
+        {
+            var value = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(target)?.ToString();
+            if (!string.IsNullOrWhiteSpace(value)) return value;
+        }
+
+        return null;
     }
 
     private static string Option(string value, string label, string? selectedValue)
