@@ -176,18 +176,23 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("name='body'", html);
         Assert.Contains("Письмолёт автоматически добавит", html);
         Assert.Contains("Служебный идентификатор рассылки", html);
+        Assert.Contains("Проверить и оплатить", html);
         Assert.DoesNotContain("name='messageType'", html);
         Assert.DoesNotContain("Тип письма", html);
         Assert.DoesNotContain("Перейти к проверке и оплате", html);
     }
 
     [Fact]
-    public async Task Saving_message_preserves_draft_and_shows_preview()
+    public async Task Saving_message_preserves_draft_and_redirects_to_payment()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Wizard Owner");
         var mailingId = SeedMailing(factory, OwnerEmail, "Save message campaign");
-        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
         await ImportAcceptedAddress(client, mailingId);
         await ConfirmBaseDeclaration(client, mailingId);
         using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -198,17 +203,9 @@ public sealed class MailingWizardEndpointsTests
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
-        var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Письмо сохранено", html);
-        Assert.Contains("Перейти к проверке и оплате", html);
-        Assert.Contains("Библиотека №5", html);
-        Assert.Contains("Приглашаем на встречу", html);
-        Assert.Contains("Здравствуйте!", html);
-        Assert.Contains("Будем рады видеть вас.", html);
-        Assert.Contains("Почему вы получили это письмо", html);
-        Assert.Contains("/unsubscribe/example-token", html);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/payment", response.Headers.Location?.OriginalString);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
