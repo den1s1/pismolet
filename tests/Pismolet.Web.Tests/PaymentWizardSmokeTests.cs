@@ -30,12 +30,14 @@ public sealed class PaymentWizardSmokeTests
 
         var html = await client.GetStringAsync($"/mailings/{mailingId}/payment");
 
-        Assert.Contains("3. Проверка и оплата", html);
-        Assert.Contains("Расчёт стоимости", html);
-        Assert.Contains("Итого к оплате", html);
+        Assert.Contains("3. Проверьте расчёт и оплатите", html);
+        Assert.Contains("Оплата будет только за письма, принятые к отправке", html);
+        Assert.Contains("К оплате", html);
         Assert.Contains("name='paymentBaseLegality'", html);
         Assert.Contains("name='paymentBaseOwnership'", html);
-        Assert.Contains("Исключённые адреса", html);
+        Assert.Contains("Не списываем за исключённые", html);
+        Assert.Contains("Оплатить", html);
+        Assert.Contains("и запустить", html);
     }
 
     [Fact]
@@ -129,7 +131,7 @@ public sealed class PaymentWizardSmokeTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "Password123!", "Payment Smoke", "+79990000000"), Request());
+        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "TestPassword123!", "Payment Smoke", "+79990000000"), Request());
         Assert.True(result.Ok, result.Error);
     }
 
