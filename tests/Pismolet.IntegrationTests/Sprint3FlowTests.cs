@@ -39,7 +39,6 @@ public sealed class Sprint3FlowTests
         {
             ["senderName"] = "Письмолёт",
             ["subject"] = "Новости",
-            ["messageType"] = "Advertising",
             ["body"] = "Текст письма"
         }));
 
@@ -48,7 +47,8 @@ public sealed class Sprint3FlowTests
         Assert.Contains("Письмо подготовлено", body);
         Assert.Contains("/unsubscribe/", body);
         Assert.Contains("Почему вы получили это письмо", body);
-        Assert.Contains("value='Advertising' selected", body);
+        Assert.DoesNotContain("name='messageType'", body);
+        Assert.DoesNotContain("Тип письма", body);
 
         using var scope = factory.Services.CreateScope();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditLogger>().GetRecords();
@@ -78,11 +78,12 @@ public sealed class Sprint3FlowTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Подтвердите базу адресов", body);
+        Assert.Contains("Подтвердите базу", body);
+        Assert.Contains("/legal/base-lawfulness", body);
     }
 
     [Fact]
-    public async Task Message_without_declaration_redirects_to_declaration()
+    public async Task Message_without_declaration_redirects_to_recipients_step()
     {
         using var factory = CreateFactory();
         var client = CreateClient(factory);
@@ -93,7 +94,7 @@ public sealed class Sprint3FlowTests
         var response = await client.GetAsync($"/mailings/{mailingId}/message");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/mailings/{mailingId}/declaration", response.Headers.Location?.ToString());
+        Assert.Equal($"/mailings/{mailingId}/recipients", response.Headers.Location?.ToString());
     }
 
     private static WebApplicationFactory<Program> CreateFactory() => new WebApplicationFactory<Program>()
@@ -115,7 +116,7 @@ public sealed class Sprint3FlowTests
 
     private static async Task RegisterAndLoginAsync(WebApplicationFactory<Program> factory, HttpClient client, string email)
     {
-        const string password = "Password123!";
+        const string password = "PassForTests2026!";
         var register = await client.PostAsync("/account/register", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["email"] = email,
