@@ -20,6 +20,14 @@ public static class RecipientImportIssueStore
         Save(mailing.Id, issues.Select(issue => new RecipientImportIssueSnapshot(issue.RowNumber, issue.Email, issue.Message)));
     }
 
+    public static void Save(Guid mailingId, IEnumerable<RecipientImportIssueSnapshot> issues)
+    {
+        Directory.CreateDirectory(DirectoryPath);
+        var path = PathFor(mailingId);
+        var lines = issues.Select(issue => string.Join('\t', issue.RowNumber.ToString(CultureInfo.InvariantCulture), Escape(issue.Email), Escape(issue.Message)));
+        File.WriteAllLines(path, lines, Encoding.UTF8);
+    }
+
     public static void SaveFromHtml(Guid mailingId, string html)
     {
         var issues = IssueRowRegex.Matches(html)
@@ -54,14 +62,6 @@ public static class RecipientImportIssueStore
         return int.TryParse(match.Groups["row"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var row)
             ? new RecipientImportIssueSnapshot(row, Decode(match.Groups["email"].Value), Decode(match.Groups["message"].Value))
             : null;
-    }
-
-    private static void Save(Guid mailingId, IEnumerable<RecipientImportIssueSnapshot> issues)
-    {
-        Directory.CreateDirectory(DirectoryPath);
-        var path = PathFor(mailingId);
-        var lines = issues.Select(issue => string.Join('\t', issue.RowNumber.ToString(CultureInfo.InvariantCulture), Escape(issue.Email), Escape(issue.Message)));
-        File.WriteAllLines(path, lines, Encoding.UTF8);
     }
 
     private static RecipientImportIssueSnapshot? Parse(string line)
