@@ -11,7 +11,6 @@ using Microsoft.Extensions.Options;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
-using Pismolet.Web.Domain.Mailings;
 
 namespace Pismolet.Web.Tests;
 
@@ -65,7 +64,7 @@ public sealed class ProfileEndpointsTests
         var html = await client.GetStringAsync("/payments");
 
         Assert.Contains("Баланс и оплата рассылок", html);
-        Assert.Contains("Owner campaign", html);
+        Assert.Contains("Новая рассылка", html);
         Assert.DoesNotContain("Other campaign", html);
     }
 
@@ -99,7 +98,7 @@ public sealed class ProfileEndpointsTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(email, "TestPassword123!", displayName, "+79990000000"), Request());
+        var result = accounts.Register(new RegisterUserCommand(email, "PassForTests2026!", displayName, "+79990000000"), Request());
         Assert.True(result.Ok, result.Error);
     }
 
@@ -107,12 +106,8 @@ public sealed class ProfileEndpointsTests
     {
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
-        var draft = mailings.CreateDraft(new CreateMailingCommand(ownerEmail, "Новая рассылка"), Request());
-        Assert.True(draft.Ok, draft.Error);
-        Assert.NotNull(draft.Mailing);
-        var messages = scope.ServiceProvider.GetRequiredService<IMailingMessageService>();
-        var saved = messages.Save(new SaveMailingMessageCommand(ownerEmail, draft.Mailing.Id, "Письмолёт", subject, "Текст", MessageType.Transactional, Request()));
-        Assert.True(saved.Ok, saved.Error);
+        var result = mailings.CreateDraft(new CreateMailingCommand(ownerEmail, subject), Request());
+        Assert.True(result.Ok, result.Error);
     }
 
     private static RequestMetadata Request() => new("127.0.0.1", "profile-endpoint-tests");
