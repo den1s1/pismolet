@@ -54,7 +54,7 @@ public static class SimplifiedMessageStepEndpoints
             form["senderName"].ToString(),
             form["subject"].ToString(),
             form["body"].ToString(),
-            existing?.MessageDraft?.MessageType ?? MessageType.Transactional,
+            ResolveMessageType(existing),
             ToRequestMetadata(http)));
 
         var mailing = result.Mailing ?? existing;
@@ -64,6 +64,18 @@ public static class SimplifiedMessageStepEndpoints
         }
 
         return Results.Redirect($"/mailings/{id}/payment");
+    }
+
+    private static MessageType ResolveMessageType(Mailing? mailing)
+    {
+        if (mailing?.MessageDraft is not null)
+        {
+            return mailing.MessageDraft.MessageType;
+        }
+
+        return mailing?.Declaration?.IsAdvertisingConsentConfirmed == true
+            ? MessageType.Advertising
+            : MessageType.Transactional;
     }
 
     private static string MessageForm(Mailing? mailing, IMessageRenderingService renderer, string? error)
