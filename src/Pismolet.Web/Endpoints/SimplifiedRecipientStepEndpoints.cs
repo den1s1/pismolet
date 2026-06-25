@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Globalization;
 using System.Net;
 using System.Reflection;
 using System.Security.Claims;
@@ -35,7 +33,7 @@ public static class SimplifiedRecipientStepEndpoints
 
         var replaceMode = string.Equals(http.Request.Query["mode"].ToString(), "replace", StringComparison.OrdinalIgnoreCase);
         var query = http.Request.Query["q"].ToString();
-        var html = mailing.LastImportStats.TotalRows > 0 && !replaceMode
+        var html = (mailing.LastImportStats.TotalRows > 0 || mailing.Recipients.Count > 0) && !replaceMode
             ? ManagementPage(mailing, query)
             : UploadPage(mailing);
         return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", html, authenticated: true));
@@ -50,24 +48,27 @@ public static class SimplifiedRecipientStepEndpoints
             return Results.Redirect($"/mailings/{id}/recipients");
         }
 
-        return await Reimport(id, http, mailings, imports, declarations, emails =>
-        {
-            if (!emails.Contains(newEmail, StringComparer.OrdinalIgnoreCase))
-            {
-                emails.Add(newEmail);
-            }
-        });
+        return await Reimport(id, http, mailings, imports, declarations, rows => rows.Add(new RecipientSourceRow(NextRowNumber(rows), newEmail)));
     }
 
     private static async Task<IResult> RemoveRecipient(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports, IMailingDeclarationService declarations)
     {
         var form = await http.Request.ReadFormAsync();
         var removedEmail = form["email"].ToString().Trim();
-        return await Reimport(id, http, mailings, imports, declarations, emails =>
-            emails.RemoveAll(email => string.Equals(email, removedEmail, StringComparison.OrdinalIgnoreCase)));
+        var rowNumber = int.TryParse(form["rowNumber"].ToString(), out var parsedRow) ? parsedRow : 0;
+        return await Reimport(id, http, mailings, imports, declarations, rows =>
+        {
+            var index = rowNumber > 0
+                ? rows.FindIndex(row => row.RowNumber == rowNumber)
+                : rows.FindIndex(row => string.Equals(row.Email, removedEmail, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0)
+            {
+                rows.RemoveAt(index);
+            }
+        });
     }
 
-    private static async Task<IResult> Reimport(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports, IMailingDeclarationService declarations, Action<List<string>> change)
+    private static async Task<IResult> Reimport(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports, IMailingDeclarationService declarations, Action<List<RecipientSourceRow>> change)
     {
         var ownerEmail = http.User.FindFirstValue(ClaimTypes.Email);
         if (string.IsNullOrWhiteSpace(ownerEmail))
@@ -81,17 +82,12 @@ public static class SimplifiedRecipientStepEndpoints
             return Results.Redirect("/dashboard");
         }
 
-        var previousIssues = ImportIssueObjects(mailing).ToArray();
-        var currentEmails = CurrentAcceptedEmails(mailing).ToList();
-        change(currentEmails);
-        var csv = "email\n" + string.Join('\n', currentEmails.Distinct(StringComparer.OrdinalIgnoreCase));
+        var rows = CurrentSourceRows(mailing).ToList();
+        change(rows);
+        var csv = "email\n" + string.Join('\n', rows.Select(row => row.Email).Where(email => !string.IsNullOrWhiteSpace(email)));
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
         await imports.ImportAsync(new ImportRecipientsCommand(ownerEmail, id, "manual-addresses.csv", stream, Request(http)));
         var refreshed = mailings.GetForOwner(id, ownerEmail) ?? mailing;
-        var refreshedIssues = refreshed.LastImportBatch?.Issues
-            .Select(issue => new RecipientImportIssueSnapshot(issue.RowNumber, issue.Email, issue.Message))
-            .ToArray() ?? Array.Empty<RecipientImportIssueSnapshot>();
-        RecipientImportIssueStore.Save(id, refreshedIssues.Length > 0 ? refreshedIssues : previousIssues);
         PreserveDeclaration(ownerEmail, id, refreshed, declarations, http);
         return Results.Redirect($"/mailings/{id}/recipients");
     }
@@ -192,28 +188,10 @@ public static class SimplifiedRecipientStepEndpoints
 
     private static string Stats(Mailing mailing)
     {
-        var issues = ImportIssueObjects(mailing).ToArray();
-        if (issues.Length == 0)
-        {
-            var stats = mailing.LastImportStats;
-            var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
-            return StatsHtml(stats.TotalRows, stats.Accepted, stats.Duplicates + stats.Invalid, blocked, stats.GloballySuppressed);
-        }
-
-        var acceptedEmails = CurrentAcceptedEmails(mailing).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var accepted = acceptedEmails.Count;
-        var countedIssues = issues
-            .Where(issue => !IsWarningIssue(issue) || !acceptedEmails.Contains(issue.Email))
-            .ToArray();
-        var suppressed = countedIssues.Count(IsSuppressedIssue);
-        var duplicateOrInvalid = countedIssues.Count(IsDuplicateOrInvalidIssue);
-        var blockedCount = countedIssues.Count(IsBlockedIssue);
-        var totalRows = accepted + countedIssues.Length;
-        return StatsHtml(totalRows, accepted, duplicateOrInvalid, blockedCount, suppressed);
+        var stats = mailing.LastImportStats;
+        var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
+        return $"<div class='stats import-summary'><div class='stat'><b>{stats.TotalRows}</b><span>Строк в файле</span></div><div class='stat'><b>{stats.Accepted}</b><span>Принято к отправке</span></div><div class='stat'><b>{stats.Duplicates + stats.Invalid}</b><span>Дублей и ошибок</span></div><div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div><div class='stat'><b>{stats.GloballySuppressed}</b><span>Ранее отписались</span></div></div>";
     }
-
-    private static string StatsHtml(int totalRows, int accepted, int duplicatesAndInvalid, int blocked, int suppressed) =>
-        $"<div class='stats import-summary'><div class='stat'><b>{totalRows}</b><span>Строк в файле</span></div><div class='stat'><b>{accepted}</b><span>Принято к отправке</span></div><div class='stat'><b>{duplicatesAndInvalid}</b><span>Дублей и ошибок</span></div><div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div><div class='stat'><b>{suppressed}</b><span>Ранее отписались</span></div></div>";
 
     private static string DeclarationSummary(Mailing mailing)
     {
@@ -252,92 +230,64 @@ public static class SimplifiedRecipientStepEndpoints
         return $"<div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th><th>Источник</th><th></th></tr></thead><tbody>{rows}</tbody></table></div>{note}";
     }
 
-    private static string ActionCell(Guid mailingId, RecipientDisplayRow row) => row.CanRemove
-        ? $"<form method='post' action='/mailings/{mailingId}/recipients/remove'><input type='hidden' name='email' value='{H(row.Email)}'><button class='btn ghost'>Удалить</button></form>"
-        : "<span class='muted'>—</span>";
+    private static string ActionCell(Guid mailingId, RecipientDisplayRow row) =>
+        $"<form method='post' action='/mailings/{mailingId}/recipients/remove'><input type='hidden' name='email' value='{H(row.Email)}'><input type='hidden' name='rowNumber' value='{row.Order}'><button class='btn ghost'>Удалить</button></form>";
 
     private static IEnumerable<RecipientDisplayRow> RecipientDisplayRows(Mailing mailing)
     {
-        var fallbackOrder = 0;
-        var issues = ImportIssueObjects(mailing).ToArray();
-        var warningsByEmail = issues
+        var warnings = (mailing.LastImportBatch?.Issues ?? Array.Empty<RecipientImportIssue>())
             .Where(IsWarningIssue)
-            .GroupBy(issue => issue.Email, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First().Message, StringComparer.OrdinalIgnoreCase);
-        var acceptedEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            .GroupBy(issue => (issue.RowNumber, Email: issue.Email), new RowWarningComparer())
+            .ToDictionary(group => group.Key, group => group.First().Message, new RowWarningComparer());
+        var fallbackOrder = 0;
 
-        foreach (var recipient in RecipientObjects(mailing))
+        foreach (var recipient in mailing.Recipients)
         {
             fallbackOrder++;
-            var email = Value(recipient, "Email", "Address") ?? "адрес";
-            acceptedEmails.Add(email);
-            var status = StatusLabel(Value(recipient, "Status") ?? "Accepted");
-            var source = "Текущий список";
-            if (warningsByEmail.TryGetValue(email, out var warning))
+            var rowNumber = recipient.RowNumber > 0 ? recipient.RowNumber : fallbackOrder + 1;
+            var email = string.IsNullOrWhiteSpace(recipient.Email) ? recipient.SourceEmail : recipient.Email;
+            var status = recipient.Status == RecipientStatus.Accepted
+                ? "Принят к отправке"
+                : recipient.ExclusionReason ?? StatusLabel(recipient.Status);
+            var source = recipient.Status == RecipientStatus.Accepted ? "Текущий список" : "Не сможем отправить";
+
+            if (recipient.Status == RecipientStatus.Accepted && warnings.TryGetValue((rowNumber, recipient.Email), out var warning))
             {
                 status = $"{status}; предупреждение: {warning}";
                 source = "Текущий список, есть предупреждение";
             }
 
-            var rowNumber = IntValue(recipient, "RowNumber", "SourceRowNumber", "ImportRowNumber", "LineNumber") ?? fallbackOrder;
-            yield return new RecipientDisplayRow(email, status, source, rowNumber, fallbackOrder, CanRemove: true);
-        }
-
-        foreach (var issue in issues)
-        {
-            if (IsWarningIssue(issue) && acceptedEmails.Contains(issue.Email))
-            {
-                continue;
-            }
-
-            fallbackOrder++;
-            var source = IsWarningIssue(issue) ? "Предупреждение" : "Не сможем отправить";
-            yield return new RecipientDisplayRow(issue.Email, issue.Message, source, issue.RowNumber, fallbackOrder, CanRemove: false);
+            yield return new RecipientDisplayRow(email, status, source, rowNumber, fallbackOrder);
         }
     }
 
-    private static IEnumerable<string> CurrentAcceptedEmails(Mailing mailing) => RecipientObjects(mailing)
-        .Select(recipient => Value(recipient, "Email", "Address"))
-        .Where(email => !string.IsNullOrWhiteSpace(email))
-        .Cast<string>();
-
-    private static IEnumerable<object> RecipientObjects(Mailing mailing) =>
-        mailing.GetType().GetProperty("Recipients", BindingFlags.Instance | BindingFlags.Public)?.GetValue(mailing) is IEnumerable recipients
-            ? recipients.Cast<object>()
-            : Enumerable.Empty<object>();
-
-    private static IEnumerable<RecipientImportIssueSnapshot> ImportIssueObjects(Mailing mailing)
+    private static IEnumerable<RecipientSourceRow> CurrentSourceRows(Mailing mailing)
     {
-        var liveIssues = mailing.LastImportBatch?.Issues
-            .Select(issue => new RecipientImportIssueSnapshot(issue.RowNumber, issue.Email, issue.Message))
-            .ToArray();
-        return liveIssues is { Length: > 0 }
-            ? liveIssues
-            : RecipientImportIssueStore.Load(mailing.Id);
+        var fallbackOrder = 0;
+        foreach (var recipient in mailing.Recipients.OrderBy(x => x.RowNumber > 0 ? x.RowNumber : int.MaxValue))
+        {
+            fallbackOrder++;
+            var email = string.IsNullOrWhiteSpace(recipient.SourceEmail) ? recipient.Email : recipient.SourceEmail;
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                yield return new RecipientSourceRow(recipient.RowNumber > 0 ? recipient.RowNumber : fallbackOrder + 1, email);
+            }
+        }
     }
 
-    private static bool IsWarningIssue(RecipientImportIssueSnapshot issue) =>
+    private static int NextRowNumber(IReadOnlyCollection<RecipientSourceRow> rows) => rows.Count == 0 ? 2 : rows.Max(row => row.RowNumber) + 1;
+
+    private static bool IsWarningIssue(RecipientImportIssue issue) =>
         issue.Message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsSuppressedIssue(RecipientImportIssueSnapshot issue) =>
-        issue.Message.Contains("отпис", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsDuplicateOrInvalidIssue(RecipientImportIssueSnapshot issue) =>
-        issue.Message.Contains("дуб", StringComparison.OrdinalIgnoreCase)
-        || issue.Message.Contains("некорр", StringComparison.OrdinalIgnoreCase)
-        || issue.Message.Contains("невалид", StringComparison.OrdinalIgnoreCase)
-        || issue.Message.Contains("ошиб", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsBlockedIssue(RecipientImportIssueSnapshot issue) => !IsWarningIssue(issue);
-
-    private static string StatusLabel(string status) => status switch
+    private static string StatusLabel(RecipientStatus status) => status switch
     {
-        "Accepted" => "Принят к отправке",
-        "Invalid" => "Некорректный адрес",
-        "Duplicate" => "Дубль",
-        "GloballySuppressed" => "Ранее отписался",
-        "ClientSuppressed" => "Исключён клиентом",
-        _ => status
+        RecipientStatus.Accepted => "Принят к отправке",
+        RecipientStatus.Invalid => "Некорректный адрес",
+        RecipientStatus.Duplicate => "Дубль",
+        RecipientStatus.GloballySuppressed => "Ранее отписался",
+        RecipientStatus.ClientSuppressed => "Исключён клиентом",
+        _ => status.ToString()
     };
 
     private static void PreserveDeclaration(string ownerEmail, Guid mailingId, Mailing mailing, IMailingDeclarationService declarations, HttpContext http)
@@ -381,28 +331,19 @@ public static class SimplifiedRecipientStepEndpoints
         return false;
     }
 
-    private static string? Value(object target, params string[] names)
-    {
-        var type = target.GetType();
-        foreach (var name in names)
-        {
-            var value = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(target)?.ToString();
-            if (!string.IsNullOrWhiteSpace(value)) return value;
-        }
-
-        return null;
-    }
-
-    private static int? IntValue(object target, params string[] names)
-    {
-        var value = Value(target, names);
-        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result) ? result : null;
-    }
-
     private static BaseSource? TryParseBaseSource(string? value) => Enum.TryParse<BaseSource>(value, out var source) ? source : null;
     private static MessageType TryParseMessageType(string? value) => Enum.TryParse<MessageType>(value, out var type) ? type : MessageType.Transactional;
     private static RequestMetadata Request(HttpContext http) => new(http.Connection.RemoteIpAddress?.ToString() ?? "unknown", string.IsNullOrWhiteSpace(http.Request.Headers.UserAgent.ToString()) ? "unknown" : http.Request.Headers.UserAgent.ToString());
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 
-    private sealed record RecipientDisplayRow(string Email, string Status, string Source, int Order, int FallbackOrder, bool CanRemove);
+    private sealed record RecipientSourceRow(int RowNumber, string Email);
+    private sealed record RecipientDisplayRow(string Email, string Status, string Source, int Order, int FallbackOrder);
+
+    private sealed class RowWarningComparer : IEqualityComparer<(int RowNumber, string Email)>
+    {
+        public bool Equals((int RowNumber, string Email) x, (int RowNumber, string Email) y) =>
+            x.RowNumber == y.RowNumber && string.Equals(x.Email, y.Email, StringComparison.OrdinalIgnoreCase);
+
+        public int GetHashCode((int RowNumber, string Email) obj) => HashCode.Combine(obj.RowNumber, StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Email));
+    }
 }
