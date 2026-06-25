@@ -37,6 +37,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     [Theory]
     [InlineData("/legal/offer", "Пользовательское соглашение и оферта сервиса Письмолёт", "document_key: <code>offer_and_rules</code>")]
     [InlineData("/legal/privacy", "Политика обработки персональных данных", "document_key: <code>client_personal_data_consent</code>")]
+    [InlineData("/legal/rules", "Правила рассылок Письмолёта", "document_key: <code>mailing_rules</code>")]
     public async Task LegalDocumentsArePublic(string path, string title, string documentKey)
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -71,6 +72,41 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     }
 
     [Fact]
+    public async Task RulesContainFullLegalSections()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var html = await client.GetStringAsync("/legal/rules");
+
+        Assert.Contains("Редакция:</strong> 2026-06-24-v1", html);
+        Assert.Contains("Запрещённые базы", html);
+        Assert.Contains("Подтверждения клиента", html);
+        Assert.Contains("Отписка через Письмолёт", html);
+        Assert.Contains("Модерация и отказ в отправке", html);
+    }
+
+    [Fact]
+    public async Task PrivacyContainsFullLegalSections()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var html = await client.GetStringAsync("/legal/privacy");
+
+        Assert.Contains("Редакция:</strong> 2026-06-24-v1", html);
+        Assert.Contains("Оператор", html);
+        Assert.Contains("Какие данные обрабатываются", html);
+        Assert.Contains("Отписка через Письмолёт и жалобы", html);
+        Assert.Contains("Хранение и удаление", html);
+        Assert.Contains("Права субъектов данных", html);
+    }
+
+    [Fact]
     public async Task RegistrationFormContainsLegalDocumentLinksInSameTab()
     {
         using var client = factory.CreateClient();
@@ -78,9 +114,13 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         var html = await client.GetStringAsync("/account/register");
 
         Assert.Contains("href='/legal/offer'", html);
-        Assert.Contains("правила и оферту сервиса", html);
+        Assert.Contains("href='/legal/rules'", html);
+        Assert.Contains("оферту", html);
+        Assert.Contains("правила рассылок", html);
         Assert.Contains("href='/legal/privacy'", html);
-        Assert.Contains("политике обработки персональных данных", html);
+        Assert.Contains("сведения профиля", html);
+        Assert.Contains("данные об оплатах", html);
+        Assert.Contains("политика обработки персональных данных", html);
         Assert.DoesNotContain("target='_blank'", html);
         Assert.DoesNotContain("rel='noopener'", html);
     }
@@ -154,6 +194,8 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("document_key=client_personal_data_consent", LegalEvidenceTextSnapshots.ClientPersonalDataConsentText);
         Assert.Contains($"document_version={LegalEvidenceTextSnapshots.CurrentVersion}", LegalEvidenceTextSnapshots.ClientPersonalDataConsentText);
         Assert.Contains("document_url=/legal/privacy", LegalEvidenceTextSnapshots.ClientPersonalDataConsentText);
+        Assert.Contains("сведения профиля", LegalEvidenceTextSnapshots.ClientPersonalDataConsentText);
+        Assert.Contains("данные об оплатах", LegalEvidenceTextSnapshots.ClientPersonalDataConsentText);
     }
 
     private static FormUrlEncodedContent CreateRegistrationForm(string email, string password = "TestPassword123!") => new(new Dictionary<string, string>
