@@ -46,7 +46,11 @@ public sealed class RecipientImportServiceTests
         Assert.Equal(2, result.Stats.Accepted);
         Assert.Equal(1, result.Stats.Duplicates);
         Assert.Equal(1, result.Stats.Invalid);
-        Assert.Equal(2, mailings.GetForOwner(created.Mailing.Id, "client@test.local")!.Recipients.Count);
+        var recipients = mailings.GetForOwner(created.Mailing.Id, "client@test.local")!.Recipients;
+        Assert.Equal(4, recipients.Count);
+        Assert.Equal(2, recipients.Count(x => x.Status == RecipientStatus.Accepted));
+        Assert.Contains(recipients, x => x.Status == RecipientStatus.Duplicate && x.Email == "first@test.local");
+        Assert.Contains(recipients, x => x.Status == RecipientStatus.Invalid && x.SourceEmail == "wrong-email");
         Assert.Contains(audit.GetRecords(), record => record.EventType == "recipients_import_completed");
     }
 
