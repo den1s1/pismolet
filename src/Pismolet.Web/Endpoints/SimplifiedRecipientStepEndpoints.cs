@@ -86,7 +86,9 @@ public static class SimplifiedRecipientStepEndpoints
         var csv = "email\n" + string.Join('\n', currentEmails.Distinct(StringComparer.OrdinalIgnoreCase));
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
         await imports.ImportAsync(new ImportRecipientsCommand(ownerEmail, id, "manual-addresses.csv", stream, Request(http)));
-        PreserveDeclaration(ownerEmail, id, mailing, declarations, http);
+        var refreshed = mailings.GetForOwner(id, ownerEmail) ?? mailing;
+        RecipientImportIssueStore.Save(refreshed);
+        PreserveDeclaration(ownerEmail, id, refreshed, declarations, http);
         return Results.Redirect($"/mailings/{id}/recipients");
     }
 
@@ -262,8 +264,15 @@ public static class SimplifiedRecipientStepEndpoints
             ? recipients.Cast<object>()
             : Enumerable.Empty<object>();
 
-    private static IEnumerable<RecipientImportIssue> ImportIssueObjects(Mailing mailing) =>
-        mailing.LastImportBatch?.Issues ?? Enumerable.Empty<RecipientImportIssue>();
+    private static IEnumerable<RecipientImportIssueSnapshot> ImportIssueObjects(Mailing mailing)
+    {
+        var liveIssues = mailing.LastImportBatch?.Issues
+            .Select(issue => new RecipientImportIssueSnapshot(issue.RowNumber, issue.Email, issue.Message))
+            .ToArray();
+        return liveIssues is { Length: > 0 }
+            ? liveIssues
+            : RecipientImportIssueStore.Load(mailing.Id);
+    }
 
     private static string StatusLabel(string status) => status switch
     {
