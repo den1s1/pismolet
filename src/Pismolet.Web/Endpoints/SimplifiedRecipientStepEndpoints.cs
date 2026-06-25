@@ -69,7 +69,12 @@ public static class SimplifiedRecipientStepEndpoints
     private static async Task<IResult> Reimport(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports, IMailingDeclarationService declarations, Action<List<string>> change)
     {
         var ownerEmail = http.User.FindFirstValue(ClaimTypes.Email);
-        var mailing = ownerEmail is null ? null : mailings.GetForOwner(id, ownerEmail);
+        if (string.IsNullOrWhiteSpace(ownerEmail))
+        {
+            return Results.Redirect("/dashboard");
+        }
+
+        var mailing = mailings.GetForOwner(id, ownerEmail);
         if (mailing is null)
         {
             return Results.Redirect("/dashboard");
