@@ -107,6 +107,7 @@ app.MapLegalDocumentEndpoints();
 app.MapLegalBaseLawfulnessEndpoints();
 app.MapAccountEndpoints();
 app.MapDashboardEndpoints();
+app.MapSimplifiedMessageStepEndpoints();
 app.MapProfileEndpoints();
 app.MapPaymentEndpoints();
 app.MapCheckEndpoints();
