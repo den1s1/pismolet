@@ -24,7 +24,7 @@ public sealed class ImportWarningUiSmokeTests
     private const string WarningEmail = "soft-warning@example.test";
 
     [Fact]
-    public async Task SoftBounce_warning_is_shown_separately_from_excluded_addresses()
+    public async Task SoftBounce_warning_is_shown_without_excluded_addresses_block()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
@@ -43,9 +43,8 @@ public sealed class ImportWarningUiSmokeTests
         Assert.Contains("Предупреждения", html);
         Assert.Contains("Временные ошибки доставки ранее: 2", html);
         Assert.Contains("Адрес не исключён", html);
-        Assert.Contains("Что исключено", html);
-        Assert.Contains("Исключённых адресов нет.", html);
-        Assert.True(html.IndexOf("Предупреждения", StringComparison.Ordinal) < html.IndexOf("Что исключено", StringComparison.Ordinal));
+        Assert.DoesNotContain("Что исключено", html);
+        Assert.DoesNotContain("Исключённых адресов нет", html);
     }
 
     private static WebApplicationFactory<Program> CreateAuthorizedFactory() =>
