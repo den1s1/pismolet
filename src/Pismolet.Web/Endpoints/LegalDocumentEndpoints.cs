@@ -68,11 +68,11 @@ public static class LegalDocumentEndpoints
                 <li><a href='/legal/client-consent'>Согласие клиента на обработку персональных данных</a></li>
                 <li><a href='/legal/rules'>Правила рассылок</a></li>
                 <li><a href='/legal/data-processing'>Поручение на обработку данных адресатов</a></li>
+                <li><a href='/legal/base-lawfulness'>Декларация законности базы</a></li>
             </ul>
 
             <h2>Планируется к публикации</h2>
             <ul>
-                <li><a href='/legal/base-lawfulness'>Декларация законности базы</a></li>
                 <li><a href='/legal/advertising-consent'>Подтверждение рекламного согласия</a></li>
                 <li><a href='/legal/anti-spam'>Антиспам-политика</a></li>
                 <li><a href='/legal/unsubscribe'>Правила отписки через сервис</a></li>

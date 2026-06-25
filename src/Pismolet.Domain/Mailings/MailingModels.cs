@@ -122,9 +122,9 @@ public static class BaseSourceLabels
 
 public static class BaseDeclarationText
 {
-    public const string CurrentVersion = "2026-06-16-v1";
+    public const string CurrentVersion = "2026-06-24-v1";
 
-    public const string Text = "Подтверждаю правомерность использования загруженных адресов для этой рассылки, наличие необходимого основания для обращения к адресатам и достоверность выбранного источника базы.";
+    public const string Text = "Я подтверждаю, что имею законное основание для обработки загружаемых email-адресов и отправки писем этим адресатам. Я не использую купленные, украденные, спарсенные, чужие или иным образом незаконно полученные базы. Я понимаю, что отвечаю за законность базы и обязан предоставить подтверждения по запросу Письмолёта, адресата или уполномоченных органов. document_key=base_lawfulness_declaration; document_version=2026-06-24-v1; document_url=/legal/base-lawfulness.";
 }
 
 public sealed record MailingDeclaration(
