@@ -245,7 +245,13 @@ public static class SimplifiedRecipientStepEndpoints
         {
             fallbackOrder++;
             var rowNumber = recipient.RowNumber > 0 ? recipient.RowNumber : fallbackOrder + 1;
-            var email = string.IsNullOrWhiteSpace(recipient.Email) ? recipient.SourceEmail : recipient.Email;
+            var email = recipient.Status == RecipientStatus.Accepted || string.IsNullOrWhiteSpace(recipient.SourceEmail)
+                ? recipient.Email
+                : recipient.SourceEmail;
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                email = recipient.SourceEmail;
+            }
             var status = recipient.Status == RecipientStatus.Accepted
                 ? "Принят к отправке"
                 : recipient.ExclusionReason ?? StatusLabel(recipient.Status);
@@ -338,12 +344,4 @@ public static class SimplifiedRecipientStepEndpoints
 
     private sealed record RecipientSourceRow(int RowNumber, string Email);
     private sealed record RecipientDisplayRow(string Email, string Status, string Source, int Order, int FallbackOrder);
-
-    private sealed class RowWarningComparer : IEqualityComparer<(int RowNumber, string Email)>
-    {
-        public bool Equals((int RowNumber, string Email) x, (int RowNumber, string Email) y) =>
-            x.RowNumber == y.RowNumber && string.Equals(x.Email, y.Email, StringComparison.OrdinalIgnoreCase);
-
-        public int GetHashCode((int RowNumber, string Email) obj) => HashCode.Combine(obj.RowNumber, StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Email));
-    }
 }
