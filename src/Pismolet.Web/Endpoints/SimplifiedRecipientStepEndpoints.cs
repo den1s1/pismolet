@@ -237,8 +237,8 @@ public static class SimplifiedRecipientStepEndpoints
     {
         var warnings = (mailing.LastImportBatch?.Issues ?? Array.Empty<RecipientImportIssue>())
             .Where(IsWarningIssue)
-            .GroupBy(issue => (issue.RowNumber, Email: issue.Email), new RowWarningComparer())
-            .ToDictionary(group => group.Key, group => group.First().Message, new RowWarningComparer());
+            .GroupBy(issue => (issue.RowNumber, Email: issue.Email))
+            .ToDictionary(group => group.Key, group => group.First().Message);
         var fallbackOrder = 0;
 
         foreach (var recipient in mailing.Recipients)
