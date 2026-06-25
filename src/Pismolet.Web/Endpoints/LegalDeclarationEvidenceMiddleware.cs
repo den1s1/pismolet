@@ -133,7 +133,7 @@ public sealed class LegalDeclarationEvidenceMiddleware(RequestDelegate next, ILo
                 importBatchId,
                 mailingId,
                 LegalDocumentKeys.RecipientDataProcessingInstruction,
-                BaseDeclarationText.CurrentVersion,
+                LegalEvidenceTextSnapshots.CurrentVersion,
                 legalEvidence.ComputeTextHash(LegalEvidenceTextSnapshots.RecipientDataProcessingInstructionText),
                 LegalEvidenceTextSnapshots.RecipientDataProcessingInstructionText,
                 LegalEventResults.Accepted,

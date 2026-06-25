@@ -75,6 +75,7 @@ public sealed class Sprint3FlowTests
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("Подтвердите базу", body);
         Assert.Contains("/legal/base-lawfulness", body);
+        Assert.Contains("/legal/data-processing", body);
     }
 
     [Fact]
