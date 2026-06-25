@@ -59,7 +59,7 @@ public sealed class MailingWizardEndpointsTests
     }
 
     [Fact]
-    public async Task Manual_address_import_preserves_accepted_recipients_and_shows_import_result()
+    public async Task Manual_address_import_preserves_accepted_recipients_and_shows_integrated_base_confirmation()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Wizard Owner");
@@ -79,8 +79,14 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("<b>1</b><span>Принято к отправке</span>", html);
         Assert.Contains("<b>2</b><span>Дублей и ошибок</span>", html);
         Assert.Contains("Ранее отписались", html);
-        Assert.Contains("Перейти к следующему шагу", html);
+        Assert.Contains("Подтвердите базу", html);
+        Assert.Contains("Источник базы", html);
+        Assert.Contains("Тип письма", html);
+        Assert.Contains("Открыть декларацию", html);
+        Assert.Contains("/legal/base-lawfulness", html);
+        Assert.Contains("Перейти к письму", html);
         Assert.Contains($"/mailings/{mailingId}/declaration", html);
+        Assert.DoesNotContain("Текст декларации", html);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
@@ -170,6 +176,8 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("name='body'", html);
         Assert.Contains("Письмолёт автоматически добавит", html);
         Assert.Contains("Служебный идентификатор рассылки", html);
+        Assert.DoesNotContain("name='messageType'", html);
+        Assert.DoesNotContain("Тип письма", html);
         Assert.DoesNotContain("Перейти к проверке и оплате", html);
     }
 
@@ -186,8 +194,7 @@ public sealed class MailingWizardEndpointsTests
         {
             ["senderName"] = "Библиотека №5",
             ["subject"] = "Приглашаем на встречу",
-            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас.",
-            ["messageType"] = "Transactional"
+            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас."
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -267,7 +274,7 @@ public sealed class MailingWizardEndpointsTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(email, "Password123!", displayName, "+79990000000"), Request());
+        var result = accounts.Register(new RegisterUserCommand(email, "PassForTests2026!", displayName, "+79990000000"), Request());
         Assert.True(result.Ok, result.Error);
     }
 
