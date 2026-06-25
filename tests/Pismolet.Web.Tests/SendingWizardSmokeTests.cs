@@ -177,12 +177,12 @@ public sealed class SendingWizardSmokeTests
         {
             ["senderName"] = "Sender",
             ["subject"] = subject,
-            ["body"] = "Hello from Pismolet.",
-            ["messageType"] = "Transactional"
+            ["body"] = "Hello from Pismolet."
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/payment", response.Headers.Location?.OriginalString);
     }
 
     private static WebApplicationFactory<Program> CreateAuthorizedFactory() =>
