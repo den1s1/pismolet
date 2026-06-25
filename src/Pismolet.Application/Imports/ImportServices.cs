@@ -171,7 +171,7 @@ public sealed class RecipientImportService(
             .Where(x => x.SoftBounceCount >= SoftBounceWarningThreshold)
             .ToDictionary(x => x.EmailNormalized, StringComparer.OrdinalIgnoreCase);
 
-        var accepted = new List<Recipient>();
+        var recipients = new List<Recipient>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var duplicates = 0;
         var invalid = 0;
@@ -184,17 +184,23 @@ public sealed class RecipientImportService(
             if (!row.SyntaxValid)
             {
                 invalid++;
-                issues.Add(new RecipientImportIssue(row.RowNumber, row.RawEmail, "Невалидный email"));
+                const string reason = "Невалидный email";
+                issues.Add(new RecipientImportIssue(row.RowNumber, row.RawEmail, reason));
+                recipients.Add(Recipient.Excluded(row.RawEmail, StoreEmail(row), RecipientStatus.Invalid, reason, rowNumber: row.RowNumber));
             }
             else if (!seen.Add(row.NormalizedEmail))
             {
                 duplicates++;
-                issues.Add(new RecipientImportIssue(row.RowNumber, row.NormalizedEmail, "Дубль в файле"));
+                const string reason = "Дубль в файле";
+                issues.Add(new RecipientImportIssue(row.RowNumber, row.NormalizedEmail, reason));
+                recipients.Add(Recipient.Excluded(row.RawEmail, row.NormalizedEmail, RecipientStatus.Duplicate, reason, rowNumber: row.RowNumber));
             }
             else if (suppressedSet.Contains(row.NormalizedEmail))
             {
                 optedOut++;
-                issues.Add(new RecipientImportIssue(row.RowNumber, row.NormalizedEmail, "Глобальная отписка"));
+                const string reason = "Глобальная отписка";
+                issues.Add(new RecipientImportIssue(row.RowNumber, row.NormalizedEmail, reason));
+                recipients.Add(Recipient.Excluded(row.RawEmail, row.NormalizedEmail, RecipientStatus.GloballySuppressed, reason, rowNumber: row.RowNumber));
                 audit.Write(new AuditRecord(
                     DateTimeOffset.UtcNow,
                     userEmail,
@@ -206,7 +212,9 @@ public sealed class RecipientImportService(
             else if (clientSuppressedSet.Contains(row.NormalizedEmail))
             {
                 clientSuppressed++;
-                issues.Add(new RecipientImportIssue(row.RowNumber, row.NormalizedEmail, "Исключено из-за ошибки доставки"));
+                const string reason = "Исключено из-за ошибки доставки";
+                issues.Add(new RecipientImportIssue(row.RowNumber, row.NormalizedEmail, reason));
+                recipients.Add(Recipient.Excluded(row.RawEmail, row.NormalizedEmail, RecipientStatus.ClientSuppressed, reason, rowNumber: row.RowNumber));
                 audit.Write(new AuditRecord(
                     DateTimeOffset.UtcNow,
                     userEmail,
@@ -217,7 +225,7 @@ public sealed class RecipientImportService(
             }
             else
             {
-                accepted.Add(Recipient.Accepted(row.RawEmail, row.NormalizedEmail));
+                recipients.Add(Recipient.Accepted(row.RawEmail, row.NormalizedEmail, rowNumber: row.RowNumber));
                 if (softBounceWarnings.TryGetValue(row.NormalizedEmail, out var warning))
                 {
                     issues.Add(new RecipientImportIssue(
@@ -228,14 +236,19 @@ public sealed class RecipientImportService(
             }
         }
 
-        var stats = new ImportStats(total, accepted.Count, duplicates, invalid, optedOut, clientSuppressed);
+        var accepted = recipients.Count(x => x.Status == RecipientStatus.Accepted);
+        var stats = new ImportStats(total, accepted, duplicates, invalid, optedOut, clientSuppressed);
         var batch = ImportBatch.Completed(mailing.Id, command.FileName, format.Value, stats, issues);
-        var recipients = accepted.Select(recipient => recipient with { ImportBatchId = batch.Id }).ToArray();
-        var updated = mailing.WithImportResult(batch, recipients);
+        var recipientsWithBatch = recipients.Select(recipient => recipient with { ImportBatchId = batch.Id }).ToArray();
+        var updated = mailing.WithImportResult(batch, recipientsWithBatch);
         mailings.Update(updated);
         Log(command, userEmail, "recipients_import_completed", $"{{\"mailingId\":\"{mailing.Id}\",\"importBatchId\":\"{batch.Id}\",\"format\":\"{format.Value}\",\"clientSuppressed\":{clientSuppressed}}}");
         return ImportRecipientsResult.Success(updated, stats);
     }
+
+    private static string StoreEmail(ParsedRecipientRow row) => string.IsNullOrWhiteSpace(row.NormalizedEmail)
+        ? row.RawEmail.Trim()
+        : row.NormalizedEmail;
 
     private static ImportSourceFormat? DetectFormat(string fileName)
     {
