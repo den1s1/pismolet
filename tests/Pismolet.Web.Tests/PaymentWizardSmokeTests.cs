@@ -94,10 +94,10 @@ public sealed class PaymentWizardSmokeTests
         {
             ["senderName"] = "Sender",
             ["subject"] = "Subject",
-            ["body"] = "Body",
-            ["messageType"] = messageType.ToString()
+            ["body"] = "Body"
         }));
-        Assert.Equal(HttpStatusCode.OK, message.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, message.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/payment", message.Headers.Location?.OriginalString);
     }
 
     private static FormUrlEncodedContent PaymentConfirmations() => new(new Dictionary<string, string>
