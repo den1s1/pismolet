@@ -203,7 +203,7 @@ public static class DashboardEndpoints
         return Results.Redirect($"/mailings/{id}/recipients");
     }
 
-    private static async Task<IResult> ConfirmDeclaration(Guid id, HttpContext http, IMailingDeclarationService declarations)
+    private static async Task<IResult> ConfirmDeclaration(Guid id, HttpContext http, IMailingDeclarationService declarations, IMailingService mailings)
     {
         var email = CurrentEmail(http);
         if (email is null)
@@ -223,7 +223,7 @@ public static class DashboardEndpoints
 
         if (!result.Ok || result.Mailing is null)
         {
-            var mailing = result.Mailing ?? GetMailing(id, http, declarations as IMailingService);
+            var mailing = result.Mailing ?? GetMailing(id, http, mailings);
             return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", mailing is null ? HtmlRenderer.Error(result.Error) : ImportResultWizard(mailing, result.Error), authenticated: true));
         }
 
@@ -539,7 +539,7 @@ public static class DashboardEndpoints
     {
         var value = form["messageType"].ToString();
         return string.IsNullOrWhiteSpace(value)
-            ? mailing?.Declaration?.MessageType ?? MessageType.Transactional
+            ? mailing?.MessageDraft?.MessageType ?? MessageType.Transactional
             : TryParseMessageType(value);
     }
 
