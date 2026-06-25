@@ -63,9 +63,11 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.ToTable("recipients");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.MailingId);
+            entity.HasIndex(x => new { x.MailingId, x.RowNumber });
             entity.HasIndex(x => x.NormalizedEmail);
             entity.Property(x => x.SourceEmail).HasMaxLength(254).IsRequired();
             entity.Property(x => x.NormalizedEmail).HasMaxLength(254).IsRequired();
+            entity.Property(x => x.RowNumber).IsRequired();
             entity.Property(x => x.Status).HasMaxLength(40).IsRequired();
             entity.Property(x => x.ExclusionReason).HasMaxLength(200);
             entity.HasOne<MailingEntity>().WithMany().HasForeignKey(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
@@ -297,6 +299,7 @@ public sealed class RecipientEntity
 {
     public Guid Id { get; set; }
     public Guid MailingId { get; set; }
+    public int RowNumber { get; set; }
     public string SourceEmail { get; set; } = string.Empty;
     public string NormalizedEmail { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
