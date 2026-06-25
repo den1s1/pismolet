@@ -6,11 +6,23 @@ namespace Pismolet.Web.Endpoints;
 public static class CompactRecipientDeclarationUiMiddlewareExtensions
 {
     private static readonly Regex DeclarationFormRegex = new(
-        @"<form method='post' action='(?<action>[^']+/declaration)' class='form-grid confirmation-list'>\s*<label>Источник базы<select name='baseSource' required><option value=''>Выберите источник</option>(?<sources>.*?)</select></label>\s*<label>Тип письма<select name='messageType'><option value='Transactional'>Информационное</option><option value='Advertising'>Рекламное</option></select></label>\s*<label class='check'><input type='checkbox' name='baseLegality'><span>.*?</span></label>\s*<label class='check'><input type='checkbox' name='advertisingConsent'><span>.*?</span></label>\s*<button class='button'>Перейти к письму</button>\s*</form>",
+        @"<form method='post' action='(?<action>[^']+/declaration)' class='form-grid confirmation-list'>.*?</form>",
+        RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+    private static readonly Regex SourceOptionsRegex = new(
+        @"<select name='baseSource' required><option value=''>Выберите источник</option>(?<sources>.*?)</select>",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant);
 
     private static readonly Regex LegalBoxRegex = new(
         @"\s*<section class='box muted-box'>\s*<h2>Декларация законности базы</h2>\s*<p>Полный текст вынесен в отдельный юридический документ\.</p>\s*<a class='btn secondary' href='(?<href>[^']+)'>Открыть декларацию</a>\s*</section>",
+        RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+    private static readonly Regex ExcludedBlockRegex = new(
+        @"\s*<h2>Что исключено</h2>\s*(?:<p class='muted'>Исключённых адресов нет\.</p>|<ul class='issue-list'>.*?</ul>)",
+        RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+    private static readonly Regex BaseCardStartRegex = new(
+        @"<section class='box'>\s*<h2>Подтвердите базу</h2>",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.CultureInvariant);
 
     public static IApplicationBuilder UseCompactRecipientDeclarationUi(this IApplicationBuilder app) => app.Use(async (context, next) =>
@@ -65,18 +77,26 @@ public static class CompactRecipientDeclarationUiMiddlewareExtensions
         var returnUrl = string.IsNullOrWhiteSpace(recipientsPath) ? "/dashboard" : recipientsPath;
         var legalHref = $"/legal/base-lawfulness?returnUrl={returnUrl}";
 
+        html = html.Replace("<h1>Адреса проверены</h1>", "<h1>1. Добавьте список адресов</h1>", StringComparison.Ordinal);
+        html = ExcludedBlockRegex.Replace(html, string.Empty);
         html = LegalBoxRegex.Replace(html, string.Empty);
-        html = DeclarationFormRegex.Replace(html, match => CompactForm(match.Groups["action"].Value, match.Groups["sources"].Value, legalHref));
+        html = DeclarationFormRegex.Replace(html, match => CompactForm(match.Groups["action"].Value, ExtractSourceOptions(match.Value), legalHref));
         html = html.Replace("<div class='split-grid'>", "<div class='compact-base-section'>", StringComparison.Ordinal);
-        html = html.Replace("<section class='box'>\n        <h2>Подтвердите базу</h2>", "<section class='compact-base-card'>\n        <h2>Подтвердите базу</h2>", StringComparison.Ordinal);
-        html = html.Replace("<p class='muted'>Источник и подтверждения фиксируются вместе с этим шагом.</p>", "<p class='muted'>Источник и подтверждения фиксируются вместе с этим шагом.</p>", StringComparison.Ordinal);
+        html = BaseCardStartRegex.Replace(html, "<section class='compact-base-card'>\n        <h2>Подтвердите базу</h2>");
+        html = html.Replace("<p class='muted'>Источник и подтверждения фиксируются вместе с этим шагом.</p>", string.Empty, StringComparison.Ordinal);
 
         if (!html.Contains("compact-ad-consent-script", StringComparison.Ordinal))
         {
-            html = html.Replace("</section>\n</section>", "</section>\n</section>" + AdvertisingConsentScript(), StringComparison.Ordinal);
+            html = html.Replace("</body>", AdvertisingConsentScript() + "\n</body>", StringComparison.OrdinalIgnoreCase);
         }
 
         return html;
+    }
+
+    private static string ExtractSourceOptions(string formHtml)
+    {
+        var match = SourceOptionsRegex.Match(formHtml);
+        return match.Success ? match.Groups["sources"].Value : string.Empty;
     }
 
     private static string CompactForm(string action, string sourceOptions, string legalHref) => $@"
