@@ -237,19 +237,39 @@ public static class SimplifiedRecipientStepEndpoints
     private static IEnumerable<RecipientDisplayRow> RecipientDisplayRows(Mailing mailing)
     {
         var fallbackOrder = 0;
+        var issues = ImportIssueObjects(mailing).ToArray();
+        var warningsByEmail = issues
+            .Where(IsWarningIssue)
+            .GroupBy(issue => issue.Email, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First().Message, StringComparer.OrdinalIgnoreCase);
+        var acceptedEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var recipient in RecipientObjects(mailing))
         {
             fallbackOrder++;
             var email = Value(recipient, "Email", "Address") ?? "адрес";
+            acceptedEmails.Add(email);
             var status = StatusLabel(Value(recipient, "Status") ?? "Accepted");
+            var source = "Текущий список";
+            if (warningsByEmail.TryGetValue(email, out var warning))
+            {
+                status = $"{status}; предупреждение: {warning}";
+                source = "Текущий список, есть предупреждение";
+            }
+
             var rowNumber = IntValue(recipient, "RowNumber", "SourceRowNumber", "ImportRowNumber", "LineNumber") ?? fallbackOrder;
-            yield return new RecipientDisplayRow(email, status, "Текущий список", rowNumber, fallbackOrder, CanRemove: true);
+            yield return new RecipientDisplayRow(email, status, source, rowNumber, fallbackOrder, CanRemove: true);
         }
 
-        foreach (var issue in ImportIssueObjects(mailing))
+        foreach (var issue in issues)
         {
+            if (IsWarningIssue(issue) && acceptedEmails.Contains(issue.Email))
+            {
+                continue;
+            }
+
             fallbackOrder++;
-            var source = issue.Message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase) ? "Предупреждение" : "Не сможем отправить";
+            var source = IsWarningIssue(issue) ? "Предупреждение" : "Не сможем отправить";
             yield return new RecipientDisplayRow(issue.Email, issue.Message, source, issue.RowNumber, fallbackOrder, CanRemove: false);
         }
     }
@@ -273,6 +293,9 @@ public static class SimplifiedRecipientStepEndpoints
             ? liveIssues
             : RecipientImportIssueStore.Load(mailing.Id);
     }
+
+    private static bool IsWarningIssue(RecipientImportIssueSnapshot issue) =>
+        issue.Message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase);
 
     private static string StatusLabel(string status) => status switch
     {
