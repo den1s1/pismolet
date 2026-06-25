@@ -27,21 +27,24 @@ public sealed record Recipient(
     string Email,
     RecipientStatus Status,
     string? ExclusionReason,
-    Guid? ImportBatchId = null)
+    Guid? ImportBatchId = null,
+    int RowNumber = 0)
 {
-    public static Recipient Accepted(string sourceEmail, string normalizedEmail, Guid? importBatchId = null) => new(
+    public static Recipient Accepted(string sourceEmail, string normalizedEmail, Guid? importBatchId = null, int rowNumber = 0) => new(
         sourceEmail,
         normalizedEmail,
         RecipientStatus.Accepted,
         null,
-        importBatchId);
+        importBatchId,
+        rowNumber);
 
     public static Recipient Excluded(
         string sourceEmail,
         string normalizedEmail,
         RecipientStatus status,
         string reason,
-        Guid? importBatchId = null) => new(sourceEmail, normalizedEmail, status, reason, importBatchId);
+        Guid? importBatchId = null,
+        int rowNumber = 0) => new(sourceEmail, normalizedEmail, status, reason, importBatchId, rowNumber);
 }
 
 public enum ImportSourceFormat
