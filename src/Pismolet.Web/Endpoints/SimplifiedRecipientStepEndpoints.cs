@@ -81,13 +81,17 @@ public static class SimplifiedRecipientStepEndpoints
             return Results.Redirect("/dashboard");
         }
 
+        var previousIssues = ImportIssueObjects(mailing).ToArray();
         var currentEmails = CurrentAcceptedEmails(mailing).ToList();
         change(currentEmails);
         var csv = "email\n" + string.Join('\n', currentEmails.Distinct(StringComparer.OrdinalIgnoreCase));
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
         await imports.ImportAsync(new ImportRecipientsCommand(ownerEmail, id, "manual-addresses.csv", stream, Request(http)));
         var refreshed = mailings.GetForOwner(id, ownerEmail) ?? mailing;
-        RecipientImportIssueStore.Save(refreshed);
+        var refreshedIssues = refreshed.LastImportBatch?.Issues
+            .Select(issue => new RecipientImportIssueSnapshot(issue.RowNumber, issue.Email, issue.Message))
+            .ToArray() ?? Array.Empty<RecipientImportIssueSnapshot>();
+        RecipientImportIssueStore.Save(id, refreshedIssues.Length > 0 ? refreshedIssues : previousIssues);
         PreserveDeclaration(ownerEmail, id, refreshed, declarations, http);
         return Results.Redirect($"/mailings/{id}/recipients");
     }
@@ -188,10 +192,28 @@ public static class SimplifiedRecipientStepEndpoints
 
     private static string Stats(Mailing mailing)
     {
-        var stats = mailing.LastImportStats;
-        var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
-        return $"<div class='stats import-summary'><div class='stat'><b>{stats.TotalRows}</b><span>Строк в файле</span></div><div class='stat'><b>{stats.Accepted}</b><span>Принято к отправке</span></div><div class='stat'><b>{stats.Duplicates + stats.Invalid}</b><span>Дублей и ошибок</span></div><div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div><div class='stat'><b>{stats.GloballySuppressed}</b><span>Ранее отписались</span></div></div>";
+        var issues = ImportIssueObjects(mailing).ToArray();
+        if (issues.Length == 0)
+        {
+            var stats = mailing.LastImportStats;
+            var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
+            return StatsHtml(stats.TotalRows, stats.Accepted, stats.Duplicates + stats.Invalid, blocked, stats.GloballySuppressed);
+        }
+
+        var acceptedEmails = CurrentAcceptedEmails(mailing).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var accepted = acceptedEmails.Count;
+        var countedIssues = issues
+            .Where(issue => !IsWarningIssue(issue) || !acceptedEmails.Contains(issue.Email))
+            .ToArray();
+        var suppressed = countedIssues.Count(IsSuppressedIssue);
+        var duplicateOrInvalid = countedIssues.Count(IsDuplicateOrInvalidIssue);
+        var blockedCount = countedIssues.Count(IsBlockedIssue);
+        var totalRows = accepted + countedIssues.Length;
+        return StatsHtml(totalRows, accepted, duplicateOrInvalid, blockedCount, suppressed);
     }
+
+    private static string StatsHtml(int totalRows, int accepted, int duplicatesAndInvalid, int blocked, int suppressed) =>
+        $"<div class='stats import-summary'><div class='stat'><b>{totalRows}</b><span>Строк в файле</span></div><div class='stat'><b>{accepted}</b><span>Принято к отправке</span></div><div class='stat'><b>{duplicatesAndInvalid}</b><span>Дублей и ошибок</span></div><div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div><div class='stat'><b>{suppressed}</b><span>Ранее отписались</span></div></div>";
 
     private static string DeclarationSummary(Mailing mailing)
     {
@@ -296,6 +318,17 @@ public static class SimplifiedRecipientStepEndpoints
 
     private static bool IsWarningIssue(RecipientImportIssueSnapshot issue) =>
         issue.Message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSuppressedIssue(RecipientImportIssueSnapshot issue) =>
+        issue.Message.Contains("отпис", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDuplicateOrInvalidIssue(RecipientImportIssueSnapshot issue) =>
+        issue.Message.Contains("дуб", StringComparison.OrdinalIgnoreCase)
+        || issue.Message.Contains("некорр", StringComparison.OrdinalIgnoreCase)
+        || issue.Message.Contains("невалид", StringComparison.OrdinalIgnoreCase)
+        || issue.Message.Contains("ошиб", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsBlockedIssue(RecipientImportIssueSnapshot issue) => !IsWarningIssue(issue);
 
     private static string StatusLabel(string status) => status switch
     {
