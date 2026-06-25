@@ -52,7 +52,10 @@ public static class CompactRecipientDeclarationUiMiddlewareExtensions
             return;
         }
 
-        if (await TryRedirectAfterImport(context))
+        using var reader = new StreamReader(buffer, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+        var html = await reader.ReadToEndAsync();
+
+        if (await TryRedirectAfterImport(context, html))
         {
             context.Response.Body = originalBody;
             context.Response.StatusCode = StatusCodes.Status302Found;
@@ -61,8 +64,6 @@ public static class CompactRecipientDeclarationUiMiddlewareExtensions
             return;
         }
 
-        using var reader = new StreamReader(buffer, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-        var html = await reader.ReadToEndAsync();
         var transformed = Transform(html, context.Request.Path.Value ?? string.Empty);
         var bytes = Encoding.UTF8.GetBytes(transformed);
 
@@ -138,7 +139,7 @@ public static class CompactRecipientDeclarationUiMiddlewareExtensions
   <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock' style='display:none;align-items:center;gap:8px;font-weight:400;border:0;background:transparent;padding:0;margin:0;'><input type='checkbox' name='advertisingConsent' style='width:16px;height:16px;min-width:16px;margin:0;'><span style='font-weight:400;'>подтверждаю наличие рекламного согласия адресатов</span></label>
   <p class='compact-legal-link' style='margin:2px 0 0;'><a href='{legalHref}' style='font-weight:400;'>Декларация законности базы</a></p>";
 
-    private static async Task<bool> TryRedirectAfterImport(HttpContext context)
+    private static async Task<bool> TryRedirectAfterImport(HttpContext context, string html)
     {
         if (!HttpMethods.IsPost(context.Request.Method) || !context.Request.HasFormContentType) return false;
         var id = ExtractMailingId(context.Request.Path);
@@ -152,6 +153,7 @@ public static class CompactRecipientDeclarationUiMiddlewareExtensions
         var mailing = mailings.GetForOwner(id, email);
         if (mailing is null || mailing.LastImportStats.Accepted <= 0) return false;
         RecipientImportIssueStore.Save(mailing);
+        RecipientImportIssueStore.SaveFromHtml(id, html);
         var declarations = context.RequestServices.GetRequiredService<IMailingDeclarationService>();
         var result = declarations.Confirm(new ConfirmMailingDeclarationCommand(email, id, TryParseBaseSource(form["baseSource"].ToString()), true, form.ContainsKey("advertisingConsent"), type, ToRequestMetadata(context)));
         return result.Ok;
