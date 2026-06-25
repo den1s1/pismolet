@@ -81,8 +81,8 @@ public static class CompactRecipientDeclarationUiMiddlewareExtensions
         html = ExcludedBlockRegex.Replace(html, string.Empty);
         html = LegalBoxRegex.Replace(html, string.Empty);
         html = DeclarationFormRegex.Replace(html, match => CompactForm(match.Groups["action"].Value, ExtractSourceOptions(match.Value), legalHref));
-        html = html.Replace("<div class='split-grid'>", "<div class='compact-base-section'>", StringComparison.Ordinal);
-        html = BaseCardStartRegex.Replace(html, "<section class='compact-base-card'>\n        <h2>Подтвердите базу</h2>");
+        html = html.Replace("<div class='split-grid'>", "<div class='compact-base-section' style='display:block;margin-top:18px;'>", StringComparison.Ordinal);
+        html = BaseCardStartRegex.Replace(html, "<section class='compact-base-card' style='border:0;background:transparent;padding:0;box-shadow:none;'>\n        <h2>Подтвердите базу</h2>");
         html = html.Replace("<p class='muted'>Источник и подтверждения фиксируются вместе с этим шагом.</p>", string.Empty, StringComparison.Ordinal);
 
         if (!html.Contains("compact-ad-consent-script", StringComparison.Ordinal))
@@ -100,15 +100,15 @@ public static class CompactRecipientDeclarationUiMiddlewareExtensions
     }
 
     private static string CompactForm(string action, string sourceOptions, string legalHref) => $@"
-<form method='post' action='{action}' class='compact-base-form'>
-  <div class='compact-base-fields'>
-    <label class='compact-base-field'><span>Источник базы</span><select name='baseSource' required><option value=''>Выберите источник</option>{sourceOptions}</select></label>
-    <label class='compact-base-field'><span>Тип письма</span><select name='messageType' id='messageTypeSelect'><option value='Transactional'>Информационное</option><option value='Advertising'>Рекламное</option></select></label>
+<form method='post' action='{action}' class='compact-base-form' style='display:grid;gap:10px;margin-top:10px;max-width:620px;'>
+  <div class='compact-base-fields' style='display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;'>
+    <label class='compact-base-field' style='display:grid;gap:5px;flex:0 0 280px;font-weight:400;border:0;background:transparent;padding:0;'><span style='font-weight:400;'>Источник базы</span><select name='baseSource' required style='width:100%;min-height:38px;padding:7px 10px;border-radius:12px;font-weight:400;'><option value='' style='font-weight:400;'>Выберите источник</option>{sourceOptions}</select></label>
+    <label class='compact-base-field' style='display:grid;gap:5px;flex:0 0 220px;font-weight:400;border:0;background:transparent;padding:0;'><span style='font-weight:400;'>Тип письма</span><select name='messageType' id='messageTypeSelect' style='width:100%;min-height:38px;padding:7px 10px;border-radius:12px;font-weight:400;'><option value='Transactional' style='font-weight:400;'>Информационное</option><option value='Advertising' style='font-weight:400;'>Рекламное</option></select></label>
   </div>
-  <label class='compact-base-check'><input type='checkbox' name='baseLegality'><span>подтверждаю правомерность использования базы</span></label>
-  <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'><span>подтверждаю наличие рекламного согласия адресатов</span></label>
-  <p class='compact-legal-link'><a href='{legalHref}'>Декларация законности базы</a></p>
-  <button class='button'>Перейти к письму</button>
+  <label class='compact-base-check' style='display:flex;align-items:center;gap:8px;font-weight:400;border:0;background:transparent;padding:0;margin:0;'><input type='checkbox' name='baseLegality' style='width:16px;height:16px;min-width:16px;margin:0;'><span style='font-weight:400;'>подтверждаю правомерность использования базы</span></label>
+  <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock' style='display:none;align-items:center;gap:8px;font-weight:400;border:0;background:transparent;padding:0;margin:0;'><input type='checkbox' name='advertisingConsent' style='width:16px;height:16px;min-width:16px;margin:0;'><span style='font-weight:400;'>подтверждаю наличие рекламного согласия адресатов</span></label>
+  <p class='compact-legal-link' style='margin:2px 0 0;'><a href='{legalHref}' style='font-weight:400;'>Декларация законности базы</a></p>
+  <button class='button' style='width:max-content;min-width:190px;margin-top:2px;'>Перейти к письму</button>
 </form>";
 
     private static string AdvertisingConsentScript() => @"
