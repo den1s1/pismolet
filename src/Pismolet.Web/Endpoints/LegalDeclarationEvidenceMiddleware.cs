@@ -152,7 +152,7 @@ public sealed class LegalDeclarationEvidenceMiddleware(RequestDelegate next, ILo
                 importBatchId,
                 mailingId,
                 LegalDocumentKeys.AdvertisingConsentDeclaration,
-                BaseDeclarationText.CurrentVersion,
+                LegalEvidenceTextSnapshots.CurrentVersion,
                 legalEvidence.ComputeTextHash(LegalEvidenceTextSnapshots.AdvertisingConsentText),
                 LegalEvidenceTextSnapshots.AdvertisingConsentText,
                 LegalEventResults.Declared,

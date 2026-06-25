@@ -92,6 +92,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("/legal/data-processing", html);
         Assert.Contains("поручаю техническую обработку email-адресов", html);
         Assert.Contains("подтверждаю наличие рекламного согласия адресатов", html);
+        Assert.Contains("/legal/advertising-consent", html);
         Assert.Contains("Декларация законности базы", html);
         Assert.Contains("/legal/base-lawfulness", html);
         Assert.Contains("Перейти к письму", html);

@@ -373,7 +373,7 @@ public static class DashboardEndpoints
   <label>Источник базы<select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label>
   <label>Тип письма<select name='messageType'><option value='Transactional'>Информационное</option><option value='Advertising'>Рекламное</option></select></label>
   <label class='check'><input type='checkbox' name='baseLegality'><span>Подтверждаю правомерность использования базы и <a href='/legal/data-processing'>поручаю Письмолёту технически обработать загруженные email-адреса</a></span></label>
-  <label class='check'><input type='checkbox' name='advertisingConsent'><span>Для рекламного письма подтверждаю наличие рекламного согласия адресатов</span></label>
+  <label class='check'><input type='checkbox' name='advertisingConsent'><span>Для рекламного письма <a href='/legal/advertising-consent'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
   <button class='button'>Перейти к письму</button>
 </form>";
     }

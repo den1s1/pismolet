@@ -76,7 +76,7 @@ public static class PaymentEndpoints
         var isPromo = mailing.MessageDraft?.MessageType == MessageType.Advertising;
         var alert = string.IsNullOrWhiteSpace(confirmationError) ? string.Empty : $"<p class='error-message'>{H(confirmationError)}</p>";
         var promoConfirm = isPromo
-            ? "<label class='check'><input type='checkbox' name='advertisingConsent'><span>Я подтверждаю наличие согласия на рекламную рассылку.</span></label>"
+            ? "<label class='check'><input type='checkbox' name='advertisingConsent'><span>Я <a href='/legal/advertising-consent'>подтверждаю наличие согласия на рекламную рассылку</a>.</span></label>"
             : string.Empty;
         var payButtonText = $"Оплатить {review.TotalAmount:0.##} ₽ и запустить";
         var button = paid

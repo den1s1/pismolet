@@ -20,7 +20,7 @@ public static class LegalEvidenceTextSnapshots
         "Поручаю Письмолёту технически обработать загруженные email-адреса: проверить формат, исключить дубли, ранее отписавшиеся и заблокированные адреса, рассчитать стоимость, отправить письма, обработать отписки, жалобы, ошибки доставки и ответы получателей. document_key=recipient_data_processing_instruction; document_version=2026-06-24-v1; document_url=/legal/data-processing.";
 
     public const string AdvertisingConsentText =
-        "Для рекламной рассылки подтверждаю, что у меня есть предварительное согласие адресатов на получение рекламных сообщений.";
+        "Я подтверждаю, что адресаты дали предварительное согласие на получение рекламных сообщений от меня или моей организации, и понимаю, что обязан прекратить рекламную рассылку адресату по его требованию. document_key=advertising_consent_declaration; document_version=2026-06-24-v1; document_url=/legal/advertising-consent.";
 
     public const string CampaignLaunchConfirmationText =
         "Клиент подтвердил финальный запуск рассылки и поручил Письмолёту поставить письма в очередь отправки.";

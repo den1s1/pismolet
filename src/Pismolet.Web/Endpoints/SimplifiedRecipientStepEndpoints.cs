@@ -169,7 +169,7 @@ public static class SimplifiedRecipientStepEndpoints
           <label class='compact-base-field'><span>Тип письма</span><select name='messageType' id='messageTypeSelect'><option value='Transactional'__TX__>Информационное</option><option value='Advertising'__AD__>Рекламное</option></select></label>
         </div>
         <label class='compact-base-check'><input type='checkbox' name='baseLegality'__BASE_CHECKED__><span>подтверждаю правомерность использования базы</span></label>
-        <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'__AD_CHECKED__><span>подтверждаю наличие рекламного согласия адресатов</span></label>
+        <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'__AD_CHECKED__><span><a href='/legal/advertising-consent'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
         <p class='compact-legal-link'><a href='/legal/base-lawfulness?returnUrl=/mailings/__ID__/recipients'>Декларация законности базы</a></p>
       </section>
       <div class='actions wizard-actions'><button class='button'>Адреса добавлены, дальше</button><a class='btn secondary' href='/dashboard'>Вернуться в ЛК</a></div>
