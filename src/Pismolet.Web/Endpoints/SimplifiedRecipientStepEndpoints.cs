@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Globalization;
 using System.Net;
 using System.Reflection;
 using System.Security.Claims;
@@ -206,10 +207,12 @@ public static class SimplifiedRecipientStepEndpoints
 
     private static string RecipientRows(Mailing mailing, string query)
     {
-        var allRows = RecipientDisplayRows(mailing).ToList();
+        var allRows = RecipientDisplayRows(mailing).OrderBy(row => row.Order).ThenBy(row => row.FallbackOrder).ToList();
         if (!string.IsNullOrWhiteSpace(query))
         {
-            allRows = allRows.Where(row => row.Email.Contains(query, StringComparison.OrdinalIgnoreCase) || row.Status.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+            allRows = allRows.Where(row => row.Email.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || row.Status.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || row.Source.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
         var visibleRows = allRows.Take(RecipientListLimit).ToList();
@@ -218,28 +221,34 @@ public static class SimplifiedRecipientStepEndpoints
             return "<p class='muted'>По этому запросу адресов не найдено.</p>";
         }
 
-        var rows = string.Join("", visibleRows.Select(row => $"<tr><td>{H(row.Email)}</td><td>{H(row.Status)}</td><td>{H(row.Source)}</td><td><form method='post' action='/mailings/{mailing.Id}/recipients/remove'><input type='hidden' name='email' value='{H(row.Email)}'><button class='btn ghost'>Удалить</button></form></td></tr>"));
+        var rows = string.Join("", visibleRows.Select(row => $"<tr><td>{H(row.Email)}</td><td>{H(row.Status)}</td><td>{H(row.Source)}</td><td>{ActionCell(mailing.Id, row)}</td></tr>"));
         var note = allRows.Count > RecipientListLimit
             ? $"<p class='muted'>Найдено {allRows.Count}, показано {RecipientListLimit}. Уточните поиск, чтобы быстрее найти нужный адрес.</p>"
             : $"<p class='muted'>Найдено адресов: {allRows.Count}.</p>";
         return $"<div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th><th>Источник</th><th></th></tr></thead><tbody>{rows}</tbody></table></div>{note}";
     }
 
+    private static string ActionCell(Guid mailingId, RecipientDisplayRow row) => row.CanRemove
+        ? $"<form method='post' action='/mailings/{mailingId}/recipients/remove'><input type='hidden' name='email' value='{H(row.Email)}'><button class='btn ghost'>Удалить</button></form>"
+        : "<span class='muted'>—</span>";
+
     private static IEnumerable<RecipientDisplayRow> RecipientDisplayRows(Mailing mailing)
     {
+        var fallbackOrder = 0;
         foreach (var recipient in RecipientObjects(mailing))
         {
+            fallbackOrder++;
             var email = Value(recipient, "Email", "Address") ?? "адрес";
             var status = StatusLabel(Value(recipient, "Status") ?? "Accepted");
-            yield return new RecipientDisplayRow(email, status, "Текущий список");
+            var rowNumber = IntValue(recipient, "RowNumber", "SourceRowNumber", "ImportRowNumber", "LineNumber") ?? fallbackOrder;
+            yield return new RecipientDisplayRow(email, status, "Текущий список", rowNumber, fallbackOrder, CanRemove: true);
         }
 
         foreach (var issue in ImportIssueObjects(mailing))
         {
-            var email = Value(issue, "Email", "Address") ?? "адрес";
-            var message = Value(issue, "Message") ?? "Не сможем отправить";
-            var source = message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase) ? "Предупреждение" : "Исключён при проверке";
-            yield return new RecipientDisplayRow(email, message, source);
+            fallbackOrder++;
+            var source = issue.Message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase) ? "Предупреждение" : "Не сможем отправить";
+            yield return new RecipientDisplayRow(issue.Email, issue.Message, source, issue.RowNumber, fallbackOrder, CanRemove: false);
         }
     }
 
@@ -253,13 +262,8 @@ public static class SimplifiedRecipientStepEndpoints
             ? recipients.Cast<object>()
             : Enumerable.Empty<object>();
 
-    private static IEnumerable<object> ImportIssueObjects(Mailing mailing)
-    {
-        var batch = mailing.GetType().GetProperty("LastImportBatch", BindingFlags.Instance | BindingFlags.Public)?.GetValue(mailing);
-        return batch?.GetType().GetProperty("Issues", BindingFlags.Instance | BindingFlags.Public)?.GetValue(batch) is IEnumerable issues
-            ? issues.Cast<object>()
-            : Enumerable.Empty<object>();
-    }
+    private static IEnumerable<RecipientImportIssue> ImportIssueObjects(Mailing mailing) =>
+        mailing.LastImportBatch?.Issues ?? Enumerable.Empty<RecipientImportIssue>();
 
     private static string StatusLabel(string status) => status switch
     {
@@ -324,10 +328,16 @@ public static class SimplifiedRecipientStepEndpoints
         return null;
     }
 
+    private static int? IntValue(object target, params string[] names)
+    {
+        var value = Value(target, names);
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result) ? result : null;
+    }
+
     private static BaseSource? TryParseBaseSource(string? value) => Enum.TryParse<BaseSource>(value, out var source) ? source : null;
     private static MessageType TryParseMessageType(string? value) => Enum.TryParse<MessageType>(value, out var type) ? type : MessageType.Transactional;
     private static RequestMetadata Request(HttpContext http) => new(http.Connection.RemoteIpAddress?.ToString() ?? "unknown", string.IsNullOrWhiteSpace(http.Request.Headers.UserAgent.ToString()) ? "unknown" : http.Request.Headers.UserAgent.ToString());
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 
-    private sealed record RecipientDisplayRow(string Email, string Status, string Source);
+    private sealed record RecipientDisplayRow(string Email, string Status, string Source, int Order, int FallbackOrder, bool CanRemove);
 }
