@@ -32,6 +32,7 @@ public static class LegalDocumentKeys
 {
     public const string OfferAndRules = "offer_and_rules";
     public const string MailingRules = "mailing_rules";
+    public const string PrivacyPolicy = "privacy_policy";
     public const string ClientPersonalDataConsent = "client_personal_data_consent";
     public const string ClientProfileConfirmation = "client_profile_confirmation";
     public const string BaseSourceSelection = "base_source_selection";

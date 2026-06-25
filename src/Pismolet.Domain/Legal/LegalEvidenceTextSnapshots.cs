@@ -8,7 +8,7 @@ public static class LegalEvidenceTextSnapshots
         "Клиент принимает пользовательское соглашение и оферту сервиса Письмолёт. document_key=offer_and_rules; document_version=2026-06-24-v1; document_url=/legal/offer.";
 
     public const string ClientPersonalDataConsentText =
-        "Клиент даёт согласие на обработку своих персональных данных как пользователя Письмолёта: email, ФИО, телефон, сведения профиля, данные об оплатах, действиях в сервисе и обращениях в поддержку. Согласие нужно для регистрации, работы сервиса, оплаты, поддержки, безопасности и исполнения договора. document_key=client_personal_data_consent; document_version=2026-06-24-v1; document_url=/legal/privacy.";
+        "Клиент даёт согласие на обработку своих персональных данных как пользователя Письмолёта: email, ФИО, телефон, сведения профиля, данные об оплатах, действиях в сервисе и обращениях в поддержку. Согласие нужно для регистрации, работы сервиса, оплаты, поддержки, безопасности и исполнения договора. document_key=client_personal_data_consent; document_version=2026-06-24-v1; document_url=/legal/client-consent; policy_url=/legal/privacy.";
 
     public const string ClientProfileConfirmationText =
         "Клиент подтвердил актуальность данных профиля, email для входа, отправителя по умолчанию и email для пересылки ответов.";
