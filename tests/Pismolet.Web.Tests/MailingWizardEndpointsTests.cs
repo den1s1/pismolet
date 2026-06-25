@@ -200,7 +200,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("Приглашаем на встречу", html);
         Assert.Contains("Здравствуйте!", html);
         Assert.Contains("Будем рады видеть вас.", html);
-        Assert.Contains("Вы получили это письмо", html);
+        Assert.Contains("Почему вы получили это письмо", html);
         Assert.Contains("/unsubscribe/example-token", html);
 
         using var scope = factory.Services.CreateScope();
