@@ -2,6 +2,9 @@ using System.Collections;
 using System.Net;
 using System.Reflection;
 using System.Security.Claims;
+using System.Text;
+using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Rendering;
@@ -10,9 +13,13 @@ namespace Pismolet.Web.Endpoints;
 
 public static class SimplifiedRecipientStepEndpoints
 {
+    private const int RecipientListLimit = 100;
+
     public static IEndpointRouteBuilder MapSimplifiedRecipientStepEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/mailings/{id:guid}/recipients", Show).RequireAuthorization().WithOrder(-200);
+        app.MapPost("/mailings/{id:guid}/recipients/add", AddRecipient).RequireAuthorization();
+        app.MapPost("/mailings/{id:guid}/recipients/remove", RemoveRecipient).RequireAuthorization();
         return app;
     }
 
@@ -26,16 +33,61 @@ public static class SimplifiedRecipientStepEndpoints
         }
 
         var replaceMode = string.Equals(http.Request.Query["mode"].ToString(), "replace", StringComparison.OrdinalIgnoreCase);
+        var query = http.Request.Query["q"].ToString();
         var html = mailing.LastImportStats.TotalRows > 0 && !replaceMode
-            ? ManagementPage(mailing)
+            ? ManagementPage(mailing, query)
             : UploadPage(mailing);
         return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", html, authenticated: true));
     }
 
-    private static string ManagementPage(Mailing mailing)
+    private static async Task<IResult> AddRecipient(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports, IMailingDeclarationService declarations)
+    {
+        var form = await http.Request.ReadFormAsync();
+        var newEmail = form["email"].ToString().Trim();
+        if (string.IsNullOrWhiteSpace(newEmail))
+        {
+            return Results.Redirect($"/mailings/{id}/recipients");
+        }
+
+        return await Reimport(id, http, mailings, imports, declarations, emails =>
+        {
+            if (!emails.Contains(newEmail, StringComparer.OrdinalIgnoreCase))
+            {
+                emails.Add(newEmail);
+            }
+        });
+    }
+
+    private static async Task<IResult> RemoveRecipient(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports, IMailingDeclarationService declarations)
+    {
+        var form = await http.Request.ReadFormAsync();
+        var removedEmail = form["email"].ToString().Trim();
+        return await Reimport(id, http, mailings, imports, declarations, emails =>
+            emails.RemoveAll(email => string.Equals(email, removedEmail, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static async Task<IResult> Reimport(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports, IMailingDeclarationService declarations, Action<List<string>> change)
+    {
+        var ownerEmail = http.User.FindFirstValue(ClaimTypes.Email);
+        var mailing = ownerEmail is null ? null : mailings.GetForOwner(id, ownerEmail);
+        if (mailing is null)
+        {
+            return Results.Redirect("/dashboard");
+        }
+
+        var currentEmails = CurrentAcceptedEmails(mailing).ToList();
+        change(currentEmails);
+        var csv = "email\n" + string.Join('\n', currentEmails.Distinct(StringComparer.OrdinalIgnoreCase));
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        await imports.ImportAsync(new ImportRecipientsCommand(ownerEmail, id, "manual-addresses.csv", stream, Request(http)));
+        PreserveDeclaration(ownerEmail, id, mailing, declarations, http);
+        return Results.Redirect($"/mailings/{id}/recipients");
+    }
+
+    private static string ManagementPage(Mailing mailing, string query)
     {
         var declaration = DeclarationSummary(mailing);
-        var rows = RecipientRows(mailing);
+        var rows = RecipientRows(mailing, query);
         return """
 <section class='wizard-shell'>
   <div class='wizard-steps'><span class='wizard-step current'>1. Адреса</span><span class='wizard-step'>2. Письмо</span><span class='wizard-step'>3. Расчёт и оплата</span><span class='wizard-step'>4. Готово</span></div>
@@ -49,7 +101,16 @@ public static class SimplifiedRecipientStepEndpoints
       __DECLARATION__
     </section>
     <section class='inline-base-confirm'>
-      <h2>Загруженные адреса</h2>
+      <div class='topline'><h2>Загруженные адреса</h2></div>
+      <form method='get' action='/mailings/__ID__/recipients' class='row' style='gap:10px;align-items:end;margin-bottom:12px;'>
+        <label style='flex:1;font-weight:400;'>Поиск по списку<input name='q' value='__QUERY__' placeholder='email или статус'></label>
+        <button class='btn secondary'>Найти</button>
+        <a class='btn ghost' href='/mailings/__ID__/recipients'>Сбросить</a>
+      </form>
+      <form method='post' action='/mailings/__ID__/recipients/add' class='row' style='gap:10px;align-items:end;margin-bottom:16px;'>
+        <label style='flex:1;font-weight:400;'>Добавить адрес вручную<input name='email' type='email' placeholder='new@example.ru' required></label>
+        <button class='button'>Добавить</button>
+      </form>
       __ROWS__
     </section>
     <div class='actions wizard-actions'>
@@ -61,6 +122,7 @@ public static class SimplifiedRecipientStepEndpoints
 </section>
 """
             .Replace("__ID__", mailing.Id.ToString(), StringComparison.Ordinal)
+            .Replace("__QUERY__", H(query), StringComparison.Ordinal)
             .Replace("__STATS__", Stats(mailing), StringComparison.Ordinal)
             .Replace("__DECLARATION__", declaration, StringComparison.Ordinal)
             .Replace("__ROWS__", rows, StringComparison.Ordinal);
@@ -137,33 +199,80 @@ public static class SimplifiedRecipientStepEndpoints
         return $"<div class='compact-base-fields'><div class='box muted-box'><b>Источник базы</b><p>{H(sourceLabel)}</p></div><div class='box muted-box'><b>Тип письма</b><p>{H(typeLabel)}</p></div><div class='box muted-box'><b>Правомерность базы</b><p>{H(baseStatus)}</p></div><div class='box muted-box'><b>Рекламное согласие</b><p>{H(adStatus)}</p></div></div><p class='compact-legal-link'><a href='/legal/base-lawfulness?returnUrl=/mailings/{mailing.Id}/recipients'>Декларация законности базы</a></p>";
     }
 
-    private static string RecipientRows(Mailing mailing)
+    private static string RecipientRows(Mailing mailing, string query)
     {
-        var recipients = mailing.GetType().GetProperty("Recipients", BindingFlags.Instance | BindingFlags.Public)?.GetValue(mailing) as IEnumerable;
-        if (recipients is null) return "<p class='muted'>Список адресов сохранён. Детальный просмотр будет доступен позже.</p>";
-        var rows = new List<string>();
-        foreach (var recipient in recipients.Cast<object>().Take(100))
+        var allRows = RecipientDisplayRows(mailing).ToList();
+        if (!string.IsNullOrWhiteSpace(query))
         {
-            var email = Value(recipient, "Email", "Address") ?? "адрес";
-            var status = Value(recipient, "Status") ?? "принят";
-            rows.Add($"<tr><td>{H(email)}</td><td>{H(status)}</td></tr>");
+            allRows = allRows.Where(row => row.Email.Contains(query, StringComparison.OrdinalIgnoreCase) || row.Status.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
-        return rows.Count == 0
-            ? "<p class='muted'>Адреса сохранены, но список пуст.</p>"
-            : $"<div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th></tr></thead><tbody>{string.Join("", rows)}</tbody></table></div><p class='muted'>Показаны первые 100 адресов.</p>";
+        var visibleRows = allRows.Take(RecipientListLimit).ToList();
+        if (visibleRows.Count == 0)
+        {
+            return "<p class='muted'>По этому запросу адресов не найдено.</p>";
+        }
+
+        var rows = string.Join("", visibleRows.Select(row => $"<tr><td>{H(row.Email)}</td><td>{H(row.Status)}</td><td>{H(row.Source)}</td><td><form method='post' action='/mailings/{mailing.Id}/recipients/remove'><input type='hidden' name='email' value='{H(row.Email)}'><button class='btn ghost'>Удалить</button></form></td></tr>"));
+        var note = allRows.Count > RecipientListLimit
+            ? $"<p class='muted'>Найдено {allRows.Count}, показано {RecipientListLimit}. Уточните поиск, чтобы быстрее найти нужный адрес.</p>"
+            : $"<p class='muted'>Найдено адресов: {allRows.Count}.</p>";
+        return $"<div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th><th>Источник</th><th></th></tr></thead><tbody>{rows}</tbody></table></div>{note}";
     }
 
-    private static string? Value(object target, params string[] names)
+    private static IEnumerable<RecipientDisplayRow> RecipientDisplayRows(Mailing mailing)
     {
-        var type = target.GetType();
-        foreach (var name in names)
+        foreach (var recipient in RecipientObjects(mailing))
         {
-            var value = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(target)?.ToString();
-            if (!string.IsNullOrWhiteSpace(value)) return value;
+            var email = Value(recipient, "Email", "Address") ?? "адрес";
+            var status = StatusLabel(Value(recipient, "Status") ?? "Accepted");
+            yield return new RecipientDisplayRow(email, status, "Текущий список");
         }
 
-        return null;
+        foreach (var issue in ImportIssueObjects(mailing))
+        {
+            var email = Value(issue, "Email", "Address") ?? "адрес";
+            var message = Value(issue, "Message") ?? "Не сможем отправить";
+            var source = message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase) ? "Предупреждение" : "Исключён при проверке";
+            yield return new RecipientDisplayRow(email, message, source);
+        }
+    }
+
+    private static IEnumerable<string> CurrentAcceptedEmails(Mailing mailing) => RecipientObjects(mailing)
+        .Select(recipient => Value(recipient, "Email", "Address"))
+        .Where(email => !string.IsNullOrWhiteSpace(email))
+        .Cast<string>();
+
+    private static IEnumerable<object> RecipientObjects(Mailing mailing) =>
+        mailing.GetType().GetProperty("Recipients", BindingFlags.Instance | BindingFlags.Public)?.GetValue(mailing) is IEnumerable recipients
+            ? recipients.Cast<object>()
+            : Enumerable.Empty<object>();
+
+    private static IEnumerable<object> ImportIssueObjects(Mailing mailing)
+    {
+        var batch = mailing.GetType().GetProperty("LastImportBatch", BindingFlags.Instance | BindingFlags.Public)?.GetValue(mailing);
+        return batch?.GetType().GetProperty("Issues", BindingFlags.Instance | BindingFlags.Public)?.GetValue(batch) is IEnumerable issues
+            ? issues.Cast<object>()
+            : Enumerable.Empty<object>();
+    }
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Accepted" => "Принят к отправке",
+        "Invalid" => "Некорректный адрес",
+        "Duplicate" => "Дубль",
+        "GloballySuppressed" => "Ранее отписался",
+        "ClientSuppressed" => "Исключён клиентом",
+        _ => status
+    };
+
+    private static void PreserveDeclaration(string ownerEmail, Guid mailingId, Mailing mailing, IMailingDeclarationService declarations, HttpContext http)
+    {
+        var source = TryParseBaseSource(DeclarationValue(mailing.Declaration, "BaseSource"));
+        if (source is null) return;
+        var type = TryParseMessageType(DeclarationValue(mailing.Declaration, "IntendedMessageType") ?? DeclarationValue(mailing.Declaration, "MessageType"));
+        var advertisingConsent = IsTrue(mailing.Declaration, "IsAdvertisingConsentConfirmed", "AdvertisingConsentConfirmed", "HasAdvertisingConsent");
+        declarations.Confirm(new ConfirmMailingDeclarationCommand(ownerEmail, mailingId, source, true, advertisingConsent, type, Request(http)));
     }
 
     private static string Option(string value, string label, string? selectedValue)
@@ -198,5 +307,22 @@ public static class SimplifiedRecipientStepEndpoints
         return false;
     }
 
+    private static string? Value(object target, params string[] names)
+    {
+        var type = target.GetType();
+        foreach (var name in names)
+        {
+            var value = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(target)?.ToString();
+            if (!string.IsNullOrWhiteSpace(value)) return value;
+        }
+
+        return null;
+    }
+
+    private static BaseSource? TryParseBaseSource(string? value) => Enum.TryParse<BaseSource>(value, out var source) ? source : null;
+    private static MessageType TryParseMessageType(string? value) => Enum.TryParse<MessageType>(value, out var type) ? type : MessageType.Transactional;
+    private static RequestMetadata Request(HttpContext http) => new(http.Connection.RemoteIpAddress?.ToString() ?? "unknown", string.IsNullOrWhiteSpace(http.Request.Headers.UserAgent.ToString()) ? "unknown" : http.Request.Headers.UserAgent.ToString());
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
+
+    private sealed record RecipientDisplayRow(string Email, string Status, string Source);
 }
