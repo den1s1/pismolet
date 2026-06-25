@@ -42,13 +42,8 @@ public sealed class Sprint3FlowTests
             ["body"] = "Текст письма"
         }));
 
-        Assert.Equal(HttpStatusCode.OK, message.StatusCode);
-        var body = await message.Content.ReadAsStringAsync();
-        Assert.Contains("Письмо подготовлено", body);
-        Assert.Contains("/unsubscribe/", body);
-        Assert.Contains("Почему вы получили это письмо", body);
-        Assert.DoesNotContain("name='messageType'", body);
-        Assert.DoesNotContain("Тип письма", body);
+        Assert.Equal(HttpStatusCode.Redirect, message.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/payment", message.Headers.Location?.ToString());
 
         using var scope = factory.Services.CreateScope();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditLogger>().GetRecords();
