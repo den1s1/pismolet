@@ -151,6 +151,7 @@ public static class CompactRecipientDeclarationUiMiddlewareExtensions
         var mailings = context.RequestServices.GetRequiredService<IMailingService>();
         var mailing = mailings.GetForOwner(id, email);
         if (mailing is null || mailing.LastImportStats.Accepted <= 0) return false;
+        RecipientImportIssueStore.Save(mailing);
         var declarations = context.RequestServices.GetRequiredService<IMailingDeclarationService>();
         var result = declarations.Confirm(new ConfirmMailingDeclarationCommand(email, id, TryParseBaseSource(form["baseSource"].ToString()), true, form.ContainsKey("advertisingConsent"), type, ToRequestMetadata(context)));
         return result.Ok;
