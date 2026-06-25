@@ -92,6 +92,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAdminMenuVisibility();
 app.UseUnifiedAdminSidebar();
+app.UseCompactRecipientDeclarationUi();
 app.UseLegalDeclarationEvidenceCapture();
 app.UseMailingLaunchEvidenceCapture();
 app.UseAdminSuppressionDetail();
