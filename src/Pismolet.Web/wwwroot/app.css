@@ -263,8 +263,7 @@ button {
 }
 
 .btn.secondary,
-.button.secondary,
-.secondary {
+.button.secondary {
   background: #eaf2ff;
   color: var(--accent-dark);
   box-shadow: none;
