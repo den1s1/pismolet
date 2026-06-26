@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using ClosedXML.Excel;
+using Microsoft.Extensions.Hosting;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
@@ -23,13 +24,13 @@ public static class SendEndpoints
         return app;
     }
 
-    private static IResult ShowSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
+    private static IResult ShowSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer, IHostEnvironment environment)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.GetState(email, id);
         var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Запуск рассылки", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, null), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Запуск рассылки", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, null, environment.IsDevelopment()), authenticated: true));
     }
 
     private static IResult ExportCsv(Guid id, HttpContext http, IMailingSendService sender, IClickTrackingRepository clicks)
@@ -66,25 +67,25 @@ public static class SendEndpoints
         return Results.File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
 
-    private static IResult StartSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
+    private static IResult StartSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer, IHostEnvironment environment)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.StartSending(email, id, ToRequestMetadata(http));
         var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Отправка поставлена в очередь." : result.Error), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Отправка поставлена в очередь." : result.Error, environment.IsDevelopment()), authenticated: true));
     }
 
-    private static IResult ResumeSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer)
+    private static IResult ResumeSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer, IHostEnvironment environment)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.ResumeSending(email, id, ToRequestMetadata(http));
         var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error, environment.IsDevelopment()), authenticated: true));
     }
 
-    private static string SendPage(MailingSendResult result, ReplySummary replySummary, IReadOnlyCollection<TrackedLink> trackedLinks, ClientSuppressionPreview suppressionPreview, string? message)
+    private static string SendPage(MailingSendResult result, ReplySummary replySummary, IReadOnlyCollection<TrackedLink> trackedLinks, ClientSuppressionPreview suppressionPreview, string? message, bool showDevReport)
     {
         if (result.State is null)
         {
@@ -125,7 +126,7 @@ public static class SendEndpoints
         var launched = result.Ok && !string.IsNullOrWhiteSpace(message) && message.Contains("поставлен", StringComparison.OrdinalIgnoreCase);
         var title = launched ? "Рассылка запущена" : mailing.Status switch
         {
-            MailingStatus.Approved => "Запуск рассылки",
+            MailingStatus.Approved => "Готово к запуску",
             MailingStatus.Sending => "Рассылка отправляется",
             MailingStatus.Sent => "Рассылка отправлена",
             MailingStatus.Paused => "Отправка приостановлена",
@@ -144,7 +145,7 @@ public static class SendEndpoints
             MailingStatus.Paused => $"<form method='post' action='/mailings/{mailing.Id}/send/resume'><button class='button'>Продолжить отправку</button></form>{pausedNote}",
             MailingStatus.Sending => $"<p><span class='badge warn'>Отправка выполняется</span></p><p><a class='button' href='/mailings/{mailing.Id}/send'>Обновить статус</a></p>",
             MailingStatus.Sent => "<p><span class='badge ok'>Отправка завершена</span></p>",
-            MailingStatus.Failed => "<p><span class='badge danger'>Есть ошибки отправки</span></p><p class='muted'>Подробности ошибок доступны администратору; пользователю показываем только безопасную сводку.</p>",
+            MailingStatus.Failed => "<p><span class='badge danger'>Есть ошибки отправки</span></p><p class='muted'>Подробности ошибок доступны в подробном отчёте.</p>",
             _ => "<p class='muted'>Отправка будет доступна после оплаты и одобрения рассылки.</p>"
         };
 
@@ -162,6 +163,8 @@ public static class SendEndpoints
             : $"Получено ответов: {replySummary.TotalReplies}. Последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC, статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}";
         var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/send";
         var replyRetentionHref = $"/legal/reply-retention?returnUrl=/mailings/{mailing.Id}/send";
+        var notDelivered = summary.Failed + hardBouncedRecipients + rejectedRecipients;
+        var progressText = LaunchProgressText(mailing.Status, summary, deliveredRecipients, notDelivered, replySummary.TotalReplies);
 
         var deliveryRows = state.Events.Count == 0
             ? "<tr><td colspan='4'>Событий доставки пока нет.</td></tr>"
@@ -182,7 +185,11 @@ public static class SendEndpoints
         var devRows = state.Events.Count == 0
             ? "<tr><td colspan='8'>Событий отправки пока нет.</td></tr>"
             : string.Join(string.Empty, state.Events.OrderBy(x => x.RecipientEmail).Select(x => $"<tr><td>{H(x.RecipientEmail)}</td><td>{H(x.Status.ToRu())}</td><td>{H(x.DeliveryStatus.ToRu())}</td><td>{FormatDate(x.LastDeliveryEventAt)}</td><td>{(x.FirstOpenedAt is null ? "Нет" : "Да")}</td><td>{x.OpenCount}</td><td>{FormatDate(x.LastOpenedAt)}</td><td>{H(x.ErrorCode ?? "")}</td></tr>"));
-        var clientSuppressionBlock = ClientSuppressionPreviewBlock(suppressionPreview);
+        var clientSuppressionNotice = ClientSuppressionNoticeBlock(suppressionPreview);
+        var clientSuppressionReport = ClientSuppressionReportBlock(suppressionPreview);
+        var devReport = showDevReport
+            ? $"<details><summary>Dev-сводка событий</summary><div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Последнее событие доставки</th><th>Открыто</th><th>Открытий</th><th>Последнее открытие</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></div></details>"
+            : string.Empty;
 
         return $"""
             <section class='wizard-shell send-wizard'>
@@ -203,36 +210,42 @@ public static class SendEndpoints
                   <span class='badge warn'>{H(mailing.StatusRu)}</span>
                 </div>
                 {alert}
-                <div class='notice warn'>Отправка идёт постепенно. Сервис ставит письма в очередь, соблюдает дневные лимиты и исключает отписавшихся получателей перед отправкой. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</div>
-                {clientSuppressionBlock}
-                <div class='stats launch-stats'>
-                  <div class='stat'><b>{summary.Pending}</b><span>Писем в очереди</span></div>
-                  <div class='stat'><b>{summary.TotalAcceptedRecipients}</b><span>Оплачено писем</span></div>
-                  <div class='stat'><b>{deliveredRecipients}</b><span>Доставлено сейчас</span></div>
-                  <div class='stat'><b>{openedRecipients}</b><span>Открыто сейчас</span></div>
-                  <div class='stat'><b>{clickedRecipients}</b><span>Кликнувшие сейчас</span></div>
-                  <div class='stat'><b>{replySummary.TotalReplies}</b><span>Ответов сейчас</span></div>
+                <div class='notice warn'>Отправка идёт постепенно. Письмолёт ставит письма в очередь, соблюдает дневные лимиты и исключает отписавшихся получателей перед отправкой. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</div>
+                {clientSuppressionNotice}
+                <div class='stats launch-stats launch-key-stats'>
+                  <div class='stat'><b>{summary.TotalAcceptedRecipients}</b><span>Всего писем</span></div>
+                  <div class='stat'><b>{summary.Sent}</b><span>Отправлено</span></div>
+                  <div class='stat'><b>{notDelivered}</b><span>Не удалось</span></div>
+                  <div class='stat'><b>{replySummary.TotalReplies}</b><span>Ответов</span></div>
                 </div>
-                <div class='payment-grid launch-grid'>
-                  <section class='box'>
-                    <h2>Отправка</h2>
-                    <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Принято к отправке</td><td>{summary.AcceptedForSending}</td></tr><tr><td>Отправлено провайдеру</td><td>{summary.Sent}</td></tr><tr><td>Ошибки отправки</td><td>{summary.Failed}</td></tr><tr><td>Глобально отписано / исключено</td><td>{summary.Suppressed}</td></tr><tr><td>Исключено из-за ошибки доставки у клиента</td><td>{summary.ClientSuppressed}</td></tr><tr><td>Приостановлено по лимиту</td><td>{summary.PausedByLimit}</td></tr><tr><td>Ожидает отправки</td><td>{summary.Pending}</td></tr><tr><td>Всего принятых адресов</td><td>{summary.TotalAcceptedRecipients}</td></tr></tbody></table>
-                    {action}
-                  </section>
-                  <section class='box'>
-                    <h2>Доставка, открытия, клики и ответы</h2>
-                    {deliveryNote}
-                    {openNote}
-                    {clickNote}
-                    <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Доставлено</td><td>{deliveredRecipients}</td></tr><tr><td>Временная ошибка</td><td>{softBouncedRecipients}</td></tr><tr><td>Постоянная ошибка</td><td>{hardBouncedRecipients}</td></tr><tr><td>Отклонено</td><td>{rejectedRecipients}</td></tr><tr><td>Не сообщено</td><td>{notReportedRecipients}</td></tr><tr><td>Последнее событие доставки</td><td>{FormatDate(lastDeliveryEventAt)}</td></tr><tr><td>Открыто, получателей</td><td>{openedRecipients}</td></tr><tr><td>Открытий всего</td><td>{totalOpens}</td></tr><tr><td>Последнее открытие</td><td>{FormatDate(lastOpenedAt)}</td></tr><tr><td>Кликнувшие получатели</td><td>{clickedRecipients}</td></tr><tr><td>Кликов всего</td><td>{totalClicks}</td></tr><tr><td>Последнее нажатие</td><td>{FormatDate(lastClickedAt)}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr></tbody></table>
-                    <h3>Ответы получателей</h3>
-                    <p>{replyStatus}</p>
-                    <p class='muted'>Ответы пересылаются клиенту на email отправителя. Личный кабинет показывает только счётчик и статус пересылки, без inbox и без raw provider payload. <a href='{replyRetentionHref}'>Правила хранения и удаления ответов</a>.</p>
-                  </section>
-                </div>
-                <details open><summary>Доставка по получателям</summary><table><thead><tr><th>Email</th><th>Доставка</th><th>Последнее событие</th><th>Причина</th></tr></thead><tbody>{deliveryRows}</tbody></table></details>
-                <details open><summary>Переходы по ссылкам</summary><table><thead><tr><th>Email</th><th>Ссылка</th><th>Кликов</th><th>Первый клик</th><th>Последний клик</th></tr></thead><tbody>{clickRows}</tbody></table></details>
-                <details><summary>Dev-сводка событий</summary><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Последнее событие доставки</th><th>Открыто</th><th>Открытий</th><th>Последнее открытие</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></details>
+                <section class='box launch-main-card'>
+                  <h2>Статус рассылки</h2>
+                  <p>{H(progressText)}</p>
+                  {action}
+                </section>
+                <details class='detailed-report'>
+                  <summary>Подробный отчёт</summary>
+                  <div class='report-grid'>
+                    <section class='box muted-box'>
+                      <h3>Отправка</h3>
+                      <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Принято к отправке</td><td>{summary.AcceptedForSending}</td></tr><tr><td>Отправлено</td><td>{summary.Sent}</td></tr><tr><td>Ошибки отправки</td><td>{summary.Failed}</td></tr><tr><td>Исключено по отписке</td><td>{summary.Suppressed}</td></tr><tr><td>Исключено из-за ошибки доставки у клиента</td><td>{summary.ClientSuppressed}</td></tr><tr><td>Приостановлено по лимиту</td><td>{summary.PausedByLimit}</td></tr><tr><td>Ожидает отправки</td><td>{summary.Pending}</td></tr><tr><td>Всего принятых адресов</td><td>{summary.TotalAcceptedRecipients}</td></tr></tbody></table>
+                    </section>
+                    <section class='box muted-box'>
+                      <h3>Доставка, открытия, клики и ответы</h3>
+                      {deliveryNote}
+                      {openNote}
+                      {clickNote}
+                      <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Доставлено</td><td>{deliveredRecipients}</td></tr><tr><td>Временная ошибка</td><td>{softBouncedRecipients}</td></tr><tr><td>Постоянная ошибка</td><td>{hardBouncedRecipients}</td></tr><tr><td>Отклонено</td><td>{rejectedRecipients}</td></tr><tr><td>Не сообщено</td><td>{notReportedRecipients}</td></tr><tr><td>Последнее событие доставки</td><td>{FormatDate(lastDeliveryEventAt)}</td></tr><tr><td>Открыто, получателей</td><td>{openedRecipients}</td></tr><tr><td>Открытий всего</td><td>{totalOpens}</td></tr><tr><td>Последнее открытие</td><td>{FormatDate(lastOpenedAt)}</td></tr><tr><td>Кликнувшие получатели</td><td>{clickedRecipients}</td></tr><tr><td>Кликов всего</td><td>{totalClicks}</td></tr><tr><td>Последнее нажатие</td><td>{FormatDate(lastClickedAt)}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr></tbody></table>
+                      <h3>Ответы получателей</h3>
+                      <p>{replyStatus}</p>
+                      <p class='muted'>Ответы пересылаются клиенту на email отправителя. Личный кабинет показывает только счётчик и статус пересылки, без inbox и без raw provider payload. <a href='{replyRetentionHref}'>Правила хранения и удаления ответов</a>.</p>
+                    </section>
+                  </div>
+                  {clientSuppressionReport}
+                  <details><summary>Доставка по получателям</summary><div class='table-wrap'><table><thead><tr><th>Email</th><th>Доставка</th><th>Последнее событие</th><th>Причина</th></tr></thead><tbody>{deliveryRows}</tbody></table></div></details>
+                  <details><summary>Переходы по ссылкам</summary><div class='table-wrap'><table><thead><tr><th>Email</th><th>Ссылка</th><th>Кликов</th><th>Первый клик</th><th>Последний клик</th></tr></thead><tbody>{clickRows}</tbody></table></div></details>
+                  {devReport}
+                </details>
                 <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a><a class='btn ghost' href='/mailings/{mailing.Id}/send/export.xlsx'>Скачать Excel-отчёт</a></div>
               </section>
             </section>
@@ -403,7 +416,11 @@ public static class SendEndpoints
         return new ClientSuppressionPreview(items);
     }
 
-    private static string ClientSuppressionPreviewBlock(ClientSuppressionPreview preview)
+    private static string ClientSuppressionNoticeBlock(ClientSuppressionPreview preview) => preview.Count == 0
+        ? string.Empty
+        : $"<div class='notice warn'>Перед отправкой Письмолёт исключит {preview.Count} адресов, по которым ранее были ошибки доставки у этого клиента.</div>";
+
+    private static string ClientSuppressionReportBlock(ClientSuppressionPreview preview)
     {
         if (preview.Count == 0)
         {
@@ -418,10 +435,10 @@ public static class SendEndpoints
             : string.Empty;
 
         return $"""
-            <details class='notice warn' open>
-              <summary>Перед отправкой будет исключено адресов: {preview.Count}</summary>
+            <details>
+              <summary>Исключения перед отправкой</summary>
               <p>Эти адреса находятся в suppression list клиента и не будут отправлены повторно. Обычно причина - постоянная ошибка доставки, например HardBounce.</p>
-              <table><thead><tr><th>Email</th><th>Причина</th><th>Последний раз</th><th>ProviderMessageId</th></tr></thead><tbody>{rows}</tbody></table>
+              <div class='table-wrap'><table><thead><tr><th>Email</th><th>Причина</th><th>Последний раз</th><th>ProviderMessageId</th></tr></thead><tbody>{rows}</tbody></table></div>
               {hidden}
             </details>
             """;
@@ -437,6 +454,16 @@ public static class SendEndpoints
 
         return "<p class='muted'>Достигнут дневной лимит отправки. Продолжение возможно после смены дня или изменения лимита администратором.</p>";
     }
+
+    private static string LaunchProgressText(MailingStatus status, MailingSendSummary summary, int deliveredRecipients, int notDelivered, int replies) => status switch
+    {
+        MailingStatus.Approved => $"Рассылка готова к запуску. К отправке подготовлено {summary.TotalAcceptedRecipients} писем.",
+        MailingStatus.Sending => $"Отправка идёт: отправлено {summary.Sent} из {summary.TotalAcceptedRecipients}. Ответов: {replies}.",
+        MailingStatus.Sent => $"Отправка завершена. Отправлено {summary.Sent} писем, доставлено по отчётам {deliveredRecipients}, не удалось {notDelivered}.",
+        MailingStatus.Paused => $"Отправка приостановлена: ожидает продолжения {summary.PausedByLimit} писем.",
+        MailingStatus.Failed => $"Отправка завершилась с ошибками. Не удалось {notDelivered} писем.",
+        _ => "Запуск станет доступен после оплаты и одобрения рассылки."
+    };
 
     private static int CountDeliveryStatus(IEnumerable<SendEvent> events, string status) => events.Count(x => string.Equals(x.DeliveryStatus.ToString(), status, StringComparison.Ordinal));
 
