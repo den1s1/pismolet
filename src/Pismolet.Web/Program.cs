@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Configuration;
+using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mail;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.BackgroundServices;
@@ -19,8 +20,6 @@ if (isRunningUnderTests)
         ["MailProvider"] = "FakeMailer"
     });
 }
-
-var fallbackAdminEmails = ReadAdminEmails(builder.Configuration);
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -42,16 +41,12 @@ builder.Services.AddAuthorization(options =>
         .RequireAssertion(context =>
         {
             var email = context.User.FindFirstValue(ClaimTypes.Email);
-            if (string.IsNullOrWhiteSpace(email))
+            if (string.IsNullOrWhiteSpace(email) || context.Resource is not HttpContext httpContext)
             {
                 return false;
             }
 
-            var adminEmails = context.Resource is HttpContext httpContext
-                ? ReadAdminEmails(httpContext.RequestServices.GetRequiredService<IConfiguration>())
-                : fallbackAdminEmails;
-
-            return adminEmails.Contains(email);
+            return httpContext.RequestServices.GetRequiredService<IAdminAccessService>().IsAdminEmail(email);
         }));
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
@@ -173,26 +168,6 @@ static bool ShouldUseSmtpConfirmation(IConfiguration configuration)
         ?? Environment.GetEnvironmentVariable("Smtp__Host"));
 }
 
-static IReadOnlySet<string> ReadAdminEmails(IConfiguration configuration)
-{
-    var values = new List<string>();
-    values.AddRange(Split(configuration["Admin:AllowedEmails"]));
-    values.AddRange(Split(configuration["Admin:Emails"]));
-    values.AddRange(Split(configuration["Pismolet:AdminEmails"]));
-    values.AddRange(Split(configuration["PISMOLET_ADMIN_EMAILS"]));
-    values.AddRange(Split(Environment.GetEnvironmentVariable("PISMOLET_ADMIN_EMAILS")));
-
-    foreach (var child in configuration.GetSection("Admin:AllowedEmails").GetChildren())
-    {
-        values.AddRange(Split(child.Value));
-    }
-
-    return values
-        .Select(email => email.Trim().ToLowerInvariant())
-        .Where(email => !string.IsNullOrWhiteSpace(email))
-        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-}
-
 static PostfixDeliveryAutomationSettingsOptions ReadPostfixDeliveryAutomationSettingsOptions(IConfiguration configuration)
 {
     var settingsPath = configuration["PostfixDelivery:SettingsPath"]
@@ -214,9 +189,5 @@ static int ReadInt(IConfiguration configuration, string key, int fallback, int m
     var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
     return int.TryParse(value, out var parsed) ? Math.Clamp(parsed, min, max) : fallback;
 }
-
-static IEnumerable<string> Split(string? value) => string.IsNullOrWhiteSpace(value)
-    ? Array.Empty<string>()
-    : value.Split(new[] { ',', ';', '\n', '\r', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 public partial class Program;
