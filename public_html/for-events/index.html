@@ -10,14 +10,31 @@
   <link rel="stylesheet" href="/assets/site.css" />
 </head>
 <body>
-  <header class="site-header"><div class="topbar"><a class="brand" href="/" aria-label="Письмолёт"><img class="brand-logo" src="/assets/brand/logo-horizontal.svg" alt="Письмолёт" /></a><nav class="nav" aria-label="Главная навигация"><a href="/how-it-works/">Как работает</a><a href="/pricing/">Тарифы</a><a href="/anti-spam/">Антиспам</a><a href="/articles/">Статьи</a><a href="/legal/">Документы</a><a href="/contacts/">Контакты</a></nav></div></header>
+  <header class="site-header">
+    <div class="topbar">
+      <a class="brand" href="/" aria-label="Письмолёт"><img class="brand-logo" src="/assets/brand/logo-horizontal.svg" alt="Письмолёт" /></a>
+      <nav class="nav" aria-label="Главная навигация">
+        <a href="/how-it-works/">Как работает</a>
+        <a href="/pricing/">Тарифы</a>
+        <a href="/anti-spam/">Антиспам</a>
+        <a href="/articles/">Статьи</a>
+        <a href="/legal/">Документы</a>
+        <a href="/contacts/">Контакты</a>
+      </nav>
+      <div class="app-actions" aria-label="Личный кабинет">
+        <a class="btn secondary app-login" href="https://app.pismolet.ru/account/login">Войти</a>
+        <a class="btn app-register" href="https://app.pismolet.ru/account/register">Создать аккаунт</a>
+      </div>
+    </div>
+  </header>
 
   <main class="page">
     <section class="hero">
       <div>
         <h1>Email-рассылка участникам мероприятия</h1>
         <p>После регистрации, продажи билетов или сбора заявок часто нужно написать всем участникам: прислать программу, напомнить время, сообщить об изменениях или отправить материалы после события. Письмолёт помогает сделать это без скрытой копии.</p>
-        <div class="actions"><a class="btn" href="/contacts/">Оставить заявку</a><a class="btn secondary" href="/excel-email-list/">Рассылка из таблицы</a></div>
+        <div class="actions"><a class="btn" href="https://app.pismolet.ru/account/register">Начать рассылку</a><a class="btn secondary" href="/excel-email-list/">Рассылка из таблицы</a></div>
+        <div class="microcopy account-hint">Уже есть аккаунт? <a href="https://app.pismolet.ru/account/login">Войти</a>.</div>
         <div class="microcopy">Подходит для своей базы участников, зарегистрировавшихся на событие или оставивших контакты.</div>
       </div>
       <img class="hero-art" src="/assets/brand/hero-mail-plane.svg" alt="Email-рассылка участникам мероприятия" />
@@ -26,9 +43,12 @@
     <section class="block panel"><h2>Почему не скрытая копия</h2><ul class="list" style="margin-top:16px"><li>одна ошибка может раскрыть адреса участников друг другу;</li><li>обычная почта может ограничить массовую отправку;</li><li>сложно вручную удалить дубли и отписавшихся;</li><li>не видно заранее, сколько адресов будет реально принято;</li><li>нет нормального процесса для повторной рассылки по обновлённой таблице.</li></ul></section>
     <section class="block panel"><div class="panel-head"><div><h2>Рабочий сценарий</h2><p>Письмолёт особенно полезен, когда список участников хранится в Excel, CSV или выгрузке из формы регистрации.</p></div></div><div class="grid-4"><div class="card"><div class="step-number">1</div><h3>Выгрузите список</h3><p>Email участников из формы, таблицы или сервиса регистрации.</p></div><div class="card"><div class="step-number">2</div><h3>Загрузите в сервис</h3><p>Проверка дублей, ошибок и отписавшихся адресов.</p></div><div class="card"><div class="step-number">3</div><h3>Напишите сообщение</h3><p>Короткое письмо с темой, отправителем и нужной информацией.</p></div><div class="card"><div class="step-number">4</div><h3>Отправьте постепенно</h3><p>После оплаты и проверок рассылка уходит без залпа из личной почты.</p></div></div></section>
     <section class="block notice"><strong>Важно:</strong> если письмо рекламное, организатор должен иметь законные основания и необходимые согласия. Письмолёт не принимает купленные или спарсенные списки адресов.</section>
-    <section class="final-cta"><div><h2>Нужно написать участникам мероприятия?</h2><p>Оставьте заявку — разберём, как подготовить таблицу и отправить первое письмо.</p></div><a class="btn" href="/contacts/">Связаться</a></section>
+    <section class="final-cta"><div><h2>Нужно написать участникам мероприятия?</h2><p>Создайте аккаунт — подготовьте таблицу и отправьте первое письмо через личный кабинет.</p></div><a class="btn" href="https://app.pismolet.ru/account/register">Создать аккаунт</a></section>
   </main>
 
-  <footer class="site-footer"><div>© Письмолёт</div><div><a href="/excel-email-list/">Из таблицы</a><a href="/bcc-alternative/">Без скрытой копии</a><a href="/contacts/">Контакты</a></div></footer>
+  <footer class="site-footer">
+    <div>© Письмолёт</div>
+    <div class="footer-links"><a href="/pricing/">Тарифы</a><a href="/legal/">Документы</a><a href="/contacts/">Контакты</a><a href="https://app.pismolet.ru/account/login">Войти</a><a href="https://app.pismolet.ru/account/register">Создать аккаунт</a></div>
+  </footer>
 </body>
 </html>

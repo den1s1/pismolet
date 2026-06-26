@@ -10,7 +10,23 @@
   <link rel="stylesheet" href="/assets/site.css" />
 </head>
 <body>
-  <header class="site-header"><div class="topbar"><a class="brand" href="/"><img class="brand-logo" src="/assets/brand/logo-horizontal.svg" alt="Письмолёт" /></a><nav class="nav"><a href="/how-it-works/">Как работает</a><a href="/pricing/">Тарифы</a><a href="/anti-spam/">Антиспам</a><a href="/articles/">Статьи</a><a href="/legal/">Документы</a><a href="/contacts/">Контакты</a></nav></div></header>
+  <header class="site-header">
+    <div class="topbar">
+      <a class="brand" href="/" aria-label="Письмолёт"><img class="brand-logo" src="/assets/brand/logo-horizontal.svg" alt="Письмолёт" /></a>
+      <nav class="nav" aria-label="Главная навигация">
+        <a href="/how-it-works/">Как работает</a>
+        <a href="/pricing/">Тарифы</a>
+        <a href="/anti-spam/">Антиспам</a>
+        <a href="/articles/">Статьи</a>
+        <a href="/legal/">Документы</a>
+        <a href="/contacts/">Контакты</a>
+      </nav>
+      <div class="app-actions" aria-label="Личный кабинет">
+        <a class="btn secondary app-login" href="https://app.pismolet.ru/account/login">Войти</a>
+        <a class="btn app-register" href="https://app.pismolet.ru/account/register">Создать аккаунт</a>
+      </div>
+    </div>
+  </header>
   <main class="page">
     <article class="article">
       <a class="btn ghost" href="/articles/">← Все статьи</a>
@@ -65,9 +81,12 @@
       <p>Не стоит начинать с агрессивных продаж. Для простой клиентской базы лучше работают спокойные информационные письма.</p>
 
       <p>Малому бизнесу не всегда нужна большая email-платформа. Иногда нужен простой и аккуратный способ написать своей базе клиентов.</p>
-      <div class="actions"><a class="btn" href="/contacts/">Оставить заявку</a><a class="btn secondary" href="/pricing/">Посмотреть тарифы</a></div>
+      <div class="actions"><a class="btn" href="https://app.pismolet.ru/account/register">Начать рассылку</a><a class="btn secondary" href="/pricing/">Посмотреть тарифы</a></div>
     </article>
   </main>
-  <footer class="site-footer"><div>© Письмолёт</div><div><a href="/">Главная</a><a href="/anti-spam/">Антиспам</a><a href="/pricing/">Тарифы</a></div></footer>
+  <footer class="site-footer">
+    <div>© Письмолёт</div>
+    <div class="footer-links"><a href="/pricing/">Тарифы</a><a href="/legal/">Документы</a><a href="/contacts/">Контакты</a><a href="https://app.pismolet.ru/account/login">Войти</a><a href="https://app.pismolet.ru/account/register">Создать аккаунт</a></div>
+  </footer>
 </body>
 </html>

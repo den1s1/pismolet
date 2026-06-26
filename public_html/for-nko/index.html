@@ -10,14 +10,31 @@
   <link rel="stylesheet" href="/assets/site.css" />
 </head>
 <body>
-  <header class="site-header"><div class="topbar"><a class="brand" href="/" aria-label="Письмолёт"><img class="brand-logo" src="/assets/brand/logo-horizontal.svg" alt="Письмолёт" /></a><nav class="nav" aria-label="Главная навигация"><a href="/how-it-works/">Как работает</a><a href="/pricing/">Тарифы</a><a href="/anti-spam/">Антиспам</a><a href="/articles/">Статьи</a><a href="/legal/">Документы</a><a href="/contacts/">Контакты</a></nav></div></header>
+  <header class="site-header">
+    <div class="topbar">
+      <a class="brand" href="/" aria-label="Письмолёт"><img class="brand-logo" src="/assets/brand/logo-horizontal.svg" alt="Письмолёт" /></a>
+      <nav class="nav" aria-label="Главная навигация">
+        <a href="/how-it-works/">Как работает</a>
+        <a href="/pricing/">Тарифы</a>
+        <a href="/anti-spam/">Антиспам</a>
+        <a href="/articles/">Статьи</a>
+        <a href="/legal/">Документы</a>
+        <a href="/contacts/">Контакты</a>
+      </nav>
+      <div class="app-actions" aria-label="Личный кабинет">
+        <a class="btn secondary app-login" href="https://app.pismolet.ru/account/login">Войти</a>
+        <a class="btn app-register" href="https://app.pismolet.ru/account/register">Создать аккаунт</a>
+      </div>
+    </div>
+  </header>
 
   <main class="page">
     <section class="hero">
       <div>
         <h1>Email-рассылка для НКО и локальных сообществ</h1>
         <p>Письмолёт помогает отправить понятное письмо волонтёрам, участникам, партнёрам или подписчикам, если база уже собрана законно и нужно обойтись без сложной платформы.</p>
-        <div class="actions"><a class="btn" href="/contacts/">Оставить заявку</a><a class="btn secondary" href="/anti-spam/">Правила рассылок</a></div>
+        <div class="actions"><a class="btn" href="https://app.pismolet.ru/account/register">Начать рассылку</a><a class="btn secondary" href="/anti-spam/">Правила рассылок</a></div>
+        <div class="microcopy account-hint">Уже есть аккаунт? <a href="https://app.pismolet.ru/account/login">Войти</a>.</div>
         <div class="microcopy">Подходит для информационных писем по своей базе, а не для холодных массовых обращений.</div>
       </div>
       <img class="hero-art" src="/assets/brand/hero-mail-plane.svg" alt="Email-рассылка для НКО" />
@@ -27,9 +44,12 @@
     <section class="block panel"><h2>Что важно для корректной рассылки</h2><ul class="list" style="margin-top:16px"><li>адресаты должны быть собраны через понятный источник;</li><li>купленные, спарсенные и чужие базы нельзя использовать;</li><li>в письме должна быть понятная причина обращения и корректный отправитель;</li><li>отписка должна уважаться, а отписавшиеся адреса не должны возвращаться в рассылку;</li><li>для рекламных сообщений нужны отдельные основания и согласия.</li></ul></section>
     <section class="block panel"><div class="panel-head"><div><h2>Как это работает</h2><p>Сценарий остаётся простым: таблица, письмо, расчёт, оплата и отправка после проверок.</p></div></div><div class="grid-4"><div class="card"><div class="step-number">1</div><h3>Соберите список</h3><p>Например, участники мероприятия, волонтёры или подписчики проекта.</p></div><div class="card"><div class="step-number">2</div><h3>Загрузите таблицу</h3><p>Письмолёт исключит дубли, ошибки и отписавшихся.</p></div><div class="card"><div class="step-number">3</div><h3>Напишите письмо</h3><p>Без сложного редактора, с понятным отправителем и темой.</p></div><div class="card"><div class="step-number">4</div><h3>Запустите отправку</h3><p>После оплаты, проверок и при необходимости модерации.</p></div></div></section>
     <section class="block notice"><strong>Ответственность за базу остаётся на отправителе.</strong> Письмолёт помогает технически обработать список и отправить письмо, но не подтверждает источник адресов вместо организации.</section>
-    <section class="final-cta"><div><h2>Нужно написать волонтёрам или участникам?</h2><p>Оставьте заявку — обсудим сценарий и формат первой отправки.</p></div><a class="btn" href="/contacts/">Связаться</a></section>
+    <section class="final-cta"><div><h2>Нужно написать волонтёрам или участникам?</h2><p>Создайте аккаунт — опишите базу и подготовьте первое письмо в личном кабинете.</p></div><a class="btn" href="https://app.pismolet.ru/account/register">Создать аккаунт</a></section>
   </main>
 
-  <footer class="site-footer"><div>© Письмолёт</div><div><a href="/anti-spam/">Антиспам</a><a href="/legal/rules/">Правила</a><a href="/contacts/">Контакты</a></div></footer>
+  <footer class="site-footer">
+    <div>© Письмолёт</div>
+    <div class="footer-links"><a href="/pricing/">Тарифы</a><a href="/legal/">Документы</a><a href="/contacts/">Контакты</a><a href="https://app.pismolet.ru/account/login">Войти</a><a href="https://app.pismolet.ru/account/register">Создать аккаунт</a></div>
+  </footer>
 </body>
 </html>

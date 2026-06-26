@@ -10,13 +10,32 @@
   <link rel="stylesheet" href="/assets/site.css" />
 </head>
 <body>
-  <header class="site-header"><div class="topbar"><a class="brand" href="/"><img class="brand-logo" src="/assets/brand/logo-horizontal.svg" alt="Письмолёт" /></a><nav class="nav"><a href="/how-it-works/">Как работает</a><a href="/pricing/">Тарифы</a><a href="/anti-spam/">Антиспам</a><a href="/articles/">Статьи</a><a href="/legal/">Документы</a><a href="/contacts/">Контакты</a></nav></div></header>
+  <header class="site-header">
+    <div class="topbar">
+      <a class="brand" href="/" aria-label="Письмолёт"><img class="brand-logo" src="/assets/brand/logo-horizontal.svg" alt="Письмолёт" /></a>
+      <nav class="nav" aria-label="Главная навигация">
+        <a href="/how-it-works/">Как работает</a>
+        <a href="/pricing/">Тарифы</a>
+        <a href="/anti-spam/">Антиспам</a>
+        <a href="/articles/">Статьи</a>
+        <a href="/legal/">Документы</a>
+        <a href="/contacts/">Контакты</a>
+      </nav>
+      <div class="app-actions" aria-label="Личный кабинет">
+        <a class="btn secondary app-login" href="https://app.pismolet.ru/account/login">Войти</a>
+        <a class="btn app-register" href="https://app.pismolet.ru/account/register">Создать аккаунт</a>
+      </div>
+    </div>
+  </header>
   <main class="page">
     <section class="hero"><div><h1>Письмолёт не для холодного спама</h1><p>Сервис нужен для аккуратной коммуникации по своей законной базе: клиентам, участникам, подписчикам, волонтёрам, партнёрам и людям, с которыми у отправителя есть основание для связи.</p><div class="actions"><a class="btn" href="/how-it-works/">Как работает проверка</a><a class="btn secondary" href="/contacts/">Связаться</a></div></div><img class="hero-art" src="/assets/brand/hero-mail-plane.svg" alt="Проверка рассылки перед отправкой" /></section>
     <section class="block panel"><div class="panel-head"><div><h2>Что запрещено</h2><p>Эти правила нужны для безопасности получателей, клиентов и самого сервиса.</p></div></div><div class="grid-3"><div class="card"><h3>Купленные базы</h3><p>Нельзя загружать базы, купленные у третьих лиц или скачанные из интернета.</p></div><div class="card"><h3>Автоматически собранные адреса</h3><p>Нельзя отправлять письма по адресам, собранным без понятного законного основания.</p></div><div class="card"><h3>Чужие списки</h3><p>Нельзя использовать базы, права и происхождение которых отправитель не может подтвердить.</p></div></div></section>
     <section class="block panel"><h2>Что проверяет сервис</h2><ul class="list" style="margin-top:16px"><li>клиент подтверждает законность базы при импорте;</li><li>для рекламной рассылки нужно отдельное подтверждение согласия на рекламу;</li><li>адреса, которые уже отписались через Письмолёт, исключаются из отправки;</li><li>первые и рискованные рассылки могут уйти на ручную проверку;</li><li>сервис может отказать в отправке при нарушении правил.</li></ul></section>
     <section class="final-cta"><div><h2>Есть сомнения по базе?</h2><p>Лучше заранее описать источник адресов и сценарий рассылки. Это поможет понять, подходит ли Письмолёт.</p></div><a class="btn" href="/contacts/">Написать</a></section>
   </main>
-  <footer class="site-footer"><div>© Письмолёт</div><div><a href="/">Главная</a><a href="/pricing/">Тарифы</a><a href="/contacts/">Контакты</a></div></footer>
+  <footer class="site-footer">
+    <div>© Письмолёт</div>
+    <div class="footer-links"><a href="/pricing/">Тарифы</a><a href="/legal/">Документы</a><a href="/contacts/">Контакты</a><a href="https://app.pismolet.ru/account/login">Войти</a><a href="https://app.pismolet.ru/account/register">Создать аккаунт</a></div>
+  </footer>
 </body>
 </html>

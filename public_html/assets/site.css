@@ -85,6 +85,21 @@ h3 { font-size: 22px; }
 .nav { display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 14px; flex-wrap: wrap; }
 .nav a { text-decoration: none; }
 .nav a:hover { color: var(--accent); }
+.app-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.app-actions .btn {
+  padding: 10px 16px;
+  font-size: 14px;
+  box-shadow: none;
+}
+.app-actions .app-register {
+  box-shadow: 0 10px 22px rgba(37, 99, 235, .18);
+}
 .page { max-width: 1180px; margin: 0 auto; padding: 42px 24px 70px; }
 
 .btn {
@@ -123,6 +138,8 @@ h3 { font-size: 22px; }
 .hero-art { width: 100%; max-width: 440px; justify-self: center; filter: drop-shadow(0 22px 34px rgba(15, 23, 42, .16)); }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; align-items: center; }
 .microcopy { margin-top: 16px; color: var(--muted); font-size: 14px; }
+.account-hint a { color: var(--accent-dark); font-weight: 800; text-decoration: none; }
+.account-hint a:hover { text-decoration: underline; }
 
 .block { margin-top: 26px; }
 .panel { background: var(--card); border: 1px solid var(--line); border-radius: 30px; padding: 30px; box-shadow: var(--shadow); }
@@ -207,9 +224,12 @@ dl.details a,
 .footer-cta p { color: #cbd5e1; }
 .site-footer { border-top: 1px solid var(--line); padding: 26px 24px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--muted); max-width: 1180px; margin: 0 auto; }
 .site-footer a { text-decoration: none; margin-left: 14px; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 14px; }
+.footer-links a { margin-left: 0; }
 
 @media (max-width: 900px) {
   .topbar { align-items: flex-start; flex-direction: column; }
+  .app-actions { justify-content: flex-start; flex-wrap: wrap; }
   .hero { grid-template-columns: 1fr; padding: 28px; }
   .hero h1 { font-size: clamp(32px, 8vw, 44px); }
   .hero-art { max-width: 340px; }
@@ -219,4 +239,16 @@ dl.details a,
   .brand-logo { width: 44px; height: 44px; flex-basis: 44px; }
   .brand::after,
   .brand::before { font-size: 23px; }
+}
+
+@media (max-width: 520px) {
+  .nav,
+  .app-actions,
+  .footer-links {
+    width: 100%;
+  }
+
+  .app-actions .btn {
+    flex: 1 1 145px;
+  }
 }
