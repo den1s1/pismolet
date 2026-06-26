@@ -20,7 +20,7 @@ public sealed class MessagePreviewUiTests
     private const string OwnerEmail = "message-preview@example.test";
 
     [Fact]
-    public async Task Message_preview_hides_service_footer_from_main_preview_and_keeps_it_collapsed()
+    public async Task Message_preview_is_opened_on_separate_page_and_keeps_service_footer_collapsed()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
@@ -30,7 +30,11 @@ public sealed class MessagePreviewUiTests
         await ConfirmBaseDeclaration(client, mailingId);
         await SaveMessage(client, mailingId);
 
-        var html = await client.GetStringAsync($"/mailings/{mailingId}/message");
+        var editorHtml = await client.GetStringAsync($"/mailings/{mailingId}/message");
+        Assert.Contains("Предпросмотр", editorHtml);
+        Assert.DoesNotContain("<div class='mail-preview-body'>", editorHtml);
+
+        var html = await client.GetStringAsync($"/mailings/{mailingId}/message/preview");
 
         var previewStart = html.IndexOf("<div class='mail-preview-body'>", StringComparison.Ordinal);
         var detailsStart = html.IndexOf("<details class='service-preview-details'>", StringComparison.Ordinal);
