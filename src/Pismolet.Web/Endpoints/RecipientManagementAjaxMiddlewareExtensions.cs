@@ -45,7 +45,7 @@ public static class RecipientManagementAjaxMiddlewareExtensions
 
     private static bool ShouldInject(string html) =>
         html.Contains("/recipients/add", StringComparison.Ordinal)
-        && html.Contains("Загруженные адреса", StringComparison.Ordinal)
+        && html.Contains("Управление адресами", StringComparison.Ordinal)
         && !html.Contains("recipient-management-ajax-script", StringComparison.Ordinal);
 
     private static string Inject(string html) => html.Replace("</body>", Script() + "\n</body>", StringComparison.OrdinalIgnoreCase);
@@ -53,13 +53,13 @@ public static class RecipientManagementAjaxMiddlewareExtensions
     private static string Script() => """
 <script class="recipient-management-ajax-script">
 (function(){
-  function manager(){var f=document.querySelector("form[action$='/recipients/add']");return f&&f.closest('section.inline-base-confirm');}
+  function manager(){var f=document.querySelector("form[action$='/recipients/add']");return f&&(f.closest('section.address-list-block')||f.closest('section.inline-base-confirm'));}
   function stats(){return document.querySelector('.stats.import-summary');}
   function markBusy(on){var m=manager();if(m){m.style.opacity=on?'0.55':'';m.style.pointerEvents=on?'none':'';}}
   function replaceFrom(html){
     var doc=new DOMParser().parseFromString(html,'text/html');
     var nextAdd=doc.querySelector("form[action$='/recipients/add']");
-    var nextManager=nextAdd&&nextAdd.closest('section.inline-base-confirm');
+    var nextManager=nextAdd&&(nextAdd.closest('section.address-list-block')||nextAdd.closest('section.inline-base-confirm'));
     var currentManager=manager();
     if(nextManager&&currentManager){currentManager.replaceWith(nextManager);}
     var nextStats=doc.querySelector('.stats.import-summary');
