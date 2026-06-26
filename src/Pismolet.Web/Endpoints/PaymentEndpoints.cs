@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Claims;
 using Pismolet.Web.Application.Common;
@@ -507,8 +508,12 @@ public static class PaymentEndpoints
             return "Платёжная попытка не найдена.";
         }
 
-        var expected = RobokassaPaymentModule.FormatAmount(payment.TotalAmount);
-        return string.Equals(expected, outSum, StringComparison.Ordinal)
+        if (!decimal.TryParse(outSum, NumberStyles.Number, CultureInfo.InvariantCulture, out var actual))
+        {
+            return "Некорректная сумма платежа.";
+        }
+
+        return actual == payment.TotalAmount
             ? null
             : "Сумма платежа не совпадает с заказом.";
     }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
@@ -98,6 +99,39 @@ public sealed class PaymentWizardSmokeTests
         var resultFields = new Dictionary<string, string>
         {
             ["OutSum"] = fields["OutSum"],
+            ["InvId"] = fields["InvId"],
+            ["Shp_mailingId"] = fields["Shp_mailingId"]
+        };
+        resultFields["SignatureValue"] = RobokassaPaymentModule.BuildResultSignature(resultFields["OutSum"], resultFields["InvId"], options.Password2, new Dictionary<string, string> { ["Shp_mailingId"] = resultFields["Shp_mailingId"] });
+
+        var result = await client.PostAsync("/payments/robokassa/result", new FormUrlEncodedContent(resultFields));
+        var body = await result.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+        Assert.Equal($"OK{fields["InvId"]}", body);
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.Equal(MailingStatus.Paid, mailing.Status);
+    }
+
+    [Fact]
+    public async Task Robokassa_result_url_accepts_equivalent_six_decimal_amount()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory, "Robokassa six decimal amount");
+        using var client = CreateAuthenticatedClient(factory);
+        await Prepare(client, mailingId, MessageType.Transactional);
+        var startHtml = await StartPayment(client, mailingId);
+        var fields = ExtractHiddenFields(startHtml);
+
+        using var scope = factory.Services.CreateScope();
+        var options = scope.ServiceProvider.GetRequiredService<RobokassaPaymentOptions>();
+        var outSum = decimal.Parse(fields["OutSum"], CultureInfo.InvariantCulture).ToString("0.000000", CultureInfo.InvariantCulture);
+        var resultFields = new Dictionary<string, string>
+        {
+            ["OutSum"] = outSum,
             ["InvId"] = fields["InvId"],
             ["Shp_mailingId"] = fields["Shp_mailingId"]
         };
