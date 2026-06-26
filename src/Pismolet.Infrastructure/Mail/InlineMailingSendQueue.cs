@@ -5,12 +5,19 @@ namespace Pismolet.Web.Infrastructure.Mail;
 
 public sealed class InlineMailingSendQueue(IServiceScopeFactory scopeFactory) : IBackgroundMailingSendQueue, IBackgroundReplyQueue
 {
-    public void Enqueue(Guid mailingId)
+    public void Enqueue(Guid mailingId) => Enqueue(mailingId, TimeSpan.Zero);
+
+    public void Enqueue(Guid mailingId, TimeSpan delay)
     {
         _ = Task.Run(async () =>
         {
             try
             {
+                if (delay > TimeSpan.Zero)
+                {
+                    await Task.Delay(delay);
+                }
+
                 using var scope = scopeFactory.CreateScope();
                 var sender = scope.ServiceProvider.GetRequiredService<IMailingSendService>();
                 await sender.ExecuteQueuedBatchAsync(mailingId, CancellationToken.None);
