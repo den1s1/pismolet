@@ -617,10 +617,8 @@ public sealed class MailingSendService(
         var replyToken = replyTokens.Generate(mailing.Id, mailing.OwnerEmail, recipientEmail);
         var unsubscribeUrl = $"/unsubscribe/{token}";
         var replyToAddress = replyTokens.BuildReplyToAddress(replyToken);
-        var source = mailing.Declaration?.BaseSource.ToRu() ?? "загруженной базы адресов";
-        var reason = $"Почему вы получили это письмо: ваш адрес находится в базе «{source}», которую отправитель подтвердил перед рассылкой.";
-        var serviceId = $"Служебный идентификатор рассылки: {mailing.PublicId}";
-        var plain = string.Join("\n\n", draft.Body, reason, $"Отписаться от всех рассылок через сервис: {unsubscribeUrl}", "Отписка действует глобально для всех рассылок через Письмолёт.", serviceId);
+        var serviceId = MailingServiceEmailFooter.ServiceIdentifier(mailing.PublicId);
+        var plain = MailingServiceEmailFooter.PlainText(draft.Body, draft.SenderName, unsubscribeUrl, serviceId);
         return new EmailMessage(
             mailing.Id,
             new EmailRecipient(recipientEmail),

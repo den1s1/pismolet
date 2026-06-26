@@ -270,6 +270,8 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains($"/legal/prohibited-content?returnUrl=/mailings/{mailingId}/message", html);
         Assert.Contains("Не отправляйте мошенничество", html);
         Assert.Contains("Письмолёт автоматически добавит", html);
+        Assert.Contains("Служебный блок письма", html);
+        Assert.Contains($"/legal/service-email-footer?returnUrl=/mailings/{mailingId}/message", html);
         Assert.Contains("Служебный идентификатор рассылки", html);
         Assert.Contains("Проверить и оплатить", html);
         Assert.DoesNotContain("name='messageType'", html);

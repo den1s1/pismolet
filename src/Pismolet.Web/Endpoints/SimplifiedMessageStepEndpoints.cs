@@ -104,6 +104,7 @@ public static class SimplifiedMessageStepEndpoints
             : H(preview.ServiceIdentifier);
         var unsubscribeUrl = string.IsNullOrWhiteSpace(preview.UnsubscribeUrl) ? "/unsubscribe/example-token" : H(preview.UnsubscribeUrl);
         var prohibitedContentHref = $"/legal/prohibited-content?returnUrl=/mailings/{mailing.Id}/message";
+        var serviceFooterHref = $"/legal/service-email-footer?returnUrl=/mailings/{mailing.Id}/message";
 
         return $@"
 <section class='wizard-shell'>
@@ -131,7 +132,7 @@ public static class SimplifiedMessageStepEndpoints
           <textarea name='body' rows='12' required placeholder='Здравствуйте!&#10;&#10;Расскажите, почему вы пишете и что нужно сделать получателю.'>{H(bodyText)}</textarea>
         </label>
         <div class='notice warn'>Не отправляйте мошенничество, фишинг, вредоносные ссылки, незаконные товары или услуги и контент, вводящий получателей в заблуждение. <a href='{prohibitedContentHref}'>Политика запрещённого контента</a></div>
-        <div class='notice warn'>Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки.</div>
+        <div class='notice warn'>Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки. <a href='{serviceFooterHref}'>Служебный блок письма</a>.</div>
         <div class='actions'>
           <button class='button'>Проверить и оплатить</button>
           <a class='btn ghost' href='/mailings/{mailing.Id}/recipients'>Назад к адресам</a>

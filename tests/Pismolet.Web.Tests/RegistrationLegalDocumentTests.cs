@@ -42,6 +42,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("href='/legal/unsubscribe'", html);
         Assert.Contains("href='/legal/payment-and-refund'", html);
         Assert.Contains("href='/legal/reply-retention'", html);
+        Assert.Contains("href='/legal/service-email-footer'", html);
     }
 
     [Theory]
@@ -57,6 +58,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     [InlineData("/legal/unsubscribe", "Правила отписки через Письмолёт", "document_key: <code>global_unsubscribe_confirmation</code>")]
     [InlineData("/legal/payment-and-refund", "Правила оплаты, запуска и возвратов", "document_key: <code>payment_and_refund_rules</code>")]
     [InlineData("/legal/reply-retention", "Правила хранения и удаления ответов", "document_key: <code>reply_retention_policy</code>")]
+    [InlineData("/legal/service-email-footer", "Служебный блок письма", "document_key: <code>service_email_footer</code>")]
     public async Task LegalDocumentsArePublic(string path, string title, string documentKey)
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -303,6 +305,25 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("Auto-reply, ошибки и безопасность", html);
         Assert.Contains("Удаление и запросы", html);
         Assert.Contains("href='/legal/data-processing'", html);
+    }
+
+    [Fact]
+    public async Task ServiceEmailFooterContainsFullLegalSections()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var html = await client.GetStringAsync("/legal/service-email-footer");
+
+        Assert.Contains("Редакция:</strong> 2026-06-24-v1", html);
+        Assert.Contains("Назначение служебного блока", html);
+        Assert.Contains("Текст причины получения", html);
+        Assert.Contains("Ссылка отписки", html);
+        Assert.Contains("Служебный идентификатор", html);
+        Assert.Contains("Единообразие preview и отправки", html);
+        Assert.Contains("Вы получили это письмо от Библиотека №5 через Письмолёт", html);
     }
 
     [Fact]

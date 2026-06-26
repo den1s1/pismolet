@@ -257,15 +257,14 @@ public sealed class MessageRenderingService : IMessageRenderingService
 
     public RenderedMessagePreview RenderPreview(Mailing mailing)
     {
-        var serviceId = $"Служебный идентификатор рассылки: {mailing.PublicId}";
+        var serviceId = MailingServiceEmailFooter.ServiceIdentifier(mailing.PublicId);
         if (mailing.MessageDraft is null)
         {
             return new RenderedMessagePreview(string.Empty, string.Empty, string.Empty, serviceId);
         }
 
-        var source = mailing.Declaration?.BaseSource.ToRu() ?? "загруженной базы адресов";
-        var reason = $"Почему вы получили это письмо: ваш адрес находится в базе «{source}», которую отправитель подтвердил перед рассылкой.";
-        var plain = string.Join("\n\n", mailing.MessageDraft.Body, reason, $"Отписаться от всех рассылок через сервис: {PreviewUnsubscribeUrl}", serviceId);
+        var reason = MailingServiceEmailFooter.Reason(mailing.MessageDraft.SenderName);
+        var plain = MailingServiceEmailFooter.PlainText(mailing.MessageDraft.Body, mailing.MessageDraft.SenderName, PreviewUnsubscribeUrl, serviceId);
 
         return new RenderedMessagePreview(plain, PreviewUnsubscribeUrl, reason, serviceId);
     }

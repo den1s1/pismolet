@@ -444,6 +444,7 @@ public static class DashboardEndpoints
             ? H($"Служебный идентификатор рассылки: {mailing.PublicId}")
             : H(preview.ServiceIdentifier);
         var unsubscribeUrl = string.IsNullOrWhiteSpace(preview.UnsubscribeUrl) ? "/unsubscribe/example-token" : H(preview.UnsubscribeUrl);
+        var serviceFooterHref = $"/legal/service-email-footer?returnUrl=/mailings/{mailing.Id}/message";
         var continueAction = draft is null
             ? "<button class='button'>Сохранить письмо</button>"
             : $"<button class='button'>Сохранить письмо</button><a class='btn secondary' href='/mailings/{mailing.Id}/payment'>Перейти к проверке и оплате</a>";
@@ -476,7 +477,7 @@ public static class DashboardEndpoints
         <label>Текст письма
           <textarea name='body' rows='12' required placeholder='Здравствуйте!&#10;&#10;Расскажите, почему вы пишете и что нужно сделать получателю.'>{H(bodyText)}</textarea>
         </label>
-        <div class='notice warn'>Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки.</div>
+        <div class='notice warn'>Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки. <a href='{serviceFooterHref}'>Служебный блок письма</a>.</div>
         <div class='actions'>
           {continueAction}
           <a class='btn ghost' href='/mailings/{mailing.Id}/recipients'>Назад к адресам</a>

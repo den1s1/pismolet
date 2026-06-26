@@ -28,8 +28,28 @@ public sealed class Sprint3ServiceTests
         var preview = new MessageRenderingService().RenderPreview(mailing);
 
         Assert.Contains("/unsubscribe/", preview.PlainText);
-        Assert.Contains("Почему вы получили это письмо", preview.PlainText);
+        Assert.Contains("Вы получили это письмо от Письмолёт через Письмолёт", preview.PlainText);
         Assert.Contains("Служебный идентификатор рассылки", preview.PlainText);
+        Assert.DoesNotContain("Почему вы получили это письмо", preview.PlainText);
+        Assert.DoesNotContain("Отписка действует глобально", preview.PlainText);
+    }
+
+    [Fact]
+    public void Service_email_footer_matches_legal_text_and_avoids_extra_footer_lines()
+    {
+        var reason = MailingServiceEmailFooter.Reason("Библиотека №5");
+        var plain = MailingServiceEmailFooter.PlainText(
+            "Текст письма",
+            "Библиотека №5",
+            "/unsubscribe/example-token",
+            "Служебный идентификатор рассылки: PL-TEST");
+
+        Assert.Equal("Вы получили это письмо от Библиотека №5 через Письмолёт, потому что отправитель указал, что у него есть законное основание связаться с вами по этому адресу. Если вы не хотите получать такие письма через Письмолёт, вы можете отписаться от всех рассылок через сервис.", reason);
+        Assert.Contains(reason, plain);
+        Assert.Contains("Отписаться от всех рассылок через сервис: /unsubscribe/example-token", plain);
+        Assert.Contains("Служебный идентификатор рассылки: PL-TEST", plain);
+        Assert.DoesNotContain("Почему вы получили это письмо", plain);
+        Assert.DoesNotContain("Отписка действует глобально", plain);
     }
 
     [Fact]
