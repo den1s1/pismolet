@@ -102,6 +102,7 @@ public sealed record PaymentAttempt(
 {
     public const string FakeProvider = "Fake";
     public const string RobokassaFakeProvider = "RobokassaFake";
+    public const string AdminFreeProvider = "AdminFree";
 
     public static PaymentAttempt Pending(Guid paymentId, string providerOperationId, string provider = FakeProvider) => new(
         Guid.NewGuid(),
@@ -112,6 +113,8 @@ public sealed record PaymentAttempt(
         DateTimeOffset.UtcNow,
         null,
         string.Empty);
+
+    public static PaymentAttempt Succeeded(Guid paymentId, string providerOperationId, string provider, string rawCallback) => Pending(paymentId, providerOperationId, provider).MarkSucceeded(rawCallback);
 
     public PaymentAttempt MarkSucceeded(string rawCallback) => this with
     {
@@ -143,21 +146,7 @@ public sealed record Payment(
         PriceSettings priceSettings)
     {
         priceSettings.EnsureValid();
-
-        if (mailingId == Guid.Empty)
-        {
-            throw new ArgumentException("Не указан идентификатор рассылки.", nameof(mailingId));
-        }
-
-        if (acceptedRecipientsCount < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(acceptedRecipientsCount), "Количество принятых адресов не может быть отрицательным.");
-        }
-
-        if (excludedRecipientsCount < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(excludedRecipientsCount), "Количество исключённых адресов не может быть отрицательным.");
-        }
+        ValidatePaymentData(mailingId, acceptedRecipientsCount, excludedRecipientsCount);
 
         var price = Money.Rub(MailingTariff.PricePerRecipientFor(acceptedRecipientsCount));
         var total = Money.Rub(MailingTariff.TotalFor(acceptedRecipientsCount));
@@ -171,6 +160,30 @@ public sealed record Payment(
             price.Amount,
             total.Amount,
             total.Currency,
+            PaymentStatus.Pending,
+            DateTimeOffset.UtcNow,
+            null,
+            Array.Empty<PaymentAttempt>());
+    }
+
+    public static Payment CreateFree(
+        Guid mailingId,
+        string ownerEmail,
+        int acceptedRecipientsCount,
+        int excludedRecipientsCount,
+        string currency = MailingTariff.Currency)
+    {
+        ValidatePaymentData(mailingId, acceptedRecipientsCount, excludedRecipientsCount);
+
+        return new Payment(
+            Guid.NewGuid(),
+            mailingId,
+            ownerEmail.Trim().ToLowerInvariant(),
+            acceptedRecipientsCount,
+            excludedRecipientsCount,
+            0m,
+            0m,
+            currency,
             PaymentStatus.Pending,
             DateTimeOffset.UtcNow,
             null,
@@ -204,5 +217,23 @@ public sealed record Payment(
             PaidAt = PaidAt ?? successfulAttempt.CompletedAt ?? DateTimeOffset.UtcNow,
             Attempts = attempts
         };
+    }
+
+    private static void ValidatePaymentData(Guid mailingId, int acceptedRecipientsCount, int excludedRecipientsCount)
+    {
+        if (mailingId == Guid.Empty)
+        {
+            throw new ArgumentException("Не указан идентификатор рассылки.", nameof(mailingId));
+        }
+
+        if (acceptedRecipientsCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(acceptedRecipientsCount), "Количество принятых адресов не может быть отрицательным.");
+        }
+
+        if (excludedRecipientsCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(excludedRecipientsCount), "Количество исключённых адресов не может быть отрицательным.");
+        }
     }
 }
