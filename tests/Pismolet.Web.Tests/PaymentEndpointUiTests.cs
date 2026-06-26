@@ -19,7 +19,7 @@ public sealed class PaymentEndpointUiTests
     private const string OwnerEmail = "payment-ui-owner@example.test";
 
     [Fact]
-    public async Task Payment_step_keeps_required_confirmation_checkboxes_and_legal_link()
+    public async Task Payment_step_keeps_confirmation_checkbox_text_in_single_span_and_legal_link()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Payment UI Owner");
@@ -31,10 +31,11 @@ public sealed class PaymentEndpointUiTests
 
         var html = await client.GetStringAsync($"/mailings/{mailingId}/payment");
 
+        Assert.Contains("href='/checkbox.css'", html);
         Assert.Contains("class='confirmation-list checks'", html);
-        Assert.Contains("type='checkbox' name='campaignLaunchConfirmation'", html);
-        Assert.Contains("type='checkbox' name='paymentBaseLegality'", html);
-        Assert.Contains("type='checkbox' name='paymentBaseOwnership'", html);
+        Assert.Contains("<label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>", html);
+        Assert.Contains("<label class='check'><input type='checkbox' name='paymentBaseLegality'><span>", html);
+        Assert.Contains("<label class='check'><input type='checkbox' name='paymentBaseOwnership'><span>", html);
         Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/payment", html);
     }
 
