@@ -23,7 +23,7 @@ public sealed class PaymentWizardSmokeTests
     private static readonly Regex HiddenInputRegex = new("<input type='hidden' name='(?<name>[^']+)' value='(?<value>[^']*)'>", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     [Fact]
-    public async Task Payment_page_shows_cost_and_required_confirmations()
+    public async Task Payment_page_shows_cost_and_single_final_confirmation()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
@@ -36,14 +36,17 @@ public sealed class PaymentWizardSmokeTests
         Assert.Contains("3. Проверьте расчёт и оплатите", html);
         Assert.Contains("Оплата будет только за письма, принятые к отправке", html);
         Assert.Contains("К оплате", html);
+        Assert.Contains("payment-legal-summary", html);
+        Assert.Contains("Подтверждения базы", html);
         Assert.Contains("name='campaignLaunchConfirmation'", html);
-        Assert.Contains("name='paymentBaseLegality'", html);
-        Assert.Contains("name='paymentBaseOwnership'", html);
+        Assert.DoesNotContain("name='paymentBaseLegality'", html);
+        Assert.DoesNotContain("name='paymentBaseOwnership'", html);
+        Assert.DoesNotContain("name='advertisingConsent'", html);
         Assert.Contains("Правила оплаты, запуска и возвратов", html);
         Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/payment", html);
         Assert.Contains("Не списываем за исключённые", html);
         Assert.Contains("Оплатить", html);
-        Assert.Contains("через Robokassa", html);
+        Assert.DoesNotContain("через Robokassa", html);
     }
 
     [Fact]
@@ -170,7 +173,7 @@ public sealed class PaymentWizardSmokeTests
     }
 
     [Fact]
-    public async Task Promo_message_requires_extra_confirmation_on_payment_step()
+    public async Task Promo_message_with_saved_advertising_consent_can_start_payment()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
@@ -179,11 +182,12 @@ public sealed class PaymentWizardSmokeTests
         await Prepare(client, mailingId, MessageType.Advertising);
         var paymentStartPath = $"/mailings/{mailingId}/payment/" + "fake-start";
 
-        var blocked = await client.PostAsync(paymentStartPath, PaymentConfirmations());
-        var html = await blocked.Content.ReadAsStringAsync();
+        var ok = await client.PostAsync(paymentStartPath, PaymentConfirmations());
+        var html = await ok.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.OK, blocked.StatusCode);
-        Assert.Contains("Для промо-письма", html);
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+        Assert.Contains("Оплата через Robokassa", html);
+        Assert.DoesNotContain("Нужно подтвердить рекламное согласие", html);
     }
 
     private static async Task Prepare(HttpClient client, Guid mailingId, MessageType messageType)
@@ -207,9 +211,7 @@ public sealed class PaymentWizardSmokeTests
 
     private static FormUrlEncodedContent PaymentConfirmations() => new(new Dictionary<string, string>
     {
-        ["campaignLaunchConfirmation"] = "on",
-        ["paymentBaseLegality"] = "on",
-        ["paymentBaseOwnership"] = "on"
+        ["campaignLaunchConfirmation"] = "on"
     });
 
     private static async Task<string> StartPayment(HttpClient client, Guid mailingId)
