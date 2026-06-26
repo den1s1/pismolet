@@ -34,9 +34,6 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.Property(x => x.PasswordHash).IsRequired();
             entity.Property(x => x.ConfirmationToken).HasMaxLength(128).IsRequired();
             entity.Property(x => x.ProfileStatus).HasMaxLength(40).IsRequired();
-            entity.Property(x => x.IsAdmin).IsRequired();
-            entity.Property(x => x.AdminGrantedByAdminEmail).HasMaxLength(254);
-            entity.Property(x => x.AdminRevokedByAdminEmail).HasMaxLength(254);
         });
 
         modelBuilder.Entity<MailingEntity>(entity =>
@@ -268,11 +265,6 @@ public sealed class UserEntity
     public int DailySendLimit { get; set; }
     public int TotalSendLimit { get; set; }
     public bool PremoderationRequired { get; set; }
-    public bool IsAdmin { get; set; }
-    public DateTimeOffset? AdminGrantedAt { get; set; }
-    public string? AdminGrantedByAdminEmail { get; set; }
-    public DateTimeOffset? AdminRevokedAt { get; set; }
-    public string? AdminRevokedByAdminEmail { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
