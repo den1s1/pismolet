@@ -34,7 +34,7 @@ public static class PaymentEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(result), authenticated: true));
     }
 
-    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, RobokassaPaymentOptions robokassa)
+    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, RobokassaPaymentOptions robokassa, IMailingReviewService reviews)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
@@ -56,6 +56,12 @@ public static class PaymentEndpoints
         if (!result.Ok || result.Review?.Payment is null)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(result), authenticated: true));
+        }
+
+        if (result.Review.Payment.Status == PaymentStatus.Paid)
+        {
+            reviews.StartChecks(result.Review.Mailing.OwnerEmail, id, ToRequestMetadata(http));
+            return Results.Redirect($"/mailings/{id}/send");
         }
 
         return HtmlRenderer.Html(HtmlRenderer.Page("Переход к оплате", RobokassaAutoSubmitPage(result.Review, robokassa), authenticated: true));
@@ -206,12 +212,13 @@ public static class PaymentEndpoints
         var excluded = Math.Max(0, stats.TotalRows - stats.Accepted);
         var isPromo = mailing.MessageDraft?.MessageType == MessageType.Advertising;
         var hasAdvertisingConsent = mailing.Declaration?.IsAdvertisingConsentConfirmed == true;
+        var isZeroAmount = review.TotalAmount <= 0m;
         var alert = string.IsNullOrWhiteSpace(confirmationError) ? string.Empty : $"<p class='error-message'>{H(confirmationError)}</p>";
         var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/payment";
-        var payButtonText = $"Оплатить {review.TotalAmount:0.##} ₽";
+        var payButtonText = isZeroAmount ? "Перейти к запуску бесплатно" : $"Оплатить {review.TotalAmount:0.##} ₽";
         var button = paid
             ? $"<p><span class='badge'>Оплачено</span></p><form method='post' action='/mailings/{mailing.Id}/checks/start'><button class='button'>Перейти к запуску</button></form><p><a href='/mailings/{mailing.Id}/send'>Открыть запуск рассылки</a></p>"
-            : PaymentAction(mailing, isPromo, hasAdvertisingConsent, paymentRulesHref, payButtonText);
+            : PaymentAction(mailing, isPromo, hasAdvertisingConsent, paymentRulesHref, payButtonText, isZeroAmount);
 
         return $@"
 <section class='wizard-shell payment-wizard'>
@@ -264,14 +271,17 @@ public static class PaymentEndpoints
 </section>";
     }
 
-    private static string PaymentAction(Mailing mailing, bool isPromo, bool hasAdvertisingConsent, string paymentRulesHref, string payButtonText)
+    private static string PaymentAction(Mailing mailing, bool isPromo, bool hasAdvertisingConsent, string paymentRulesHref, string payButtonText, bool isZeroAmount)
     {
         if (isPromo && !hasAdvertisingConsent)
         {
             return $"<h2>Нужно подтвердить рекламное согласие</h2><p class='notice warn'>Это рекламная рассылка. Вернитесь на шаг адресов и подтвердите наличие рекламного согласия адресатов.</p><a class='button' href='/mailings/{mailing.Id}/recipients'>Вернуться к адресам</a>";
         }
 
-        return $"<form method='post' action='/mailings/{mailing.Id}/payment/fake-start' class='confirmation-list checks'><h2>Финальное подтверждение</h2><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я проверил рассылку, понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><div class='notice warn'>Если рассылка не будет отправлена по технической причине или из-за отказа Письмолёта до начала отправки, вопрос возврата решается по правилам возврата.</div><button class='button full-pay-button'>{H(payButtonText)}</button><p class='muted payment-provider-note'>После подтверждения откроется платёжная страница.</p></form>";
+        var note = isZeroAmount
+            ? "Для администратора оплата не потребуется: после подтверждения откроется запуск рассылки."
+            : "После подтверждения откроется платёжная страница.";
+        return $"<form method='post' action='/mailings/{mailing.Id}/payment/fake-start' class='confirmation-list checks'><h2>Финальное подтверждение</h2><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я проверил рассылку, понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><div class='notice warn'>Если рассылка не будет отправлена по технической причине или из-за отказа Письмолёта до начала отправки, вопрос возврата решается по правилам возврата.</div><button class='button full-pay-button'>{H(payButtonText)}</button><p class='muted payment-provider-note'>{H(note)}</p></form>";
     }
 
     private static string AdvertisingConsentStatus(bool isPromo, bool hasAdvertisingConsent) => isPromo
