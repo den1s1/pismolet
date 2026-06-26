@@ -53,6 +53,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("/legal/anti-spam", html);
         Assert.Contains("name='manualAddresses'", html);
         Assert.Contains("dropzone", html);
+        Assert.Contains("address-upload-block", html);
         Assert.Contains("Адреса добавлены, дальше", html);
         Assert.Contains("3. Расчёт и оплата", html);
         Assert.Contains("4. Готово", html);
@@ -75,7 +76,12 @@ public sealed class MailingWizardEndpointsTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("1. Добавьте список адресов", html);
+        Assert.Contains("1. Адреса загружены", html);
+        Assert.Contains("Сводка импорта", html);
+        Assert.Contains("Управление адресами", html);
+        Assert.Contains("address-summary-block", html);
+        Assert.Contains("address-base-block", html);
+        Assert.Contains("address-list-block", html);
         Assert.DoesNotContain("Адреса проверены", html);
         Assert.Contains("Принято к отправке", html);
         Assert.Contains("<b>1</b><span>Принято к отправке</span>", html);
@@ -101,6 +107,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.DoesNotContain("Текст декларации", html);
         Assert.DoesNotContain("Полный текст вынесен", html);
         Assert.DoesNotContain("Открыть декларацию", html);
+        Assert.DoesNotContain("style=", html);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
@@ -122,6 +129,40 @@ public sealed class MailingWizardEndpointsTests
         Assert.Equal(1, mailing.LastImportBatch.Duplicates);
         Assert.Equal(1, mailing.LastImportBatch.Invalid);
         Assert.Equal(2, mailing.LastImportBatch.Issues.Count);
+    }
+
+    [Fact]
+    public async Task Manual_address_import_with_base_confirmation_redirects_to_message_and_saves_declaration()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Wizard Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Direct declaration import campaign");
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
+        using var content = new MultipartFormDataContent
+        {
+            { new StringContent("reader@example.test"), "manualAddresses" },
+            { new StringContent("Customers"), "baseSource" },
+            { new StringContent("on"), "baseLegality" },
+            { new StringContent("Transactional"), "messageType" }
+        };
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/recipients", content);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/message", response.Headers.Location?.OriginalString);
+
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.NotNull(mailing.Declaration);
+        Assert.Equal(BaseSource.Customers, mailing.Declaration.BaseSource);
+        Assert.True(mailing.Declaration.IsBaseLegalityConfirmed);
+        Assert.False(mailing.Declaration.IsAdvertisingConsentConfirmed);
     }
 
     [Fact]
