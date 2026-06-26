@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAdminAccessService, ConfigurationAdminAccessService>();
         services.AddSingleton<IEmailSyntaxValidator, EmailSyntaxValidator>();
         services.AddSingleton<IAdminMvpSettingsRepository, RuntimeAdminMvpSettingsRepository>();
+        services.AddSingleton<IMailWarmupRuntimeSettingsRepository, FileMailWarmupRuntimeSettingsRepository>();
         services.AddSingleton(new PublicUrlOptions(ReadPublicBaseUrl(configuration)));
         services.AddSingleton(ReadRobokassaPaymentOptions(configuration));
         services.AddSingleton(new UnsubscribeTokenOptions(configuration["Unsubscribe:Secret"] ?? configuration["PISMOLET_UNSUBSCRIBE_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_UNSUBSCRIBE_SECRET") ?? UnsubscribeTokenOptions.DevelopmentDefault.Secret, TimeSpan.FromDays(ReadTokenLifetimeDays(configuration))));
@@ -188,12 +189,16 @@ public static class ServiceCollectionExtensions
         return new SmtpEmailProviderOptions(host.Trim(), port, username.Trim(), password, fromEmail.Trim(), string.IsNullOrWhiteSpace(fromName) ? "Письмолёт" : fromName.Trim(), secureSocketOptions.Trim(), timeoutSeconds);
     }
 
-    private static MailWarmupLimitOptions ReadMailWarmupLimitOptions(IConfiguration configuration) => new(
-        MaxPerMinute: ReadInt(configuration, "MailWarmup:MaxPerMinute", MailWarmupLimitOptions.Default.MaxPerMinute, 0, 100000),
-        MaxPerHour: ReadInt(configuration, "MailWarmup:MaxPerHour", MailWarmupLimitOptions.Default.MaxPerHour, 0, 100000),
-        MaxPerDay: ReadInt(configuration, "MailWarmup:MaxPerDay", MailWarmupLimitOptions.Default.MaxPerDay, 0, 100000),
-        MinSecondsBetweenSends: ReadInt(configuration, "MailWarmup:MinSecondsBetweenSends", MailWarmupLimitOptions.Default.MinSecondsBetweenSends, 0, 86400),
-        DomainLimits: ReadMailWarmupDomainLimits(configuration));
+    private static MailWarmupLimitOptions ReadMailWarmupLimitOptions(IConfiguration configuration)
+    {
+        var settings = FileMailWarmupRuntimeSettingsRepository.ReadCurrent(configuration);
+        return new MailWarmupLimitOptions(
+            MaxPerMinute: settings.MaxPerMinute,
+            MaxPerHour: settings.MaxPerHour,
+            MaxPerDay: settings.MaxPerDay,
+            MinSecondsBetweenSends: settings.MinSecondsBetweenSends,
+            DomainLimits: ReadMailWarmupDomainLimits(configuration));
+    }
 
     private static IReadOnlyDictionary<string, DomainMailWarmupLimitOptions>? ReadMailWarmupDomainLimits(IConfiguration configuration)
     {
