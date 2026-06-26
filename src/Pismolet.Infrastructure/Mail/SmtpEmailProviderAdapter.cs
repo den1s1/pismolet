@@ -187,6 +187,7 @@ public sealed class SmtpEmailProviderAdapter(
         textBody = KeepSingleVisibleUnsubscribeLink(textBody, unsubscribeUrl);
         var trackingPixelUrl = BuildTrackingPixelUrl(message);
         var clickTrackingUrlFactory = BuildClickTrackingUrlFactory(message);
+        var isHtmlBody = LooksLikeHtmlBody(textBody);
 
         mime.From.Add(new MailboxAddress(displayName, options.FromEmail));
         mime.To.Add(MailboxAddress.Parse(message.Recipient.Email));
@@ -216,8 +217,10 @@ public sealed class SmtpEmailProviderAdapter(
 
         var body = new BodyBuilder
         {
-            TextBody = textBody,
-            HtmlBody = BuildHtmlBody(textBody, unsubscribeUrl, trackingPixelUrl, clickTrackingUrlFactory)
+            TextBody = isHtmlBody ? BuildPlainTextFallbackFromHtml(textBody) : textBody,
+            HtmlBody = isHtmlBody
+                ? BuildHtmlBodyFromHtml(textBody, unsubscribeUrl, trackingPixelUrl, clickTrackingUrlFactory)
+                : BuildHtmlBody(textBody, unsubscribeUrl, trackingPixelUrl, clickTrackingUrlFactory)
         };
         mime.Body = body.ToMessageBody();
         return mime;
@@ -405,6 +408,24 @@ public sealed class SmtpEmailProviderAdapter(
         };
     }
 
+    private static bool LooksLikeHtmlBody(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return text.Contains("<!doctype", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("<html", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("<body", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("<table", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("<div", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("<p", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("<br", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("<h1", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("<a ", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string BuildHtmlBody(string plainText, string unsubscribeUrl, string? trackingPixelUrl, Func<string, string?>? clickTrackingUrlFactory = null)
     {
         var html = WebUtility.HtmlEncode(plainText).Replace("\n", "<br>\n", StringComparison.Ordinal);
@@ -419,10 +440,123 @@ public sealed class SmtpEmailProviderAdapter(
             html = html.Replace(encodedUrl, $"<a href=\"{encodedUrl}\">Отписаться</a>", StringComparison.Ordinal);
         }
 
-        var trackingPixel = string.IsNullOrWhiteSpace(trackingPixelUrl)
-            ? string.Empty
-            : $"<img src=\"{WebUtility.HtmlEncode(trackingPixelUrl)}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none;width:1px;height:1px;opacity:0\" />";
-
+        var trackingPixel = BuildTrackingPixelHtml(trackingPixelUrl);
         return $"<!doctype html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;\"><p>{html}</p>{trackingPixel}</body></html>";
     }
+
+    private static string BuildHtmlBodyFromHtml(string htmlText, string unsubscribeUrl, string? trackingPixelUrl, Func<string, string?>? clickTrackingUrlFactory = null)
+    {
+        var source = RemoveUnsupportedHtml(htmlText.Trim());
+        var documentHtml = source;
+        var footerText = string.Empty;
+        var htmlEnd = LastIndexOfOrdinalIgnoreCase(source, "</html>");
+        if (htmlEnd >= 0)
+        {
+            var end = htmlEnd + "</html>".Length;
+            documentHtml = source[..end];
+            footerText = source[end..].Trim();
+        }
+
+        if (clickTrackingUrlFactory is not null)
+        {
+            documentHtml = RewriteRawHtmlLinks(documentHtml, unsubscribeUrl, clickTrackingUrlFactory);
+        }
+
+        var additions = BuildHtmlFooterFromPlainText(footerText, unsubscribeUrl) + BuildTrackingPixelHtml(trackingPixelUrl);
+        if (!string.IsNullOrWhiteSpace(additions))
+        {
+            documentHtml = InsertBeforeClosingBody(documentHtml, additions);
+        }
+
+        return EnsureHtmlDocument(documentHtml);
+    }
+
+    private static string BuildPlainTextFallbackFromHtml(string htmlText)
+    {
+        var text = Regex.Replace(htmlText, @"<\s*(script|style)[^>]*>.*?</\s*\1\s*>", string.Empty, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        text = Regex.Replace(text, @"<\s*head[^>]*>.*?</\s*head\s*>", string.Empty, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        text = Regex.Replace(text, @"<\s*br\s*/?>", "\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"</\s*(p|div|tr|table|h[1-6]|li|section|article)\s*>", "\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"<\s*li[^>]*>", "\n- ", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"<[^>]+>", " ", RegexOptions.Singleline);
+        text = WebUtility.HtmlDecode(text);
+        text = Regex.Replace(text, @"[ \t\f\v]+", " ");
+        text = Regex.Replace(text, @" ?\n ?", "\n");
+        text = Regex.Replace(text, @"\n{3,}", "\n\n");
+        return text.Trim();
+    }
+
+    private static string BuildHtmlFooterFromPlainText(string footerText, string unsubscribeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(footerText))
+        {
+            return string.Empty;
+        }
+
+        var paragraphs = footerText
+            .Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(paragraph => WebUtility.HtmlEncode(paragraph.Trim()).Replace("\n", "<br>\n", StringComparison.Ordinal))
+            .Where(paragraph => !string.IsNullOrWhiteSpace(paragraph))
+            .ToArray();
+        if (paragraphs.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var encodedUnsubscribeUrl = WebUtility.HtmlEncode(unsubscribeUrl);
+        var htmlParagraphs = string.Join(string.Empty, paragraphs.Select(paragraph => $"<p>{paragraph.Replace(encodedUnsubscribeUrl, $"<a href=\"{encodedUnsubscribeUrl}\">Отписаться</a>", StringComparison.Ordinal)}</p>"));
+        return $"<div style=\"margin-top:24px;padding-top:14px;border-top:1px solid #dbe4ef;color:#64748b;font-size:12px;line-height:1.45;\">{htmlParagraphs}</div>";
+    }
+
+    private static string RewriteRawHtmlLinks(string html, string unsubscribeUrl, Func<string, string?> clickTrackingUrlFactory)
+    {
+        return Regex.Replace(
+            html,
+            "href\\s*=\\s*([\"'])(.*?)\\1",
+            match =>
+            {
+                var quote = match.Groups[1].Value;
+                var rawUrl = WebUtility.HtmlDecode(match.Groups[2].Value);
+                if (string.IsNullOrWhiteSpace(rawUrl) || rawUrl.Equals(unsubscribeUrl, StringComparison.OrdinalIgnoreCase))
+                {
+                    return match.Value;
+                }
+
+                var trackedUrl = clickTrackingUrlFactory(rawUrl);
+                return string.IsNullOrWhiteSpace(trackedUrl)
+                    ? match.Value
+                    : $"href={quote}{WebUtility.HtmlEncode(trackedUrl)}{quote}";
+            },
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    }
+
+    private static string RemoveUnsupportedHtml(string html)
+    {
+        html = Regex.Replace(html, @"<\s*(script|iframe|object|embed|form)[^>]*>.*?</\s*\1\s*>", string.Empty, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        return Regex.Replace(html, @"<\s*/?\s*(script|iframe|object|embed|form)[^>]*>", string.Empty, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    }
+
+    private static string EnsureHtmlDocument(string html)
+    {
+        if (html.Contains("<html", StringComparison.OrdinalIgnoreCase))
+        {
+            return html;
+        }
+
+        return $"<!doctype html><html><head><meta charset=\"utf-8\"></head><body>{html}</body></html>";
+    }
+
+    private static string InsertBeforeClosingBody(string html, string addition)
+    {
+        var index = LastIndexOfOrdinalIgnoreCase(html, "</body>");
+        return index < 0
+            ? html + addition
+            : html.Insert(index, addition);
+    }
+
+    private static string BuildTrackingPixelHtml(string? trackingPixelUrl) => string.IsNullOrWhiteSpace(trackingPixelUrl)
+        ? string.Empty
+        : $"<img src=\"{WebUtility.HtmlEncode(trackingPixelUrl)}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none;width:1px;height:1px;opacity:0\" />";
+
+    private static int LastIndexOfOrdinalIgnoreCase(string value, string search) => value.LastIndexOf(search, StringComparison.OrdinalIgnoreCase);
 }
