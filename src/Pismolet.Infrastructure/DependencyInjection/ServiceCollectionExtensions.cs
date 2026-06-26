@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pismolet.Web.Application.Admin;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Auth;
+using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Legal;
 using Pismolet.Web.Application.Mail;
@@ -11,6 +12,7 @@ using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Audit;
 using Pismolet.Web.Infrastructure.Audit;
+using Pismolet.Web.Infrastructure.Auth;
 using Pismolet.Web.Infrastructure.Database;
 using Pismolet.Web.Infrastructure.Mail;
 using Pismolet.Web.Infrastructure.Persistence;
@@ -24,6 +26,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IFakeMailer, InMemoryFakeMailer>();
         services.AddSingleton<IEmailNormalizer, EmailNormalizer>();
+        services.AddSingleton<IAdminAccessService, ConfigurationAdminAccessService>();
         services.AddSingleton<IEmailSyntaxValidator, EmailSyntaxValidator>();
         services.AddSingleton<IAdminMvpSettingsRepository, RuntimeAdminMvpSettingsRepository>();
         services.AddSingleton(new PublicUrlOptions(ReadPublicBaseUrl(configuration)));
