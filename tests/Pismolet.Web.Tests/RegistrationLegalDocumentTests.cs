@@ -313,9 +313,11 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("Редакция:</strong> 2026-06-24-v1", html);
         Assert.Contains("Расчёт стоимости", html);
         Assert.Contains("Тарифы", html);
+        Assert.Contains("до 299 писем — 1 ₽ за письмо; 300–499 — 0,90 ₽; 500–999 — 0,80 ₽; 1000 и более — 0,70 ₽ за письмо", html);
         Assert.Contains("Подтверждение перед оплатой", html);
         Assert.Contains("Оплата и запуск", html);
         Assert.Contains("Возврат средств", html);
+        Assert.Contains("Такой отказ не отменяет возврат средств за фактически неоказанную отправку", html);
         Assert.Contains("href='/legal/prohibited-content'", html);
     }
 

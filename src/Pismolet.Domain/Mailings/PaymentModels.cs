@@ -59,6 +59,37 @@ public sealed record PriceSettings(
     }
 }
 
+public sealed record MailingTariffTier(int MinAcceptedRecipients, int? MaxAcceptedRecipients, decimal PricePerRecipient);
+
+public static class MailingTariff
+{
+    public const string Currency = "RUB";
+
+    public static IReadOnlyCollection<MailingTariffTier> PublicRubTiers { get; } = new[]
+    {
+        new MailingTariffTier(0, 299, 1m),
+        new MailingTariffTier(300, 499, 0.90m),
+        new MailingTariffTier(500, 999, 0.80m),
+        new MailingTariffTier(1000, null, 0.70m)
+    };
+
+    public static decimal PricePerRecipientFor(int acceptedRecipientsCount)
+    {
+        if (acceptedRecipientsCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(acceptedRecipientsCount), "Количество принятых адресов не может быть отрицательным.");
+        }
+
+        var tier = PublicRubTiers.First(x =>
+            acceptedRecipientsCount >= x.MinAcceptedRecipients &&
+            (x.MaxAcceptedRecipients is null || acceptedRecipientsCount <= x.MaxAcceptedRecipients.Value));
+        return tier.PricePerRecipient;
+    }
+
+    public static decimal TotalFor(int acceptedRecipientsCount) =>
+        acceptedRecipientsCount * PricePerRecipientFor(acceptedRecipientsCount);
+}
+
 public sealed record PaymentAttempt(
     Guid Id,
     Guid PaymentId,
@@ -128,8 +159,8 @@ public sealed record Payment(
             throw new ArgumentOutOfRangeException(nameof(excludedRecipientsCount), "Количество исключённых адресов не может быть отрицательным.");
         }
 
-        var price = Money.Rub(priceSettings.PricePerRecipient);
-        var total = Money.Rub(acceptedRecipientsCount * price.Amount);
+        var price = Money.Rub(MailingTariff.PricePerRecipientFor(acceptedRecipientsCount));
+        var total = Money.Rub(MailingTariff.TotalFor(acceptedRecipientsCount));
 
         return new Payment(
             Guid.NewGuid(),

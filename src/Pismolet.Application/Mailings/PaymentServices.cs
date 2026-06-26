@@ -47,7 +47,8 @@ public sealed class MailingPricingService(IPriceSettingsRepository prices) : IMa
         var invalid = mailing.Recipients.Count(x => x.Status == RecipientStatus.Invalid);
         var suppressed = mailing.Recipients.Count(x => x.Status == RecipientStatus.GloballySuppressed);
         var excluded = duplicates + invalid + suppressed;
-        return new MailingPaymentReview(mailing, accepted, excluded, duplicates, invalid, suppressed, settings.PricePerRecipient, accepted * settings.PricePerRecipient, settings.Currency, payment);
+        var unitPrice = MailingTariff.PricePerRecipientFor(accepted);
+        return new MailingPaymentReview(mailing, accepted, excluded, duplicates, invalid, suppressed, unitPrice, MailingTariff.TotalFor(accepted), settings.Currency, payment);
     }
 
     public static void ValidateReadyForPayment(Mailing mailing)

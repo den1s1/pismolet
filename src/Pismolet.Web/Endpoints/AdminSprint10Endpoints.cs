@@ -55,7 +55,7 @@ public static class AdminSprint10Endpoints
                 {Card("Ошибки доставки", "Soft/hard bounce и rejected", "/admin/delivery-errors")}
                 {Card("Ответы", "Inbound replies", "/admin/replies")}
                 {Card("Audit log", "История административных действий", "/admin/audit")}
-                {Card("Настройки MVP", "Цена, лимиты, премодерация", "/admin/settings/mvp")}
+                {Card("Настройки MVP", "Лимиты, премодерация, retention", "/admin/settings/mvp")}
               </div>
               <section class='admin-panel'><h2>Последние действия</h2><ul>{auditRows}</ul></section>
             </section>
@@ -115,14 +115,22 @@ public static class AdminSprint10Endpoints
         return AdminHtml("Audit log", CurrentEmail(http), "audit", $"<section class='admin-panel'><h1>Audit log</h1><p class='admin-muted'>Последние 200 действий без raw payload и секретов.</p><table class='admin-table'><thead><tr><th>Время</th><th>Actor</th><th>Действие</th><th>Контекст</th><th>IP</th></tr></thead><tbody>{string.Join("", rows)}</tbody></table></section>");
     }
 
-    private static IResult Settings(HttpContext http, IAdminMvpSettingsRepository settingsRepository, IPriceSettingsRepository prices)
+    private static IResult Settings(HttpContext http, IAdminMvpSettingsRepository settingsRepository)
     {
         var settings = settingsRepository.Get();
-        var price = prices.GetActive();
+        var tariff = string.Join("", MailingTariff.PublicRubTiers.Select(tier =>
+        {
+            var range = tier.MaxAcceptedRecipients is null
+                ? $"{tier.MinAcceptedRecipients} и более"
+                : tier.MinAcceptedRecipients == 0
+                    ? $"До {tier.MaxAcceptedRecipients}"
+                    : $"{tier.MinAcceptedRecipients}-{tier.MaxAcceptedRecipients}";
+            return $"<div><dt>{H(range)} писем</dt><dd>{tier.PricePerRecipient:0.##} RUB</dd></div>";
+        }));
         var body = $"""
         <section class='admin-panel'><h1>Настройки MVP</h1><p class='admin-muted'>Эти настройки используются backend-сервисами, а не только UI.</p>
+        <section class='admin-card'><h2>Тариф расчёта стоимости</h2><p class='admin-muted'>Стоимость рассылки фиксирована публичной офертой и считается по количеству принятых к отправке адресов.</p><dl class='admin-kpis'>{tariff}</dl></section>
         <form class='admin-form' method='post' action='/admin/settings/mvp'>
-        <label>Цена письма, RUB <input name='price' type='number' step='0.01' min='0' value='{price.PricePerRecipient}'></label>
         <label>Премодерация новых клиентов <select name='premoderation'><option value='true' {(settings.PremoderationForNewClients ? "selected" : "")}>Включена</option><option value='false' {(!settings.PremoderationForNewClients ? "selected" : "")}>Выключена</option></select></label>
         <label>Дневной лимит нового клиента <input name='dailyLimit' type='number' min='0' value='{settings.DefaultDailySendLimit}'></label>
         <label>Общий лимит нового клиента <input name='totalLimit' type='number' min='0' value='{settings.DefaultTotalSendLimit}'></label>
@@ -138,7 +146,6 @@ public static class AdminSprint10Endpoints
         var current = settingsRepository.Get();
         var settings = current with
         {
-            PricePerRecipient = decimal.TryParse(form["price"], out var p) ? p : current.PricePerRecipient,
             PremoderationForNewClients = string.Equals(form["premoderation"], "true", StringComparison.OrdinalIgnoreCase),
             DefaultDailySendLimit = int.TryParse(form["dailyLimit"], out var d) ? d : current.DefaultDailySendLimit,
             DefaultTotalSendLimit = int.TryParse(form["totalLimit"], out var t) ? t : current.DefaultTotalSendLimit,

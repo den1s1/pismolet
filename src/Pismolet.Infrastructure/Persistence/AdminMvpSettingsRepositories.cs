@@ -17,8 +17,7 @@ public sealed class InMemoryAdminMvpSettingsRepository : IAdminMvpSettingsReposi
 }
 
 // Sprint 10 MVP persistence bridge.
-// До отдельной EF-таблицы settings Postgres-режим использует singleton repository,
-// а критичная цена письма дополнительно сохраняется в IPriceSettingsRepository.
+// До отдельной EF-таблицы settings Postgres-режим использует singleton repository.
 public sealed class RuntimeAdminMvpSettingsRepository : IAdminMvpSettingsRepository
 {
     private AdminMvpSettings _settings = AdminMvpSettings.Default;
