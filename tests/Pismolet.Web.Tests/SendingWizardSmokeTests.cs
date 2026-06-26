@@ -36,6 +36,8 @@ public sealed class SendingWizardSmokeTests
         Assert.Contains("Писем в очереди", launchHtml);
         Assert.Contains("Правила оплаты, запуска и возвратов", launchHtml);
         Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/send", launchHtml);
+        Assert.Contains("Правила хранения и удаления ответов", launchHtml);
+        Assert.Contains($"/legal/reply-retention?returnUrl=/mailings/{mailingId}/send", launchHtml);
 
         var response = await client.PostAsync($"/mailings/{mailingId}/send/start", new FormUrlEncodedContent(new Dictionary<string, string>()));
         var html = await response.Content.ReadAsStringAsync();

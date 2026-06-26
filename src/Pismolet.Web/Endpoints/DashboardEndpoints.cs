@@ -109,7 +109,8 @@ public static class DashboardEndpoints
         var replyInfo = replySummary.TotalReplies == 0
             ? "Ответов пока нет."
             : $"Ответы: {replySummary.TotalReplies}; последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC; статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}.";
-        var body = $"<section class='card'><h1>{H(DisplayTitle(mailing))}</h1><p><span class='badge'>{mailing.StatusRu}</span></p>{importInfo}<p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных: {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}; исключены из-за ошибок доставки {stats.ClientSuppressed}.</p><h2>Ответы получателей</h2><p>{replyInfo}</p><p class='muted'>Ответы пересылаются клиенту на email отправителя; здесь показывается только счётчик и безопасный статус.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
+        var replyRetentionHref = $"/legal/reply-retention?returnUrl=/mailings/{mailing.Id}";
+        var body = $"<section class='card'><h1>{H(DisplayTitle(mailing))}</h1><p><span class='badge'>{mailing.StatusRu}</span></p>{importInfo}<p>Адресаты: принято {stats.Accepted}; дублей {stats.Duplicates}; невалидных: {stats.Invalid}; исключены по глобальной отписке {stats.GloballySuppressed}; исключены из-за ошибок доставки {stats.ClientSuppressed}.</p><h2>Ответы получателей</h2><p>{replyInfo}</p><p class='muted'>Ответы пересылаются клиенту на email отправителя; здесь показывается только счётчик и безопасный статус. <a href='{replyRetentionHref}'>Правила хранения и удаления ответов</a>.</p><p>{next}</p><p><a href='/dashboard'>Вернуться в ЛК</a></p></section>";
         return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка", body, authenticated: true));
     }
 

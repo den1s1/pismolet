@@ -161,6 +161,7 @@ public static class SendEndpoints
             ? "Ответов пока нет."
             : $"Получено ответов: {replySummary.TotalReplies}. Последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC, статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}";
         var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/send";
+        var replyRetentionHref = $"/legal/reply-retention?returnUrl=/mailings/{mailing.Id}/send";
 
         var deliveryRows = state.Events.Count == 0
             ? "<tr><td colspan='4'>Событий доставки пока нет.</td></tr>"
@@ -226,7 +227,7 @@ public static class SendEndpoints
                     <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Доставлено</td><td>{deliveredRecipients}</td></tr><tr><td>Временная ошибка</td><td>{softBouncedRecipients}</td></tr><tr><td>Постоянная ошибка</td><td>{hardBouncedRecipients}</td></tr><tr><td>Отклонено</td><td>{rejectedRecipients}</td></tr><tr><td>Не сообщено</td><td>{notReportedRecipients}</td></tr><tr><td>Последнее событие доставки</td><td>{FormatDate(lastDeliveryEventAt)}</td></tr><tr><td>Открыто, получателей</td><td>{openedRecipients}</td></tr><tr><td>Открытий всего</td><td>{totalOpens}</td></tr><tr><td>Последнее открытие</td><td>{FormatDate(lastOpenedAt)}</td></tr><tr><td>Кликнувшие получатели</td><td>{clickedRecipients}</td></tr><tr><td>Кликов всего</td><td>{totalClicks}</td></tr><tr><td>Последнее нажатие</td><td>{FormatDate(lastClickedAt)}</td></tr><tr><td>Жалоба</td><td>{summary.Complaints}</td></tr></tbody></table>
                     <h3>Ответы получателей</h3>
                     <p>{replyStatus}</p>
-                    <p class='muted'>Ответы пересылаются клиенту на email отправителя. Личный кабинет показывает только счётчик и статус пересылки, без inbox и без raw provider payload.</p>
+                    <p class='muted'>Ответы пересылаются клиенту на email отправителя. Личный кабинет показывает только счётчик и статус пересылки, без inbox и без raw provider payload. <a href='{replyRetentionHref}'>Правила хранения и удаления ответов</a>.</p>
                   </section>
                 </div>
                 <details open><summary>Доставка по получателям</summary><table><thead><tr><th>Email</th><th>Доставка</th><th>Последнее событие</th><th>Причина</th></tr></thead><tbody>{deliveryRows}</tbody></table></details>

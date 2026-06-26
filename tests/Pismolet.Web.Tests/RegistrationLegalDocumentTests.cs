@@ -41,6 +41,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("href='/legal/prohibited-content'", html);
         Assert.Contains("href='/legal/unsubscribe'", html);
         Assert.Contains("href='/legal/payment-and-refund'", html);
+        Assert.Contains("href='/legal/reply-retention'", html);
     }
 
     [Theory]
@@ -55,6 +56,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     [InlineData("/legal/prohibited-content", "Политика запрещённого контента", "document_key: <code>prohibited_content_policy</code>")]
     [InlineData("/legal/unsubscribe", "Правила отписки через Письмолёт", "document_key: <code>global_unsubscribe_confirmation</code>")]
     [InlineData("/legal/payment-and-refund", "Правила оплаты, запуска и возвратов", "document_key: <code>payment_and_refund_rules</code>")]
+    [InlineData("/legal/reply-retention", "Правила хранения и удаления ответов", "document_key: <code>reply_retention_policy</code>")]
     public async Task LegalDocumentsArePublic(string path, string title, string documentKey)
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -282,6 +284,25 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("Оплата и запуск", html);
         Assert.Contains("Возврат средств", html);
         Assert.Contains("href='/legal/prohibited-content'", html);
+    }
+
+    [Fact]
+    public async Task ReplyRetentionContainsFullLegalSections()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var html = await client.GetStringAsync("/legal/reply-retention");
+
+        Assert.Contains("Редакция:</strong> 2026-06-24-v1", html);
+        Assert.Contains("Как работают ответы", html);
+        Assert.Contains("Какие данные могут храниться", html);
+        Assert.Contains("Ограничение хранения тела ответа", html);
+        Assert.Contains("Auto-reply, ошибки и безопасность", html);
+        Assert.Contains("Удаление и запросы", html);
+        Assert.Contains("href='/legal/data-processing'", html);
     }
 
     [Fact]
