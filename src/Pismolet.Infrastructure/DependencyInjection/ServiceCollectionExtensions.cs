@@ -64,7 +64,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMailingDeclarationService, MailingDeclarationService>();
         services.AddScoped<IMailingMessageService, MailingMessageService>();
         services.AddScoped<IMailingPricingService, MailingPricingService>();
-        services.AddScoped<IMailingPaymentService, MailingPaymentService>();
+        services.AddScoped<MailingPaymentService>();
+        services.AddScoped<IMailingPaymentService, AdminWaivedMailingPaymentService>();
         services.AddScoped<IPaymentProvider, FakeRobokassaPaymentProvider>();
         services.AddScoped<IRiskCheckService, RiskCheckService>();
         services.AddScoped<IMailingReviewService, MailingReviewService>();
