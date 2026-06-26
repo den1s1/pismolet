@@ -1,0 +1,176 @@
+using System.Net;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Pismolet.Web.Application.Auth;
+using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Application.Persistence;
+using Pismolet.Web.Domain.Mailings;
+
+namespace Pismolet.Web.Tests;
+
+public sealed class SendEndpointUiTests
+{
+    private const string OwnerEmail = "send-ui@example.test";
+
+    [Fact]
+    public async Task Send_page_keeps_main_screen_simple_and_collapses_technical_report()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedApprovedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+
+        var html = await client.GetStringAsync($"/mailings/{mailingId}/send");
+
+        Assert.Contains("Готово к запуску", html);
+        Assert.Contains("Всего писем", html);
+        Assert.Contains("Отправлено", html);
+        Assert.Contains("Не удалось", html);
+        Assert.Contains("Ответов", html);
+        Assert.Contains("Запустить отправку", html);
+        Assert.Contains("<details class='detailed-report'>", html);
+        Assert.DoesNotContain("<details class='detailed-report' open>", html);
+        Assert.DoesNotContain("<details open>", html);
+        Assert.DoesNotContain("Dev-сводка событий", html);
+
+        var reportStart = html.IndexOf("<details class='detailed-report'>", StringComparison.Ordinal);
+        Assert.True(reportStart > 0, "Detailed report was not found.");
+        var mainScreen = html[..reportStart];
+        Assert.DoesNotContain("Доставка по получателям", mainScreen);
+        Assert.DoesNotContain("Переходы по ссылкам", mainScreen);
+        Assert.DoesNotContain("ProviderMessageId", mainScreen);
+        Assert.DoesNotContain("raw provider payload", mainScreen);
+    }
+
+    [Fact]
+    public async Task Send_start_keeps_one_primary_action_and_moves_tables_to_report()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedApprovedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/send/start", new FormUrlEncodedContent(new Dictionary<string, string>()));
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Рассылка запущена", html);
+        Assert.Contains("Отправка поставлена в очередь", html);
+        Assert.Contains("Обновить статус", html);
+        Assert.Contains("<details class='detailed-report'>", html);
+        Assert.DoesNotContain("<details class='detailed-report' open>", html);
+        Assert.DoesNotContain("Dev-сводка событий", html);
+    }
+
+    private static WebApplicationFactory<Program> CreateAuthorizedFactory() =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, _ => { });
+            });
+        });
+
+    private static HttpClient CreateAuthenticatedClient(WebApplicationFactory<Program> factory)
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
+        return client;
+    }
+
+    private static void SeedUser(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
+        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "PassForTests2026!", "Send UI", "+79990000000"), Request());
+        Assert.True(result.Ok, result.Error);
+    }
+
+    private static Guid SeedApprovedMailing(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var repository = scope.ServiceProvider.GetRequiredService<IMailingRepository>();
+        var result = mailings.CreateDraft(new CreateMailingCommand(OwnerEmail, "Send UI campaign"), Request());
+        Assert.True(result.Ok, result.Error);
+        Assert.NotNull(result.Mailing);
+
+        var mailing = repository.GetForOwner(result.Mailing.Id, OwnerEmail);
+        Assert.NotNull(mailing);
+
+        var recipients = new[]
+        {
+            Recipient.Accepted("first@example.test", "first@example.test", rowNumber: 2),
+            Recipient.Accepted("second@example.test", "second@example.test", rowNumber: 3),
+            Recipient.Accepted("third@example.test", "third@example.test", rowNumber: 4)
+        };
+        var declaration = new MailingDeclaration(
+            mailing.Id,
+            OwnerEmail,
+            BaseSource.Customers,
+            IsBaseLegalityConfirmed: true,
+            IsAdvertisingConsentConfirmed: false,
+            BaseDeclarationText.CurrentVersion,
+            DateTimeOffset.UtcNow,
+            "127.0.0.1",
+            "send-ui-tests");
+        var draft = MailingMessageDraft.Create(
+            "Библиотека №5",
+            "Приглашаем на встречу",
+            "Здравствуйте!",
+            MessageType.Transactional,
+            DateTimeOffset.UtcNow);
+        var ready = mailing
+            .WithImportResult(new ImportStats(3, 3, 0, 0, 0), recipients)
+            .WithDeclaration(declaration)
+            .WithMessageDraft(draft)
+            .WithStatus(MailingStatus.Approved);
+        repository.Update(ready);
+        return mailing.Id;
+    }
+
+    private static RequestMetadata Request() => new("127.0.0.1", "send-endpoint-ui-tests");
+
+    private sealed class TestAuthenticationHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        public const string SchemeName = "Test";
+        public const string EmailHeaderName = "X-Test-Email";
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var email = Request.Headers[EmailHeaderName].ToString();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return Task.FromResult(AuthenticateResult.NoResult());
+            }
+
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, email),
+                new Claim(ClaimTypes.Email, email),
+                new Claim(ClaimTypes.Name, email)
+            };
+            var identity = new ClaimsIdentity(claims, SchemeName);
+            var principal = new ClaimsPrincipal(identity);
+            var ticket = new AuthenticationTicket(principal, SchemeName);
+
+            return Task.FromResult(AuthenticateResult.Success(ticket));
+        }
+    }
+}
