@@ -304,17 +304,20 @@ public sealed class MailingWizardEndpointsTests
         var html = await client.GetStringAsync($"/mailings/{mailingId}/message");
 
         Assert.Contains("2. Напишите письмо", html);
-        Assert.Contains("Превью письма", html);
+        Assert.Contains("Предпросмотр", html);
+        Assert.Contains("Обычный текст", html);
+        Assert.Contains("HTML", html);
         Assert.Contains("name='senderName'", html);
-        Assert.Contains("name='body'", html);
+        Assert.Contains("name='plainBody'", html);
+        Assert.Contains("name='htmlBody'", html);
         Assert.Contains("Политика запрещённого контента", html);
         Assert.Contains($"/legal/prohibited-content?returnUrl=/mailings/{mailingId}/message", html);
         Assert.Contains("Не отправляйте мошенничество", html);
         Assert.Contains("Письмолёт автоматически добавит", html);
         Assert.Contains("Служебный блок письма", html);
         Assert.Contains($"/legal/service-email-footer?returnUrl=/mailings/{mailingId}/message", html);
-        Assert.Contains("Служебный идентификатор рассылки", html);
         Assert.Contains("Проверить и оплатить", html);
+        Assert.DoesNotContain("<div class='mail-preview-body'>", html);
         Assert.DoesNotContain("name='messageType'", html);
         Assert.DoesNotContain("Тип письма", html);
         Assert.DoesNotContain("Перейти к проверке и оплате", html);
