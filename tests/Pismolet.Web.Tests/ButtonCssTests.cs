@@ -8,8 +8,12 @@ public sealed class ButtonCssTests
         var css = ReadWebAsset("src/Pismolet.Web/wwwroot/app.css");
 
         Assert.DoesNotContain(".btn,\n.button,\nbutton", css);
+        Assert.DoesNotContain("\n.secondary {", css);
+        Assert.DoesNotContain("\n.secondary,", css);
         Assert.Contains(".btn,\n.button {", css);
         Assert.Contains("button {\n  font: inherit;\n}", css);
+        Assert.Contains(".btn.secondary", css);
+        Assert.Contains(".button.secondary", css);
         Assert.Contains(".btn.tertiary", css);
         Assert.Contains(".button.tertiary", css);
         Assert.Contains(".btn.compact", css);
