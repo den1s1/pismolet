@@ -135,6 +135,30 @@
   margin: 20px 0 26px;
 }
 
+.inline-base-confirm form.row .btn,
+.inline-base-confirm form.row .button,
+.table-wrap form .btn.ghost {
+  min-height: 34px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.inline-base-confirm form.row .btn.ghost {
+  align-self: center;
+  background: transparent;
+  color: var(--accent);
+  padding-inline: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.inline-base-confirm form.row .btn.ghost:hover {
+  background: transparent;
+  color: var(--accent-dark);
+}
+
 .issue-list {
   list-style: none;
   display: grid;
