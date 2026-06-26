@@ -160,6 +160,7 @@ public static class SendEndpoints
         var replyStatus = replySummary.TotalReplies == 0
             ? "Ответов пока нет."
             : $"Получено ответов: {replySummary.TotalReplies}. Последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC, статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}";
+        var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/send";
 
         var deliveryRows = state.Events.Count == 0
             ? "<tr><td colspan='4'>Событий доставки пока нет.</td></tr>"
@@ -201,7 +202,7 @@ public static class SendEndpoints
                   <span class='badge warn'>{H(mailing.StatusRu)}</span>
                 </div>
                 {alert}
-                <div class='notice warn'>Отправка идёт постепенно. Сервис ставит письма в очередь, соблюдает дневные лимиты и исключает отписавшихся получателей перед отправкой.</div>
+                <div class='notice warn'>Отправка идёт постепенно. Сервис ставит письма в очередь, соблюдает дневные лимиты и исключает отписавшихся получателей перед отправкой. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</div>
                 {clientSuppressionBlock}
                 <div class='stats launch-stats'>
                   <div class='stat'><b>{summary.Pending}</b><span>Писем в очереди</span></div>

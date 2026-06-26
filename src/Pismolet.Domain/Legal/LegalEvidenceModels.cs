@@ -41,6 +41,7 @@ public static class LegalDocumentKeys
     public const string AdvertisingConsentDeclaration = "advertising_consent_declaration";
     public const string AntiSpamPolicy = "anti_spam_policy";
     public const string ProhibitedContentPolicy = "prohibited_content_policy";
+    public const string PaymentAndRefundRules = "payment_and_refund_rules";
     public const string CampaignLaunchConfirmation = "campaign_launch_confirmation";
     public const string GlobalUnsubscribeConfirmation = "global_unsubscribe_confirmation";
     public const string RecipientComplaint = "recipient_complaint";

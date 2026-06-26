@@ -78,10 +78,11 @@ public static class PaymentEndpoints
         var promoConfirm = isPromo
             ? $"<label class='check'><input type='checkbox' name='advertisingConsent'><span>Я <a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/payment'>подтверждаю наличие согласия на рекламную рассылку</a>.</span></label>"
             : string.Empty;
+        var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/payment";
         var payButtonText = $"Оплатить {review.TotalAmount:0.##} ₽ и запустить";
         var button = paid
             ? $"<p><span class='badge'>Оплачено</span></p><form method='post' action='/mailings/{mailing.Id}/checks/start'><button class='button'>Проверить перед отправкой</button></form><p><a href='/mailings/{mailing.Id}/checks'>Открыть статус проверки</a></p>"
-            : $"<form method='post' action='/mailings/{mailing.Id}/payment/fake-start' class='confirmation-list checks'><h2>Подтверждения перед оплатой</h2><label class='check'><input type='checkbox' name='paymentBaseLegality'><span>Я подтверждаю, что имею законное основание для обработки загруженных адресов и отправки писем этим адресатам.</span></label><label class='check'><input type='checkbox' name='paymentBaseOwnership'><span>Я не использую купленную или чужую базу.</span></label>{promoConfirm}<div class='notice warn'>Оплата не гарантирует отправку запрещённых или рискованных рассылок. При риске рассылка уйдёт на проверку.</div><button class='button full-pay-button'>{H(payButtonText)}</button></form>";
+            : $"<form method='post' action='/mailings/{mailing.Id}/payment/fake-start' class='confirmation-list checks'><h2>Подтверждения перед оплатой</h2><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я подтверждаю, что проверил рассылку, понимаю расчёт стоимости и поручаю Письмолёту отправить письма по указанной базе после оплаты и прохождения проверок. Я понимаю, что оплата не гарантирует отправку запрещённой, рискованной или нарушающей правила рассылки. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><label class='check'><input type='checkbox' name='paymentBaseLegality'><span>Я подтверждаю, что имею законное основание для обработки загруженных адресов и отправки писем этим адресатам.</span></label><label class='check'><input type='checkbox' name='paymentBaseOwnership'><span>Я не использую купленную или чужую базу.</span></label>{promoConfirm}<div class='notice warn'>Если рассылка не будет отправлена по технической причине или из-за отказа Письмолёта до начала отправки, вопрос возврата решается по правилам возврата. <a href='{paymentRulesHref}'>Подробнее</a>.</div><button class='button full-pay-button'>{H(payButtonText)}</button></form>";
 
         return $@"
 <section class='wizard-shell payment-wizard'>
@@ -113,6 +114,7 @@ public static class PaymentEndpoints
       <section class='box cost-card pay-card'>
         <div class='pay-summary-line'><small>К оплате</small><strong class='sum'>{review.TotalAmount:0.##} ₽</strong></div>
         <p>{stats.Accepted} письмо × {review.PricePerRecipient:0.##} ₽. За исключённые {excluded} адрес не платите.</p>
+        <p class='muted'>Правила оплаты, запуска и возвратов: <a href='{paymentRulesHref}'>открыть документ</a>.</p>
         <dl class='cost-list'>
           <div><dt>Принято писем</dt><dd>{stats.Accepted}</dd></div>
           <div><dt>Цена за письмо</dt><dd>{review.PricePerRecipient:0.##} {H(review.Currency)}</dd></div>
@@ -125,10 +127,11 @@ public static class PaymentEndpoints
 </section>";
     }
 
-    private static string ConfirmPage(Guid mailingId, string operationId) => $"<section class='card'><h1>Тестовая оплата</h1><p>Fake-провайдер подготовил успешную оплату. Статус рассылки: ожидает оплаты.</p><form method='post' action='/mailings/{mailingId}/payment/fake-success'><input type='hidden' name='operationId' value='{H(operationId)}'><button class='button'>Подтвердить успешную оплату</button></form></section>";
+    private static string ConfirmPage(Guid mailingId, string operationId) => $"<section class='card'><h1>Тестовая оплата</h1><p>Fake-провайдер подготовил успешную оплату. Статус рассылки: ожидает оплаты.</p><p class='muted'><a href='/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/payment'>Правила оплаты, запуска и возвратов</a></p><form method='post' action='/mailings/{mailingId}/payment/fake-success'><input type='hidden' name='operationId' value='{H(operationId)}'><button class='button'>Подтвердить успешную оплату</button></form></section>";
 
     private static string? ValidatePaymentConfirmations(Mailing mailing, IFormCollection form)
     {
+        if (!form.ContainsKey("campaignLaunchConfirmation")) return "Подтвердите финальный запуск и правила оплаты.";
         if (!form.ContainsKey("paymentBaseLegality")) return "Подтвердите правомерность обработки адресов и отправки письма.";
         if (!form.ContainsKey("paymentBaseOwnership")) return "Подтвердите, что база не купленная и не чужая.";
         if (mailing.MessageDraft?.MessageType == MessageType.Advertising && !form.ContainsKey("advertisingConsent")) return "Для промо-письма подтвердите согласие адресатов.";

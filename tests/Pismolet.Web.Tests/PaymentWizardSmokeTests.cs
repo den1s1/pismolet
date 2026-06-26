@@ -33,8 +33,11 @@ public sealed class PaymentWizardSmokeTests
         Assert.Contains("3. Проверьте расчёт и оплатите", html);
         Assert.Contains("Оплата будет только за письма, принятые к отправке", html);
         Assert.Contains("К оплате", html);
+        Assert.Contains("name='campaignLaunchConfirmation'", html);
         Assert.Contains("name='paymentBaseLegality'", html);
         Assert.Contains("name='paymentBaseOwnership'", html);
+        Assert.Contains("Правила оплаты, запуска и возвратов", html);
+        Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/payment", html);
         Assert.Contains("Не списываем за исключённые", html);
         Assert.Contains("Оплатить", html);
         Assert.Contains("и запустить", html);
@@ -59,6 +62,7 @@ public sealed class PaymentWizardSmokeTests
         var okHtml = await ok.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
         Assert.Contains("Тестовая оплата", okHtml);
+        Assert.Contains("Правила оплаты, запуска и возвратов", okHtml);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
@@ -105,6 +109,7 @@ public sealed class PaymentWizardSmokeTests
 
     private static FormUrlEncodedContent PaymentConfirmations() => new(new Dictionary<string, string>
     {
+        ["campaignLaunchConfirmation"] = "on",
         ["paymentBaseLegality"] = "on",
         ["paymentBaseOwnership"] = "on"
     });

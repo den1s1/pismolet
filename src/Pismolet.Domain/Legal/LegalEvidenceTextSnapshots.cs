@@ -23,7 +23,7 @@ public static class LegalEvidenceTextSnapshots
         "Я подтверждаю, что адресаты дали предварительное согласие на получение рекламных сообщений от меня или моей организации, и понимаю, что обязан прекратить рекламную рассылку адресату по его требованию. document_key=advertising_consent_declaration; document_version=2026-06-24-v1; document_url=/legal/advertising-consent.";
 
     public const string CampaignLaunchConfirmationText =
-        "Клиент подтвердил финальный запуск рассылки и поручил Письмолёту поставить письма в очередь отправки.";
+        "Я подтверждаю, что проверил рассылку, понимаю расчёт стоимости и поручаю Письмолёту отправить письма по указанной базе после оплаты и прохождения проверок. Я понимаю, что оплата не гарантирует отправку запрещённой, рискованной или нарушающей правила рассылки. document_key=campaign_launch_confirmation; document_version=2026-06-24-v1; document_url=/legal/payment-and-refund.";
 
     public const string GlobalUnsubscribeConfirmationText =
         "Получатель подтвердил отписку от писем через сервис Письмолёт по ссылке отписки. document_key=global_unsubscribe_confirmation; document_version=2026-06-24-v1; document_url=/legal/unsubscribe.";
