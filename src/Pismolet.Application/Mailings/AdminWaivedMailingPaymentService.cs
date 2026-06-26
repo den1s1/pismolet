@@ -51,7 +51,7 @@ public sealed class AdminWaivedMailingPaymentService(
                 var accepted = mailing.Recipients.Count(x => x.Status == RecipientStatus.Accepted);
                 var excluded = mailing.Recipients.Count(x => x.Status != RecipientStatus.Accepted);
                 payment = Payment.CreateFree(mailing.Id, mailing.OwnerEmail, accepted, excluded, settings.Currency);
-                auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "admin_price_waived", request.Ip, request.UserAgent, $"mailingId={mailing.Id};amount=0;currency={payment.Currency}"));
+                WriteAudit(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "admin_price_waived", request.Ip, request.UserAgent, $"mailingId={mailing.Id};amount=0;currency={payment.Currency}"));
             }
 
             if (payment.Status != PaymentStatus.Paid)
@@ -62,7 +62,7 @@ public sealed class AdminWaivedMailingPaymentService(
                 payments.Save(payment);
                 mailing = mailing.WithStatus(MailingStatus.Paid);
                 mailings.Update(mailing);
-                auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "admin_payment_waived", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
+                WriteAudit(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "admin_payment_waived", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
             }
 
             return MailingPaymentResult.Success(BuildZeroAmountReview(mailing.WithStatus(MailingStatus.Paid), payment));
@@ -111,5 +111,17 @@ public sealed class AdminWaivedMailingPaymentService(
     {
         var normalized = emailNormalizer.Normalize(userEmail);
         return string.IsNullOrWhiteSpace(normalized) ? null : mailings.GetForOwner(mailingId, normalized);
+    }
+
+    private void WriteAudit(AuditRecord record)
+    {
+        try
+        {
+            auditLogger.Write(record);
+        }
+        catch
+        {
+            // Audit write must not break the admin free launch path.
+        }
     }
 }
