@@ -109,6 +109,8 @@ public interface IEmailProviderAdapter
 public interface IBackgroundMailingSendQueue
 {
     void Enqueue(Guid mailingId);
+
+    void Enqueue(Guid mailingId, TimeSpan delay);
 }
 
 public interface IMailingSendService
@@ -442,28 +444,37 @@ public sealed class MailingSendService(
         var dailyLimit = Math.Clamp(owner?.Profile.DailySendLimit ?? 0, 0, MaxDailyLimit);
         var usedToday = sendEvents.CountAcceptedForOwnerOnUtcDate(mailing.OwnerEmail, DateOnly.FromDateTime(DateTime.UtcNow));
         var available = Math.Max(0, dailyLimit - usedToday);
-        if (available <= 0)
+        var pausedEvents = sendEvents.ListByMailingId(mailing.Id)
+            .Where(x => x.Status == SendEventStatus.Paused && x.Reason is SendSkipReason.DailyLimit or SendSkipReason.WarmupLimit)
+            .OrderBy(x => x.CreatedAt)
+            .ToArray();
+        var warmupPaused = pausedEvents
+            .Where(x => x.Reason == SendSkipReason.WarmupLimit)
+            .ToArray();
+        var dailyPaused = pausedEvents
+            .Where(x => x.Reason == SendSkipReason.DailyLimit)
+            .ToArray();
+
+        if (available <= 0 && dailyPaused.Length > 0)
         {
             return MailingSendResult.Failure("Дневной лимит всё ещё исчерпан.", BuildState(mailing).State);
         }
 
-        var paused = sendEvents.ListByMailingId(mailing.Id)
-            .Where(x => x.Status == SendEventStatus.Paused && x.Reason is SendSkipReason.DailyLimit or SendSkipReason.WarmupLimit)
-            .OrderBy(x => x.CreatedAt)
-            .Take(available)
+        var toResume = warmupPaused
+            .Concat(dailyPaused.Take(available))
             .ToArray();
 
-        foreach (var item in paused)
+        foreach (var item in toResume)
         {
             sendEvents.Save(item.ResetForResume());
         }
 
-        mailing = mailing.WithStatus(paused.Length > 0 ? MailingStatus.Sending : MailingStatus.Paused);
+        mailing = mailing.WithStatus(toResume.Length > 0 ? MailingStatus.Sending : MailingStatus.Paused);
         mailings.Update(mailing);
 
-        if (paused.Length > 0)
+        if (toResume.Length > 0)
         {
-            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_started", request.Ip, request.UserAgent, $"mailingId={mailing.Id};resume=true;pending={paused.Length}"));
+            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_started", request.Ip, request.UserAgent, $"mailingId={mailing.Id};resume=true;pending={toResume.Length};warmup={warmupPaused.Length};daily={dailyPaused.Length}"));
             queue.Enqueue(mailing.Id);
         }
 
@@ -490,7 +501,6 @@ public sealed class MailingSendService(
             return;
         }
 
-        var pausedByWarmup = false;
         var batch = sendEvents.GetPendingBatch(mailing.Id, Math.Max(1, options.BatchSize));
         var suppressedSet = suppressions.GetSuppressedSet(batch.Select(x => x.RecipientEmail));
         var clientSuppressedSet = clientSuppressions.GetSuppressedSet(mailing.OwnerEmail, batch.Select(x => x.RecipientEmail));
@@ -518,16 +528,17 @@ public sealed class MailingSendService(
             var warmupDecision = warmupGate.Evaluate(mailing.OwnerEmail, sendEvent.RecipientEmail, DateTimeOffset.UtcNow);
             if (!warmupDecision.IsAllowed)
             {
-                pausedByWarmup = true;
-                sendEvents.Save(sendEvent.MarkPaused(SendSkipReason.WarmupLimit));
+                var retryAfter = NormalizeWarmupRetryAfter(warmupDecision.RetryAfter);
+                mailings.Update(mailing.WithStatus(MailingStatus.Sending));
                 auditLogger.Write(new AuditRecord(
                     DateTimeOffset.UtcNow,
                     mailing.OwnerEmail,
-                    "mailing_send_paused_by_warmup",
+                    "mailing_send_delayed_by_warmup",
                     "background",
                     "background",
-                    $"mailingId={mailing.Id};eventId={sendEvent.Id};reason={warmupDecision.Reason};retryAfterSeconds={Math.Ceiling(warmupDecision.RetryAfter.TotalSeconds)}"));
-                break;
+                    $"mailingId={mailing.Id};eventId={sendEvent.Id};reason={warmupDecision.Reason};retryAfterSeconds={Math.Ceiling(retryAfter.TotalSeconds)}"));
+                queue.Enqueue(mailing.Id, retryAfter);
+                return;
             }
 
             var message = BuildEmailMessage(mailing, draft, sendEvent.RecipientEmail);
@@ -545,13 +556,6 @@ public sealed class MailingSendService(
 
         var totalAccepted = mailing.Recipients.Count(x => x.Status == RecipientStatus.Accepted);
         var summary = sendEvents.GetSummary(mailing.Id, totalAccepted);
-        if (pausedByWarmup)
-        {
-            mailings.Update(mailing.WithStatus(MailingStatus.Paused));
-            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "mailing_send_paused_by_limit", "background", "background", $"mailingId={mailing.Id};paused={summary.PausedByLimit};pending={summary.Pending};source=warmup"));
-            return;
-        }
-
         if (summary.Pending > 0)
         {
             mailings.Update(mailing.WithStatus(MailingStatus.Sending));
@@ -649,6 +653,16 @@ public sealed class MailingSendService(
     {
         var normalized = emailNormalizer.Normalize(userEmail);
         return string.IsNullOrWhiteSpace(normalized) ? null : mailings.GetForOwner(mailingId, normalized);
+    }
+
+    private static TimeSpan NormalizeWarmupRetryAfter(TimeSpan retryAfter)
+    {
+        if (retryAfter <= TimeSpan.Zero)
+        {
+            return TimeSpan.FromSeconds(1);
+        }
+
+        return retryAfter > TimeSpan.FromMinutes(10) ? TimeSpan.FromMinutes(10) : retryAfter;
     }
 
     private static string Hash(string value)
