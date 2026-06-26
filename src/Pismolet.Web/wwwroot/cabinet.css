@@ -40,6 +40,22 @@
   margin-top: 12px;
 }
 
+.cabinet-grid,
+.dashboard-shell,
+.wizard-shell {
+  width: 100%;
+  max-width: 960px;
+  justify-self: center;
+}
+
+.wizard-shell:has(.message-wizard-grid) {
+  max-width: 1040px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
 .wizard-shell {
   display: grid;
   gap: 18px;
@@ -249,6 +265,14 @@
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 22px;
   align-items: start;
+  width: calc(100vw - 48px);
+  max-width: none;
+  margin-left: calc((1120px - 100vw + 48px) / 2);
+  margin-right: calc((1120px - 100vw + 48px) / 2);
+}
+
+.admin-content .form-card {
+  max-width: none;
 }
 
 .admin-sidebar {
@@ -516,6 +540,14 @@
 .admin-users-page .compact-table td {
   padding: 9px 8px;
   font-size: 13px;
+}
+
+@media (max-width: 1120px) {
+  .admin-shell {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
 }
 
 @media (max-width: 900px) {
