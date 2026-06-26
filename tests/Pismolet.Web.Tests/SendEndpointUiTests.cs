@@ -51,6 +51,35 @@ public sealed class SendEndpointUiTests
     }
 
     [Fact]
+    public async Task Review_required_send_page_keeps_launch_button_disabled()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailingWithStatus(factory, MailingStatus.ReviewRequired);
+        using var client = CreateAuthenticatedClient(factory);
+
+        var html = await client.GetStringAsync($"/mailings/{mailingId}/send");
+
+        Assert.Contains("Рассылка на модерации", html);
+        Assert.Contains("<button class='button' disabled>Запустить отправку</button>", html);
+        Assert.DoesNotContain($"action='/mailings/{mailingId}/send/start'", html);
+    }
+
+    [Fact]
+    public async Task Legacy_checks_page_redirects_to_send_screen()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedApprovedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory, allowAutoRedirect: false);
+
+        var response = await client.GetAsync($"/mailings/{mailingId}/checks");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/send", response.Headers.Location?.OriginalString);
+    }
+
+    [Fact]
     public async Task Send_start_error_keeps_user_screen_simple_and_report_collapsed()
     {
         using var factory = CreateAuthorizedFactory();
@@ -83,9 +112,9 @@ public sealed class SendEndpointUiTests
             });
         });
 
-    private static HttpClient CreateAuthenticatedClient(WebApplicationFactory<Program> factory)
+    private static HttpClient CreateAuthenticatedClient(WebApplicationFactory<Program> factory, bool allowAutoRedirect = true)
     {
-        var client = factory.CreateClient();
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = allowAutoRedirect });
         client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
         return client;
     }
@@ -99,6 +128,11 @@ public sealed class SendEndpointUiTests
     }
 
     private static Guid SeedApprovedMailing(WebApplicationFactory<Program> factory)
+    {
+        return SeedMailingWithStatus(factory, MailingStatus.Approved);
+    }
+
+    private static Guid SeedMailingWithStatus(WebApplicationFactory<Program> factory, MailingStatus status)
     {
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
@@ -136,7 +170,7 @@ public sealed class SendEndpointUiTests
             .WithImportResult(new ImportStats(3, 3, 0, 0, 0), recipients)
             .WithDeclaration(declaration)
             .WithMessageDraft(draft)
-            .WithStatus(MailingStatus.Approved);
+            .WithStatus(status);
         repository.Update(ready);
         return mailing.Id;
     }

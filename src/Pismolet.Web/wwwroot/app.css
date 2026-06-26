@@ -262,6 +262,19 @@ button {
   background: var(--accent-dark);
 }
 
+.btn:disabled,
+.button:disabled {
+  background: #cbd5e1;
+  color: #64748b;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn:disabled:hover,
+.button:disabled:hover {
+  background: #cbd5e1;
+}
+
 .btn.secondary,
 .button.secondary {
   background: #eaf2ff;

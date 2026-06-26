@@ -31,9 +31,9 @@ public static class MailingStateMachine
             : new("Загрузить другой список", $"/mailings/{mailing.Id}/recipients", "В последнем импорте нет адресов, принятых к отправке."),
         MailingStatus.DeclarationConfirmed => new("Подготовить письмо", $"/mailings/{mailing.Id}/message", "Заполните отправителя, тему и текст письма."),
         MailingStatus.MessagePrepared or MailingStatus.Priced or MailingStatus.PaymentPending => new("Перейти к оплате", $"/mailings/{mailing.Id}/payment", "Проверьте стоимость и пройдите fake-оплату."),
-        MailingStatus.Paid => new("Запустить проверку", $"/mailings/{mailing.Id}/checks", "Перед отправкой нужна автоматическая или ручная проверка."),
-        MailingStatus.PendingChecks => new("Открыть проверку", $"/mailings/{mailing.Id}/checks", "Проверка уже запущена, обновите статус на странице проверки."),
-        MailingStatus.ReviewRequired => new("Ожидает модерации", "/admin/moderation", "Рассылка ждёт ручного решения администратора."),
+        MailingStatus.Paid => new("Перейти к запуску", $"/mailings/{mailing.Id}/send", "Перед отправкой рассылка пройдёт автоматическую или ручную проверку."),
+        MailingStatus.PendingChecks => new("Открыть запуск", $"/mailings/{mailing.Id}/send", "Проверка уже запущена. Статус виден на экране запуска."),
+        MailingStatus.ReviewRequired => new("Открыть запуск", $"/mailings/{mailing.Id}/send", "Рассылка ждёт ручного решения модератора."),
         MailingStatus.Approved => new("Запустить отправку", $"/mailings/{mailing.Id}/send", "Рассылка одобрена и готова к отправке."),
         MailingStatus.Sending or MailingStatus.Paused or MailingStatus.Failed or MailingStatus.Sent => new("Открыть статистику", $"/mailings/{mailing.Id}/send", "Посмотрите статус отправки, доставку и ответы."),
         MailingStatus.Rejected => new("Исправить письмо", $"/mailings/{mailing.Id}/message", "Рассылка отклонена. Исправьте письмо и повторите проверку."),
@@ -60,7 +60,7 @@ public static class MailingStateMachine
             error = mailing.Status switch
             {
                 MailingStatus.PaymentPending or MailingStatus.Priced or MailingStatus.MessagePrepared => "Перед отправкой нужно завершить оплату.",
-                MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired => "Перед отправкой нужно дождаться одобрения проверки.",
+                MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired => "Перед отправкой нужно дождаться одобрения модерации.",
                 MailingStatus.Sending => "Рассылка уже отправляется.",
                 MailingStatus.Sent => "Рассылка уже отправлена.",
                 MailingStatus.Rejected => "Отклонённую рассылку нельзя отправить без исправления и повторной проверки.",

@@ -166,10 +166,11 @@ public sealed class PaymentWizardSmokeTests
         Assert.Equal(HttpStatusCode.OK, success.StatusCode);
         Assert.Contains("Переход после оплаты получен", successHtml);
         Assert.Contains("ждём серверное подтверждение оплаты", successHtml);
-        Assert.Contains($"href='/mailings/{mailingId}/checks'", successHtml);
+        Assert.Contains($"href='/mailings/{mailingId}/send'", successHtml);
         Assert.Contains("В личный кабинет", successHtml);
         Assert.DoesNotContain("Открыть страницу оплаты", successHtml);
         Assert.DoesNotContain($"href='/mailings/{mailingId}/payment'", successHtml);
+        Assert.DoesNotContain($"href='/mailings/{mailingId}/checks'", successHtml);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
@@ -197,7 +198,7 @@ public sealed class PaymentWizardSmokeTests
         var success = await client.PostAsync("/payments/robokassa/success", new FormUrlEncodedContent(successFields));
 
         Assert.Equal(HttpStatusCode.Redirect, success.StatusCode);
-        Assert.Equal($"/mailings/{mailingId}/checks", success.Headers.Location?.OriginalString);
+        Assert.Equal($"/mailings/{mailingId}/send", success.Headers.Location?.OriginalString);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
@@ -227,7 +228,7 @@ public sealed class PaymentWizardSmokeTests
 
         var success = await client.PostAsync("/payments/robokassa/fake/success", new FormUrlEncodedContent(fields));
         Assert.Equal(HttpStatusCode.Redirect, success.StatusCode);
-        Assert.Equal($"/mailings/{mailingId}/checks", success.Headers.Location?.OriginalString);
+        Assert.Equal($"/mailings/{mailingId}/send", success.Headers.Location?.OriginalString);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();

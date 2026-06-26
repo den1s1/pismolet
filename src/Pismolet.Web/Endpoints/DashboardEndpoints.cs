@@ -193,9 +193,14 @@ public static class DashboardEndpoints
             return $"<a class='button' href='/mailings/{mailing.Id}/message'>Написать письмо</a>";
         }
 
-        if (mailing.StatusRu is "Оплачено" or "Проверяем перед отправкой" or "На ручной проверке" or "Одобрено" or "Отклонено")
+        if (mailing.StatusRu is "Оплачено" or "Проверяем перед отправкой" or "На ручной проверке" or "Одобрено")
         {
-            return $"<a class='button' href='/mailings/{mailing.Id}/checks'>Открыть проверку перед отправкой</a>";
+            return $"<a class='button' href='/mailings/{mailing.Id}/send'>Открыть запуск рассылки</a>";
+        }
+
+        if (mailing.StatusRu is "Отклонено")
+        {
+            return $"<a class='button' href='/mailings/{mailing.Id}/message'>Исправить письмо</a>";
         }
 
         return $"<a class='button' href='/mailings/{mailing.Id}/payment'>Перейти к проверке и оплате</a>";

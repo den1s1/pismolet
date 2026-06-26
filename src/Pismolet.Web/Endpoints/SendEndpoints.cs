@@ -127,6 +127,7 @@ public static class SendEndpoints
         var title = launched ? "Рассылка запущена" : mailing.Status switch
         {
             MailingStatus.Approved => "Готово к запуску",
+            MailingStatus.ReviewRequired => "Рассылка на модерации",
             MailingStatus.Sending => "Рассылка отправляется",
             MailingStatus.Sent => "Рассылка отправлена",
             MailingStatus.Paused => "Отправка приостановлена",
@@ -142,6 +143,10 @@ public static class SendEndpoints
         var action = mailing.Status switch
         {
             MailingStatus.Approved => $"<form method='post' action='/mailings/{mailing.Id}/send/start'><button class='button'>Запустить отправку</button></form>",
+            MailingStatus.ReviewRequired => "<div class='launch-action-row'><button class='button' disabled>Запустить отправку</button><span class='badge warn'>Рассылка на модерации</span></div>",
+            MailingStatus.PendingChecks => "<div class='launch-action-row'><button class='button' disabled>Запустить отправку</button><span class='badge warn'>Идёт проверка</span></div>",
+            MailingStatus.Paid => "<div class='launch-action-row'><button class='button' disabled>Запустить отправку</button><span class='badge warn'>Ожидает проверки</span></div>",
+            MailingStatus.Rejected => "<div class='launch-action-row'><button class='button' disabled>Запустить отправку</button><span class='badge danger'>Рассылка отклонена</span></div>",
             MailingStatus.Paused => $"<form method='post' action='/mailings/{mailing.Id}/send/resume'><button class='button'>Продолжить отправку</button></form>{pausedNote}",
             MailingStatus.Sending => $"<p><span class='badge warn'>Отправка выполняется</span></p><p><a class='button' href='/mailings/{mailing.Id}/send'>Обновить статус</a></p>",
             MailingStatus.Sent => "<p><span class='badge ok'>Отправка завершена</span></p>",
@@ -458,6 +463,10 @@ public static class SendEndpoints
     private static string LaunchProgressText(MailingStatus status, MailingSendSummary summary, int deliveredRecipients, int notDelivered, int replies) => status switch
     {
         MailingStatus.Approved => $"Рассылка готова к запуску. К отправке подготовлено {summary.TotalAcceptedRecipients} писем.",
+        MailingStatus.ReviewRequired => "Рассылка на модерации. Отправку можно будет запустить после одобрения.",
+        MailingStatus.PendingChecks => "Письмолёт проверяет рассылку перед отправкой.",
+        MailingStatus.Paid => "Оплата получена. Готовим рассылку к запуску.",
+        MailingStatus.Rejected => "Рассылка отклонена. Исправьте письмо и отправьте его на проверку заново.",
         MailingStatus.Sending => $"Отправка идёт: отправлено {summary.Sent} из {summary.TotalAcceptedRecipients}. Ответов: {replies}.",
         MailingStatus.Sent => $"Отправка завершена. Отправлено {summary.Sent} писем, доставлено по отчётам {deliveredRecipients}, не удалось {notDelivered}.",
         MailingStatus.Paused => $"Отправка приостановлена: ожидает продолжения {summary.PausedByLimit} писем.",

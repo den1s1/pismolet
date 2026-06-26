@@ -188,7 +188,8 @@ public static class HtmlRenderer
         if (mailing.MessageDraft is null) return ($"/mailings/{mailing.Id}/message", "Написать письмо");
         return mailing.Status switch
         {
-            MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired or MailingStatus.Approved or MailingStatus.Rejected => ($"/mailings/{mailing.Id}/checks", "Открыть проверку"),
+            MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired or MailingStatus.Approved => ($"/mailings/{mailing.Id}/send", "Открыть запуск"),
+            MailingStatus.Rejected => ($"/mailings/{mailing.Id}/message", "Исправить письмо"),
             MailingStatus.Sending or MailingStatus.Sent or MailingStatus.Paused or MailingStatus.Failed => ($"/mailings/{mailing.Id}/send", "Открыть отправку"),
             _ => ($"/mailings/{mailing.Id}/payment", "К оплате")
         };

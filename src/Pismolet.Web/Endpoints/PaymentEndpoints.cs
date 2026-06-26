@@ -114,7 +114,7 @@ public static class PaymentEndpoints
         if (payment?.Status == PaymentStatus.Paid)
         {
             reviews.StartChecks(payment.OwnerEmail, payment.MailingId, ToRequestMetadata(http));
-            return Results.Redirect($"/mailings/{payment.MailingId}/checks");
+            return Results.Redirect($"/mailings/{payment.MailingId}/send");
         }
 
         var message = payment?.Status == PaymentStatus.Paid
@@ -173,7 +173,7 @@ public static class PaymentEndpoints
         if (payment is not null)
         {
             reviews.StartChecks(payment.OwnerEmail, payment.MailingId, ToRequestMetadata(http));
-            return Results.Redirect($"/mailings/{payment.MailingId}/checks");
+            return Results.Redirect($"/mailings/{payment.MailingId}/send");
         }
 
         return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", RobokassaSuccessPage(payment, validation.InvId, $"ResultURL вернул OK{validation.InvId}. Оплата подтверждена.")));
@@ -210,7 +210,7 @@ public static class PaymentEndpoints
         var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/payment";
         var payButtonText = $"Оплатить {review.TotalAmount:0.##} ₽";
         var button = paid
-            ? $"<p><span class='badge'>Оплачено</span></p><form method='post' action='/mailings/{mailing.Id}/checks/start'><button class='button'>Проверить перед отправкой</button></form><p><a href='/mailings/{mailing.Id}/checks'>Открыть статус проверки</a></p>"
+            ? $"<p><span class='badge'>Оплачено</span></p><form method='post' action='/mailings/{mailing.Id}/checks/start'><button class='button'>Перейти к запуску</button></form><p><a href='/mailings/{mailing.Id}/send'>Открыть запуск рассылки</a></p>"
             : PaymentAction(mailing, isPromo, hasAdvertisingConsent, paymentRulesHref, payButtonText);
 
         return $@"
@@ -360,9 +360,9 @@ public static class PaymentEndpoints
         var next = payment is null
             ? "<p><a class='btn secondary' href='/'>На главную</a></p>"
             : payment.Status == PaymentStatus.Paid
-                ? $"<form method='post' action='/mailings/{payment.MailingId}/checks/start'><button class='btn'>Перейти к проверке рассылки</button></form><p><a href='/mailings/{payment.MailingId}/checks'>Открыть статус проверки</a></p>"
+                ? $"<form method='post' action='/mailings/{payment.MailingId}/checks/start'><button class='btn'>Перейти к запуску</button></form><p><a href='/mailings/{payment.MailingId}/send'>Открыть запуск рассылки</a></p>"
                 : $@"<div class='notice warn'>Мы получили возврат из платёжного модуля и ждём серверное подтверждение оплаты. Обычно оно приходит быстро, но финальный статус меняет только ResultURL.</div>
-  <p><a class='btn' href='/mailings/{payment.MailingId}/checks'>Проверить статус и продолжить</a></p>
+  <p><a class='btn' href='/mailings/{payment.MailingId}/send'>Проверить статус и продолжить</a></p>
   <p><a href='/dashboard'>В личный кабинет</a></p>";
         var inv = string.IsNullOrWhiteSpace(invId) ? string.Empty : $"<p class='muted'>InvId: {H(invId)}</p>";
 

@@ -315,6 +315,13 @@
   margin: 18px 0;
 }
 
+.launch-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .launch-grid {
   align-items: start;
 }
