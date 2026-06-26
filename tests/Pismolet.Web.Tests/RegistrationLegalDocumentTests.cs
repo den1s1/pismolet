@@ -38,6 +38,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("href='/legal/base-lawfulness'", html);
         Assert.Contains("href='/legal/advertising-consent'", html);
         Assert.Contains("href='/legal/anti-spam'", html);
+        Assert.Contains("href='/legal/unsubscribe'", html);
     }
 
     [Theory]
@@ -49,6 +50,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     [InlineData("/legal/base-lawfulness", "Декларация законности базы", "document_key: <code>base_lawfulness_declaration</code>")]
     [InlineData("/legal/advertising-consent", "Подтверждение рекламного согласия адресатов", "document_key: <code>advertising_consent_declaration</code>")]
     [InlineData("/legal/anti-spam", "Антиспам-политика Письмолёта", "document_key: <code>anti_spam_policy</code>")]
+    [InlineData("/legal/unsubscribe", "Правила отписки через Письмолёт", "document_key: <code>global_unsubscribe_confirmation</code>")]
     public async Task LegalDocumentsArePublic(string path, string title, string documentKey)
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -223,6 +225,24 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     }
 
     [Fact]
+    public async Task UnsubscribeContainsFullLegalSections()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var html = await client.GetStringAsync("/legal/unsubscribe");
+
+        Assert.Contains("Редакция:</strong> 2026-06-24-v1", html);
+        Assert.Contains("Что такое отписка через Письмолёт", html);
+        Assert.Contains("Как получатель отписывается", html);
+        Assert.Contains("Что происходит после отписки", html);
+        Assert.Contains("Конфиденциальность", html);
+        Assert.Contains("Legal evidence", html);
+    }
+
+    [Fact]
     public async Task RegistrationFormContainsLegalDocumentLinksInSameTab()
     {
         using var client = factory.CreateClient();
@@ -327,6 +347,10 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("document_key=advertising_consent_declaration", LegalEvidenceTextSnapshots.AdvertisingConsentText);
         Assert.Contains($"document_version={LegalEvidenceTextSnapshots.CurrentVersion}", LegalEvidenceTextSnapshots.AdvertisingConsentText);
         Assert.Contains("document_url=/legal/advertising-consent", LegalEvidenceTextSnapshots.AdvertisingConsentText);
+
+        Assert.Contains("document_key=global_unsubscribe_confirmation", LegalEvidenceTextSnapshots.GlobalUnsubscribeConfirmationText);
+        Assert.Contains($"document_version={LegalEvidenceTextSnapshots.CurrentVersion}", LegalEvidenceTextSnapshots.GlobalUnsubscribeConfirmationText);
+        Assert.Contains("document_url=/legal/unsubscribe", LegalEvidenceTextSnapshots.GlobalUnsubscribeConfirmationText);
     }
 
     private static FormUrlEncodedContent CreateRegistrationForm(string email, string password = "TestPassword123!") => new(new Dictionary<string, string>

@@ -22,6 +22,8 @@ public sealed class UnsubscribeFlowIntegrationTests
         Assert.Contains("Отписка от рассылок", html);
         Assert.Contains("u***@example.test", html);
         Assert.Contains("Отписаться", html);
+        Assert.Contains("/legal/unsubscribe", html);
+        Assert.Contains("returnUrl=", html);
     }
 
     [Fact]
@@ -36,6 +38,7 @@ public sealed class UnsubscribeFlowIntegrationTests
 
         response.EnsureSuccessStatusCode();
         Assert.Contains("Вы отписаны", html);
+        Assert.Contains("/legal/unsubscribe", html);
 
         using var scope = factory.Services.CreateScope();
         var suppressions = scope.ServiceProvider.GetRequiredService<IGlobalSuppressionRepository>();

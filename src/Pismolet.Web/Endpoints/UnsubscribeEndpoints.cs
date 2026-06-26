@@ -23,9 +23,10 @@ public static class UnsubscribeEndpoints
     private static IResult Show(string token, HttpContext http, [FromServices] IGlobalUnsubscribeService service)
     {
         var result = service.GetView(token, ToRequestMetadata(http));
+        var legalHref = LegalHref(http, token);
         var body = result.TokenValid
-            ? $"<section class='card'><h1>Отписка от рассылок</h1><p>Вы можете отписать адрес <b>{H(result.MaskedEmail)}</b> от всех писем, которые отправляются через сервис «Письмолёт».</p><p class='muted'>Отписка действует глобально: этот адрес больше не будет получать письма через сервис ни от одного клиента.</p><form method='post'><button class='button'>Отписаться</button></form></section>"
-            : $"<section class='card'><h1>Отписка от рассылок</h1><p>{H(result.Error)}</p><p class='muted'>Если вы уже отписывались раньше, повторных действий не требуется.</p></section>";
+            ? $"<section class='card'><h1>Отписка от рассылок</h1><p>Вы можете отписать адрес <b>{H(result.MaskedEmail)}</b> от всех писем, которые отправляются через сервис «Письмолёт».</p><p class='muted'>Отписка действует глобально: этот адрес больше не будет получать письма через сервис ни от одного клиента. <a href='{H(legalHref)}'>Правила отписки</a></p><form method='post'><button class='button'>Отписаться</button></form></section>"
+            : $"<section class='card'><h1>Отписка от рассылок</h1><p>{H(result.Error)}</p><p class='muted'>Если вы уже отписывались раньше, повторных действий не требуется. <a href='{H(legalHref)}'>Правила отписки</a></p></section>";
 
         return HtmlRenderer.Html(HtmlRenderer.Page("Отписка", body));
     }
@@ -44,9 +45,10 @@ public static class UnsubscribeEndpoints
         }
 
         var title = result.Ok ? "Вы отписаны" : "Отписка не выполнена";
+        var legalHref = LegalHref(http, token);
         var body = result.Ok
-            ? $"<section class='card'><h1>Вы отписаны</h1><p>{H(result.Message)}</p><p class='muted'>Повторный переход по этой ссылке безопасен и не создаёт дублей.</p></section>"
-            : $"<section class='card'><h1>Отписка от рассылок</h1><p>{H(result.Message)}</p><p class='muted'>Мы не раскрываем сведения о существовании адреса или рассылки по невалидной ссылке.</p></section>";
+            ? $"<section class='card'><h1>Вы отписаны</h1><p>{H(result.Message)}</p><p class='muted'>Повторный переход по этой ссылке безопасен и не создаёт дублей. <a href='{H(legalHref)}'>Правила отписки</a></p></section>"
+            : $"<section class='card'><h1>Отписка от рассылок</h1><p>{H(result.Message)}</p><p class='muted'>Мы не раскрываем сведения о существовании адреса или рассылки по невалидной ссылке. <a href='{H(legalHref)}'>Правила отписки</a></p></section>";
 
         return HtmlRenderer.Html(HtmlRenderer.Page(title, body));
     }
@@ -96,6 +98,12 @@ public static class UnsubscribeEndpoints
         var ip = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         var userAgent = http.Request.Headers.UserAgent.ToString();
         return new RequestMetadata(ip, string.IsNullOrWhiteSpace(userAgent) ? "unknown" : userAgent);
+    }
+
+    private static string LegalHref(HttpContext http, string token)
+    {
+        var returnUrl = http.Request.Path.Value ?? $"/unsubscribe/{token}";
+        return $"/legal/unsubscribe?returnUrl={WebUtility.UrlEncode(returnUrl)}";
     }
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);

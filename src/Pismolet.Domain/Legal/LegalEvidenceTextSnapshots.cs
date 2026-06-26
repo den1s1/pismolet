@@ -26,7 +26,7 @@ public static class LegalEvidenceTextSnapshots
         "Клиент подтвердил финальный запуск рассылки и поручил Письмолёту поставить письма в очередь отправки.";
 
     public const string GlobalUnsubscribeConfirmationText =
-        "Получатель подтвердил отписку от писем через сервис Письмолёт по ссылке отписки.";
+        "Получатель подтвердил отписку от писем через сервис Письмолёт по ссылке отписки. document_key=global_unsubscribe_confirmation; document_version=2026-06-24-v1; document_url=/legal/unsubscribe.";
 
     public const string RecipientComplaintReceivedText =
         "Письмолёт получил от почтового провайдера событие жалобы получателя на письмо или его пометку как нежелательного.";
