@@ -91,7 +91,7 @@ public static class PaymentEndpoints
             : Results.BadRequest(result.Error);
     }
 
-    private static async Task<IResult> RobokassaSuccess(HttpContext http, IPaymentRepository paymentRepository, RobokassaPaymentOptions robokassa)
+    private static async Task<IResult> RobokassaSuccess(HttpContext http, IPaymentRepository paymentRepository, RobokassaPaymentOptions robokassa, IMailingReviewService reviews)
     {
         var fields = await ReadRobokassaFields(http);
         if (fields.Count == 0)
@@ -111,6 +111,12 @@ public static class PaymentEndpoints
         }
 
         var payment = paymentRepository.GetByProviderOperationId(validation.InvId);
+        if (payment?.Status == PaymentStatus.Paid)
+        {
+            reviews.StartChecks(payment.OwnerEmail, payment.MailingId, ToRequestMetadata(http));
+            return Results.Redirect($"/mailings/{payment.MailingId}/checks");
+        }
+
         var message = payment?.Status == PaymentStatus.Paid
             ? "Оплата подтверждена серверным уведомлением ResultURL."
             : "Переход после оплаты получен. Окончательный статус меняет только ResultURL.";
@@ -142,7 +148,7 @@ public static class PaymentEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Тестовый модуль Robokassa", FakeRobokassaCheckoutPage(fields, paymentRepository, publicUrl)));
     }
 
-    private static async Task<IResult> FakeRobokassaSuccess(HttpContext http, IMailingPaymentService payments, IPaymentRepository paymentRepository, RobokassaPaymentOptions robokassa)
+    private static async Task<IResult> FakeRobokassaSuccess(HttpContext http, IMailingPaymentService payments, IPaymentRepository paymentRepository, RobokassaPaymentOptions robokassa, IMailingReviewService reviews)
     {
         var startFields = await ReadRobokassaFields(http);
         if (!TryValidateRobokassaSignature(startFields, robokassa, RobokassaSignaturePurpose.Start, out var validation))
@@ -164,6 +170,12 @@ public static class PaymentEndpoints
         }
 
         var payment = paymentRepository.GetByProviderOperationId(validation.InvId);
+        if (payment is not null)
+        {
+            reviews.StartChecks(payment.OwnerEmail, payment.MailingId, ToRequestMetadata(http));
+            return Results.Redirect($"/mailings/{payment.MailingId}/checks");
+        }
+
         return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", RobokassaSuccessPage(payment, validation.InvId, $"ResultURL вернул OK{validation.InvId}. Оплата подтверждена.")));
     }
 

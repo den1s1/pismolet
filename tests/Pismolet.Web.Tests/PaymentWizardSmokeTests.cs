@@ -179,12 +179,42 @@ public sealed class PaymentWizardSmokeTests
     }
 
     [Fact]
+    public async Task Robokassa_success_url_confirmed_payment_redirects_to_checks_and_starts_review()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory, "Robokassa confirmed success");
+        using var client = CreateAuthenticatedClient(factory, allowAutoRedirect: false);
+        await Prepare(client, mailingId, MessageType.Transactional);
+        var startHtml = await StartPayment(client, mailingId);
+        var fields = ExtractHiddenFields(startHtml);
+        var resultFields = BuildResultCallbackFields(factory, fields);
+
+        var result = await client.PostAsync("/payments/robokassa/result", new FormUrlEncodedContent(resultFields));
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+
+        var successFields = BuildSuccessCallbackFields(factory, fields);
+        var success = await client.PostAsync("/payments/robokassa/success", new FormUrlEncodedContent(successFields));
+
+        Assert.Equal(HttpStatusCode.Redirect, success.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/checks", success.Headers.Location?.OriginalString);
+
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.True(
+            mailing.Status is MailingStatus.Approved or MailingStatus.ReviewRequired,
+            $"Expected checks to start after payment, actual status: {mailing.Status}");
+    }
+
+    [Fact]
     public async Task Fake_robokassa_checkout_can_complete_successful_payment()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
         var mailingId = SeedMailing(factory, "Fake Robokassa checkout");
-        using var client = CreateAuthenticatedClient(factory);
+        using var client = CreateAuthenticatedClient(factory, allowAutoRedirect: false);
         await Prepare(client, mailingId, MessageType.Transactional);
         var startHtml = await StartPayment(client, mailingId);
         var fields = ExtractHiddenFields(startHtml);
@@ -196,19 +226,16 @@ public sealed class PaymentWizardSmokeTests
         Assert.Contains("Оплатить успешно", checkoutHtml);
 
         var success = await client.PostAsync("/payments/robokassa/fake/success", new FormUrlEncodedContent(fields));
-        var successHtml = await success.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, success.StatusCode);
-        Assert.Contains("Оплата подтверждена", successHtml);
-        Assert.Contains($"ResultURL вернул OK{fields["InvId"]}", successHtml);
-        Assert.Contains("Перейти к проверке рассылки", successHtml);
-        Assert.Contains($"/mailings/{mailingId}/checks", successHtml);
-        Assert.DoesNotContain("Открыть страницу оплаты", successHtml);
+        Assert.Equal(HttpStatusCode.Redirect, success.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/checks", success.Headers.Location?.OriginalString);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
         var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
         Assert.NotNull(mailing);
-        Assert.Equal(MailingStatus.Paid, mailing.Status);
+        Assert.True(
+            mailing.Status is MailingStatus.Approved or MailingStatus.ReviewRequired,
+            $"Expected checks to start after payment, actual status: {mailing.Status}");
     }
 
     [Fact]
@@ -296,6 +323,21 @@ public sealed class PaymentWizardSmokeTests
             match => WebUtility.HtmlDecode(match.Groups["value"].Value),
             StringComparer.Ordinal);
 
+    private static Dictionary<string, string> BuildResultCallbackFields(WebApplicationFactory<Program> factory, IReadOnlyDictionary<string, string> startFields)
+    {
+        using var scope = factory.Services.CreateScope();
+        var options = scope.ServiceProvider.GetRequiredService<RobokassaPaymentOptions>();
+        var shp = new Dictionary<string, string> { ["Shp_mailingId"] = startFields["Shp_mailingId"] };
+        var fields = new Dictionary<string, string>
+        {
+            ["OutSum"] = startFields["OutSum"],
+            ["InvId"] = startFields["InvId"],
+            ["Shp_mailingId"] = startFields["Shp_mailingId"]
+        };
+        fields["SignatureValue"] = RobokassaPaymentModule.BuildResultSignature(fields["OutSum"], fields["InvId"], options.Password2, shp);
+        return fields;
+    }
+
     private static Dictionary<string, string> BuildSuccessCallbackFields(WebApplicationFactory<Program> factory, IReadOnlyDictionary<string, string> startFields)
     {
         using var scope = factory.Services.CreateScope();
@@ -325,9 +367,9 @@ public sealed class PaymentWizardSmokeTests
             });
         });
 
-    private static HttpClient CreateAuthenticatedClient(WebApplicationFactory<Program> factory)
+    private static HttpClient CreateAuthenticatedClient(WebApplicationFactory<Program> factory, bool allowAutoRedirect = true)
     {
-        var client = factory.CreateClient();
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = allowAutoRedirect });
         client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
         return client;
     }
