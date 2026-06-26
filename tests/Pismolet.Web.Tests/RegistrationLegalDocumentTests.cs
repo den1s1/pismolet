@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +44,36 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("href='/legal/payment-and-refund'", html);
         Assert.Contains("href='/legal/reply-retention'", html);
         Assert.Contains("href='/legal/service-email-footer'", html);
+    }
+
+    [Fact]
+    public async Task LegalIndexAvailableDocumentLinksResolve()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var index = await client.GetStringAsync("/legal");
+        var hrefs = Regex.Matches(index, "href='(?<href>/legal/[^']+)'")
+            .Select(match => match.Groups["href"].Value)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x)
+            .ToArray();
+
+        Assert.Contains("/legal/service-email-footer", hrefs);
+        Assert.Contains("/legal/payment-and-refund", hrefs);
+        Assert.Contains("/legal/reply-retention", hrefs);
+
+        foreach (var href in hrefs)
+        {
+            var response = await client.GetAsync(href);
+            var html = await response.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains("Юридический документ", html);
+            Assert.Contains("document_key:", html);
+        }
     }
 
     [Theory]
