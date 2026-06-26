@@ -79,6 +79,20 @@ public static class SimplifiedMessageStepEndpoints
         var bodyFormat = NormalizeBodyFormat(form["bodyFormat"].ToString());
         var plainBody = form["plainBody"].ToString();
         var htmlBody = form["htmlBody"].ToString();
+        var legacyBody = form["body"].ToString();
+        if (string.IsNullOrWhiteSpace(plainBody) && string.IsNullOrWhiteSpace(htmlBody) && !string.IsNullOrWhiteSpace(legacyBody))
+        {
+            bodyFormat = InferBodyFormat(legacyBody);
+            if (bodyFormat == BodyFormatHtml)
+            {
+                htmlBody = legacyBody;
+            }
+            else
+            {
+                plainBody = legacyBody;
+            }
+        }
+
         var body = bodyFormat == BodyFormatHtml ? htmlBody : plainBody;
         var result = messages.Save(new SaveMailingMessageCommand(
             email,
