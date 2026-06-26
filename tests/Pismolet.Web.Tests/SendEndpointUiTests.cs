@@ -51,7 +51,7 @@ public sealed class SendEndpointUiTests
     }
 
     [Fact]
-    public async Task Send_start_keeps_one_primary_action_and_moves_tables_to_report()
+    public async Task Send_start_error_keeps_user_screen_simple_and_report_collapsed()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
@@ -62,9 +62,8 @@ public sealed class SendEndpointUiTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Рассылка запущена", html);
-        Assert.Contains("Отправка поставлена в очередь", html);
-        Assert.Contains("Обновить статус", html);
+        Assert.Contains("Сначала оплатите рассылку", html);
+        Assert.Contains("Запустить отправку", html);
         Assert.Contains("<details class='detailed-report'>", html);
         Assert.DoesNotContain("<details class='detailed-report' open>", html);
         Assert.DoesNotContain("Dev-сводка событий", html);
