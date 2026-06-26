@@ -142,13 +142,38 @@ public static class DashboardEndpoints
         if (!result.Ok || result.Mailing is null)
         {
             var mailing = result.Mailing ?? GetMailing(id, http, mailings);
-            var body = mailing is null
-                ? HtmlRenderer.Error(result.Error)
-                : $"<section class='wizard-shell'><section class='panel'><p class='error-message'>{H(result.Error)}</p><p><a class='button' href='/mailings/{mailing.Id}/recipients'>Вернуться к адресам</a></p></section></section>";
+            var body = mailing is null ? HtmlRenderer.Error(result.Error) : DeclarationErrorBody(mailing, result.Error);
             return HtmlRenderer.Html(HtmlRenderer.Page("Адреса получателей", body, authenticated: true));
         }
 
         return Results.Redirect($"/mailings/{id}/message");
+    }
+
+    private static string DeclarationErrorBody(Mailing mailing, string error)
+    {
+        var options = string.Join("", Enum.GetValues<BaseSource>().Select(source => $"<option value='{source}'>{H(source.ToString())}</option>"));
+        return $@"
+<section class='wizard-shell address-step'>
+  <section class='panel'>
+    <p class='eyebrow'>Шаг 1 из 4</p>
+    <h1>1. Адреса загружены</h1>
+    <section class='address-block address-base-block'>
+      <div class='address-block-head'><div><h2>Подтвердите базу</h2><p class='muted'>Исправьте подтверждения и отправьте форму ещё раз.</p></div></div>
+      <p class='error-message'>{H(error)}</p>
+      <form method='post' action='/mailings/{mailing.Id}/declaration' class='compact-base-form address-declaration-form'>
+        <div class='compact-base-fields'>
+          <label class='compact-base-field'><span>Источник базы</span><select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label>
+          <label class='compact-base-field'><span>Тип письма</span><select name='messageType'><option value='Transactional'>Информационное</option><option value='Advertising'>Рекламное</option></select></label>
+        </div>
+        <label class='compact-base-check'><input type='checkbox' name='baseLegality'><span>подтверждаю правомерность использования базы и <a href='/legal/data-processing?returnUrl=/mailings/{mailing.Id}/recipients'>поручаю техническую обработку email-адресов</a></span></label>
+        <label class='compact-base-check'><input type='checkbox' name='advertisingConsent'><span><a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/recipients'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
+        <p class='compact-legal-link'><a href='/legal/base-lawfulness?returnUrl=/mailings/{mailing.Id}/recipients'>Декларация законности базы</a></p>
+        <button class='button compact-base-submit'>Перейти к письму</button>
+      </form>
+    </section>
+    <p><a class='btn ghost' href='/mailings/{mailing.Id}/recipients'>Вернуться к адресам</a></p>
+  </section>
+</section>";
     }
 
     private static string NextStep(Mailing mailing)
