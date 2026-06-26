@@ -126,6 +126,8 @@ public sealed class PublicSiteAppLinksTests
         Assert.Contains(".account-hint a", css);
         Assert.Contains(".footer-links", css);
         Assert.Contains("@media (max-width: 520px)", css);
+        Assert.Contains(@"content: ""\2713"";", css);
+        Assert.DoesNotContain(@"content: ""\\2713"";", css);
     }
 
     private static IReadOnlyCollection<string> PublicHtmlPagesWithHeader()
