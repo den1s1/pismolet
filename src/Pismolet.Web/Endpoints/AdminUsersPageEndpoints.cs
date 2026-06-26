@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
+using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Domain.Users;
 using Pismolet.Web.Rendering;
 
@@ -114,7 +115,8 @@ public static class AdminUsersPageEndpoints
             return AdminHtml("Админка - пользователь", adminEmail, HtmlRenderer.Error("Пользователь не найден."));
         }
 
-        return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, mailings.CountByOwners(new[] { user.Email }).GetValueOrDefault(user.Email), adminEmail, admins, null));
+        var userMailings = ListUserMailings(mailings, user.Email);
+        return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, null));
     }
 
     private static IResult GrantAdmin(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins)
@@ -141,13 +143,14 @@ public static class AdminUsersPageEndpoints
 
         if (!admins.TryRevokeAdmin(user.Email, adminEmail, out var error))
         {
-            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, mailings.CountByOwners(new[] { user.Email }).GetValueOrDefault(user.Email), adminEmail, admins, error));
+            var userMailings = ListUserMailings(mailings, user.Email);
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, error));
         }
 
         return Results.Redirect($"/admin/users/{Uri.EscapeDataString(user.Email)}");
     }
 
-    private static string UserProfilePage(UserAccount user, int mailingCount, string currentAdminEmail, IAdminAccessService admins, string? error)
+    private static string UserProfilePage(UserAccount user, IReadOnlyCollection<Mailing> userMailings, string currentAdminEmail, IAdminAccessService admins, string? error)
     {
         var displayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName;
         var phone = string.IsNullOrWhiteSpace(user.Phone) ? "-" : user.Phone;
@@ -157,6 +160,9 @@ public static class AdminUsersPageEndpoints
         var isAdmin = isConfigAdmin || isManagedAdmin;
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         var adminAction = AdminActionBlock(user.Email, isSelf, isConfigAdmin, isManagedAdmin, isAdmin);
+        var mailingRows = userMailings.Count == 0
+            ? "<tr><td colspan='4'>Рассылок пока нет.</td></tr>"
+            : string.Join(string.Empty, userMailings.Select(MailingRow));
 
         return $"""
             <section class='admin-panel admin-user-profile'>
@@ -178,7 +184,7 @@ public static class AdminUsersPageEndpoints
                             <div><dt>Статус</dt><dd>{H(user.Profile.Status)}</dd></div>
                             <div><dt>Премодерация</dt><dd>{(user.Profile.PremoderationRequired ? "Да" : "Нет")}</dd></div>
                             <div><dt>Дневной лимит</dt><dd>{user.Profile.DailySendLimit}</dd></div>
-                            <div><dt>Кампании</dt><dd>{mailingCount}</dd></div>
+                            <div><dt>Кампании</dt><dd>{userMailings.Count}</dd></div>
                         </dl>
                     </section>
                     <section class='box'>
@@ -189,9 +195,26 @@ public static class AdminUsersPageEndpoints
                         {adminAction}
                     </section>
                 </div>
+                <section class='box admin-user-mailings'>
+                    <h2>Рассылки пользователя</h2>
+                    <div class='admin-table-wrap'>
+                        <table class='admin-table compact-table'>
+                            <thead><tr><th>Название</th><th>Писем</th><th>Статус</th><th></th></tr></thead>
+                            <tbody>{mailingRows}</tbody>
+                        </table>
+                    </div>
+                </section>
             </section>
             """;
     }
+
+    private static Mailing[] ListUserMailings(IMailingRepository mailings, string ownerEmail) => mailings
+        .ListForOwner(ownerEmail)
+        .OrderByDescending(mailing => mailing.CreatedAt)
+        .ToArray();
+
+    private static string MailingRow(Mailing mailing) =>
+        $"<tr><td>{H(mailing.Subject)}</td><td>{mailing.LastImportStats.Accepted}</td><td><span class='admin-badge'>{H(mailing.StatusRu)}</span></td><td><a class='admin-link' href='/admin/campaigns/{mailing.Id}'>Открыть</a></td></tr>";
 
     private static string AdminActionBlock(string email, bool isSelf, bool isConfigAdmin, bool isManagedAdmin, bool isAdmin)
     {
