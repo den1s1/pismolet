@@ -25,7 +25,12 @@ public sealed record ClientProfile(
     DateTimeOffset? LimitChangedAt = null,
     string? LimitChangedByAdminEmail = null,
     DateTimeOffset? PremoderationChangedAt = null,
-    string? PremoderationChangedByAdminEmail = null)
+    string? PremoderationChangedByAdminEmail = null,
+    bool IsAdmin = false,
+    DateTimeOffset? AdminGrantedAt = null,
+    string? AdminGrantedByAdminEmail = null,
+    DateTimeOffset? AdminRevokedAt = null,
+    string? AdminRevokedByAdminEmail = null)
 {
     public bool IsBlocked => string.Equals(Status, ClientStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
 
@@ -66,6 +71,22 @@ public sealed record ClientProfile(
         PremoderationRequired = required,
         PremoderationChangedAt = DateTimeOffset.UtcNow,
         PremoderationChangedByAdminEmail = Normalize(adminEmail)
+    };
+
+    public ClientProfile GrantAdmin(string adminEmail) => this with
+    {
+        IsAdmin = true,
+        AdminGrantedAt = DateTimeOffset.UtcNow,
+        AdminGrantedByAdminEmail = Normalize(adminEmail),
+        AdminRevokedAt = null,
+        AdminRevokedByAdminEmail = null
+    };
+
+    public ClientProfile RevokeAdmin(string adminEmail) => this with
+    {
+        IsAdmin = false,
+        AdminRevokedAt = DateTimeOffset.UtcNow,
+        AdminRevokedByAdminEmail = Normalize(adminEmail)
     };
 
     private static string Normalize(string value) => value.Trim().ToLowerInvariant();
