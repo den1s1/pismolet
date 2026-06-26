@@ -34,7 +34,7 @@ public static class PaymentEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(result), authenticated: true));
     }
 
-    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, RobokassaPaymentOptions robokassa, PublicUrlOptions publicUrl)
+    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, RobokassaPaymentOptions robokassa)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
@@ -58,7 +58,7 @@ public static class PaymentEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(result), authenticated: true));
         }
 
-        return HtmlRenderer.Html(HtmlRenderer.Page("Оплата через Robokassa", RobokassaRequestPage(result.Review, robokassa, publicUrl), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Переход к оплате", RobokassaAutoSubmitPage(result.Review, robokassa), authenticated: true));
     }
 
     private static async Task<IResult> ConfirmPayment(Guid id, HttpContext http, IMailingPaymentService payments)
@@ -278,47 +278,22 @@ public static class PaymentEndpoints
         ? hasAdvertisingConsent ? "подтверждено" : "не подтверждено"
         : "не требуется";
 
-    private static string RobokassaRequestPage(MailingPaymentReview review, RobokassaPaymentOptions robokassa, PublicUrlOptions publicUrl)
+    private static string RobokassaAutoSubmitPage(MailingPaymentReview review, RobokassaPaymentOptions robokassa)
     {
         var payment = review.Payment ?? throw new InvalidOperationException("Payment is required after StartPayment.");
         var fields = BuildRobokassaStartFields(review, payment, robokassa);
-        var resultUrl = AbsoluteUrl(publicUrl, "/payments/robokassa/result");
-        var successUrl = AbsoluteUrl(publicUrl, "/payments/robokassa/success");
-        var failUrl = AbsoluteUrl(publicUrl, "/payments/robokassa/fail");
 
         return $@"
-<section class='wizard-shell payment-wizard'>
-  <section class='panel'>
-    <p class='eyebrow'>Тестовый платёжный модуль</p>
-    <h1>Оплата через Robokassa</h1>
-    <p class='muted'>Форма использует те же ключевые поля, которые понадобятся при подключении настоящего магазина Robokassa.</p>
-    <div class='payment-grid'>
-      <section class='box confirmation-card'>
-        <h2>Параметры платежа</h2>
-        <dl class='cost-list'>
-          <div><dt>MerchantLogin</dt><dd>{H(fields["MerchantLogin"])}</dd></div>
-          <div><dt>OutSum</dt><dd>{H(fields["OutSum"])}</dd></div>
-          <div><dt>InvId</dt><dd>{H(fields["InvId"])}</dd></div>
-          <div><dt>IsTest</dt><dd>{H(fields.GetValueOrDefault("IsTest", "0"))}</dd></div>
-        </dl>
-        <form method='post' action='{H(robokassa.PaymentUrl)}'>
-          {HiddenFields(fields)}
-          <button class='button full-pay-button'>Перейти к оплате в тестовый модуль Robokassa</button>
-        </form>
-      </section>
-      <section class='box cost-card pay-card'>
-        <h2>URL для кабинета Robokassa</h2>
-        <dl class='cost-list'>
-          <div><dt>ResultURL</dt><dd>{H(resultUrl)}</dd></div>
-          <div><dt>SuccessURL</dt><dd>{H(successUrl)}</dd></div>
-          <div><dt>FailURL</dt><dd>{H(failUrl)}</dd></div>
-        </dl>
-        <p class='muted'>Статус заказа меняет только ResultURL после проверки подписи и суммы. SuccessURL показывает пользователю итоговый экран.</p>
-      </section>
-    </div>
-    <div class='actions'><a class='btn secondary' href='/mailings/{review.Mailing.Id}/payment'>Вернуться к расчёту</a></div>
-  </section>
-</section>";
+<section class='payment-autosubmit' aria-live='polite'>
+  <h1>Переходим на платёжную страницу</h1>
+  <p class='muted'>Сейчас откроется платёжный модуль. Если переход не произошёл автоматически, нажмите кнопку ниже.</p>
+  <form id='robokassa-payment-form' method='post' action='{H(robokassa.PaymentUrl)}'>
+    {HiddenFields(fields)}
+    <noscript><button class='button full-pay-button'>Продолжить оплату</button></noscript>
+  </form>
+  <p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/payment'>Вернуться к расчёту</a></p>
+</section>
+<script>document.getElementById('robokassa-payment-form')?.submit();</script>";
     }
 
     private static string FakeRobokassaCheckoutPage(IReadOnlyDictionary<string, string> fields, IPaymentRepository paymentRepository, PublicUrlOptions publicUrl)
