@@ -105,6 +105,15 @@ public static class SimplifiedMessageStepEndpoints
         var unsubscribeUrl = string.IsNullOrWhiteSpace(preview.UnsubscribeUrl) ? "/unsubscribe/example-token" : H(preview.UnsubscribeUrl);
         var prohibitedContentHref = $"/legal/prohibited-content?returnUrl=/mailings/{mailing.Id}/message";
         var serviceFooterHref = $"/legal/service-email-footer?returnUrl=/mailings/{mailing.Id}/message";
+        var servicePreviewDetails = $@"
+            <details class='service-preview-details'>
+              <summary>Показать служебный блок</summary>
+              <div class='unsubscribe service-preview-full'>
+                <p>{reasonBlock}</p>
+                <p>Отписаться: <code>{unsubscribeUrl}</code></p>
+                <p>{serviceBlock}</p>
+              </div>
+            </details>";
 
         return $@"
 <section class='wizard-shell'>
@@ -145,11 +154,8 @@ public static class SimplifiedMessageStepEndpoints
           <div class='mail-preview-body'>
             <h4>{previewSubject}</h4>
             {previewBody}
-            <div class='unsubscribe'>
-              <p>{reasonBlock}</p>
-              <p>Отписаться: <code>{unsubscribeUrl}</code></p>
-              <p>{serviceBlock}</p>
-            </div>
+            <p class='service-preview-note'>Письмолёт автоматически добавит причину получения, отписку и служебный номер.</p>
+            {servicePreviewDetails}
           </div>
         </div>
       </aside>
