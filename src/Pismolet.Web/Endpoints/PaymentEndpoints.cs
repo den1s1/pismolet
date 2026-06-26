@@ -191,18 +191,14 @@ public static class PaymentEndpoints
         var payment = review.Payment;
         var paid = payment?.Status == PaymentStatus.Paid;
         var excluded = Math.Max(0, stats.TotalRows - stats.Accepted);
-        var issues = stats.Duplicates + stats.Invalid;
-        var cannotSend = Math.Max(0, stats.ClientSuppressed);
         var isPromo = mailing.MessageDraft?.MessageType == MessageType.Advertising;
+        var hasAdvertisingConsent = mailing.Declaration?.IsAdvertisingConsentConfirmed == true;
         var alert = string.IsNullOrWhiteSpace(confirmationError) ? string.Empty : $"<p class='error-message'>{H(confirmationError)}</p>";
-        var promoConfirm = isPromo
-            ? $"<label class='check'><input type='checkbox' name='advertisingConsent'><span>Я <a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/payment'>подтверждаю наличие согласия на рекламную рассылку</a>.</span></label>"
-            : string.Empty;
         var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/payment";
-        var payButtonText = $"Оплатить {review.TotalAmount:0.##} ₽ через Robokassa";
+        var payButtonText = $"Оплатить {review.TotalAmount:0.##} ₽";
         var button = paid
             ? $"<p><span class='badge'>Оплачено</span></p><form method='post' action='/mailings/{mailing.Id}/checks/start'><button class='button'>Проверить перед отправкой</button></form><p><a href='/mailings/{mailing.Id}/checks'>Открыть статус проверки</a></p>"
-            : $"<form method='post' action='/mailings/{mailing.Id}/payment/fake-start' class='confirmation-list checks'><h2>Подтверждения перед оплатой</h2><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я подтверждаю, что проверил рассылку, понимаю расчёт стоимости и поручаю Письмолёту отправить письма по указанной базе после оплаты и прохождения проверок. Я понимаю, что оплата не гарантирует отправку запрещённой, рискованной или нарушающей правила рассылки. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><label class='check'><input type='checkbox' name='paymentBaseLegality'><span>Я подтверждаю, что имею законное основание для обработки загруженных адресов и отправки писем этим адресатам.</span></label><label class='check'><input type='checkbox' name='paymentBaseOwnership'><span>Я не использую купленную или чужую базу.</span></label>{promoConfirm}<div class='notice warn'>Если рассылка не будет отправлена по технической причине или из-за отказа Письмолёта до начала отправки, вопрос возврата решается по правилам возврата. <a href='{paymentRulesHref}'>Подробнее</a>.</div><button class='button full-pay-button'>{H(payButtonText)}</button></form>";
+            : PaymentAction(mailing, isPromo, hasAdvertisingConsent, paymentRulesHref, payButtonText);
 
         return $@"
 <section class='wizard-shell payment-wizard'>
@@ -222,13 +218,21 @@ public static class PaymentEndpoints
       <span class='badge warn'>{H(mailing.StatusRu)}</span>
     </div>
     {alert}
-    <div class='stats payment-stats'>
-      <div class='stat'><b>{stats.TotalRows}</b><span>строки в файле</span></div>
+    <div class='stats payment-stats payment-key-stats'>
       <div class='stat'><b>{stats.Accepted}</b><span>принято к отправке</span></div>
-      <div class='stat'><b>{issues}</b><span>дубли и ошибки</span></div>
-      <div class='stat'><b>{cannotSend}</b><span>не сможем отправить</span></div>
-      <div class='stat'><b>{stats.GloballySuppressed}</b><span>отписались</span></div>
+      <div class='stat'><b>{excluded}</b><span>исключено из расчёта</span></div>
+      <div class='stat'><b>{review.TotalAmount:0.##} ₽</b><span>к оплате</span></div>
     </div>
+    <section class='box payment-legal-summary'>
+      <h2>Подтверждения базы</h2>
+      <p class='muted'>Юридические подтверждения уже сохранены на шаге адресов. На оплате они показаны только для проверки.</p>
+      <div class='payment-summary-grid'>
+        <div><b>Источник базы</b><p>{H(mailing.Declaration?.BaseSource.ToRu() ?? "не подтверждён")}</p></div>
+        <div><b>Тип письма</b><p>{H((mailing.MessageDraft?.MessageType ?? MessageType.Transactional).ToRu())}</p></div>
+        <div><b>Правомерность базы</b><p>{(mailing.Declaration?.IsBaseLegalityConfirmed == true ? "подтверждена" : "не подтверждена")}</p></div>
+        <div><b>Рекламное согласие</b><p>{AdvertisingConsentStatus(isPromo, hasAdvertisingConsent)}</p></div>
+      </div>
+    </section>
     <div class='payment-grid'>
       <section class='box confirmation-card'>{button}</section>
       <section class='box cost-card pay-card'>
@@ -246,6 +250,20 @@ public static class PaymentEndpoints
   </section>
 </section>";
     }
+
+    private static string PaymentAction(Mailing mailing, bool isPromo, bool hasAdvertisingConsent, string paymentRulesHref, string payButtonText)
+    {
+        if (isPromo && !hasAdvertisingConsent)
+        {
+            return $"<h2>Нужно подтвердить рекламное согласие</h2><p class='notice warn'>Это рекламная рассылка. Вернитесь на шаг адресов и подтвердите наличие рекламного согласия адресатов.</p><a class='button' href='/mailings/{mailing.Id}/recipients'>Вернуться к адресам</a>";
+        }
+
+        return $"<form method='post' action='/mailings/{mailing.Id}/payment/fake-start' class='confirmation-list checks'><h2>Финальное подтверждение</h2><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я проверил рассылку, понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><div class='notice warn'>Если рассылка не будет отправлена по технической причине или из-за отказа Письмолёта до начала отправки, вопрос возврата решается по правилам возврата.</div><button class='button full-pay-button'>{H(payButtonText)}</button><p class='muted payment-provider-note'>После подтверждения откроется платёжная страница.</p></form>";
+    }
+
+    private static string AdvertisingConsentStatus(bool isPromo, bool hasAdvertisingConsent) => isPromo
+        ? hasAdvertisingConsent ? "подтверждено" : "не подтверждено"
+        : "не требуется";
 
     private static string RobokassaRequestPage(MailingPaymentReview review, RobokassaPaymentOptions robokassa, PublicUrlOptions publicUrl)
     {
@@ -520,9 +538,11 @@ public static class PaymentEndpoints
     private static string? ValidatePaymentConfirmations(Mailing mailing, IFormCollection form)
     {
         if (!form.ContainsKey("campaignLaunchConfirmation")) return "Подтвердите финальный запуск и правила оплаты.";
-        if (!form.ContainsKey("paymentBaseLegality")) return "Подтвердите правомерность обработки адресов и отправки письма.";
-        if (!form.ContainsKey("paymentBaseOwnership")) return "Подтвердите, что база не купленная и не чужая.";
-        if (mailing.MessageDraft?.MessageType == MessageType.Advertising && !form.ContainsKey("advertisingConsent")) return "Для промо-письма подтвердите согласие адресатов.";
+        if (mailing.MessageDraft?.MessageType == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true)
+        {
+            return "Для рекламной рассылки сначала подтвердите рекламное согласие адресатов на шаге адресов.";
+        }
+
         return null;
     }
 
