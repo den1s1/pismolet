@@ -140,6 +140,9 @@ public static class ServiceCollectionExtensions
         if (db is null) return;
 
         db.Database.ExecuteSqlRaw("ALTER TABLE audit_records ADD COLUMN IF NOT EXISTS \"At\" timestamp with time zone NOT NULL DEFAULT now();");
+        db.Database.ExecuteSqlRaw("ALTER TABLE audit_records ADD COLUMN IF NOT EXISTS \"CreatedAt\" timestamp with time zone DEFAULT now();");
+        db.Database.ExecuteSqlRaw("UPDATE audit_records SET \"CreatedAt\" = now() WHERE \"CreatedAt\" IS NULL;");
+        db.Database.ExecuteSqlRaw("ALTER TABLE audit_records ALTER COLUMN \"CreatedAt\" SET DEFAULT now();");
     }
 
     public static void SeedPismoletDevData(this IServiceProvider services)
