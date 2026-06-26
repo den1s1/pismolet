@@ -133,6 +133,15 @@ public static class ServiceCollectionExtensions
         db.Database.Migrate();
     }
 
+    public static void EnsurePismoletRuntimeSchema(this IServiceProvider services)
+    {
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetService<PismoletDbContext>();
+        if (db is null) return;
+
+        db.Database.ExecuteSqlRaw("ALTER TABLE audit_records ADD COLUMN IF NOT EXISTS \"At\" timestamp with time zone NOT NULL DEFAULT now();");
+    }
+
     public static void SeedPismoletDevData(this IServiceProvider services)
     {
         using var scope = services.CreateScope();
