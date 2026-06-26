@@ -38,6 +38,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("href='/legal/base-lawfulness'", html);
         Assert.Contains("href='/legal/advertising-consent'", html);
         Assert.Contains("href='/legal/anti-spam'", html);
+        Assert.Contains("href='/legal/prohibited-content'", html);
         Assert.Contains("href='/legal/unsubscribe'", html);
     }
 
@@ -50,6 +51,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
     [InlineData("/legal/base-lawfulness", "Декларация законности базы", "document_key: <code>base_lawfulness_declaration</code>")]
     [InlineData("/legal/advertising-consent", "Подтверждение рекламного согласия адресатов", "document_key: <code>advertising_consent_declaration</code>")]
     [InlineData("/legal/anti-spam", "Антиспам-политика Письмолёта", "document_key: <code>anti_spam_policy</code>")]
+    [InlineData("/legal/prohibited-content", "Политика запрещённого контента", "document_key: <code>prohibited_content_policy</code>")]
     [InlineData("/legal/unsubscribe", "Правила отписки через Письмолёт", "document_key: <code>global_unsubscribe_confirmation</code>")]
     public async Task LegalDocumentsArePublic(string path, string title, string documentKey)
     {
@@ -222,6 +224,25 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("Что проверяет сервис", html);
         Assert.Contains("Отписки, жалобы и ошибки доставки", html);
         Assert.Contains("Запрос подтверждений и ограничения", html);
+    }
+
+    [Fact]
+    public async Task ProhibitedContentContainsFullLegalSections()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var html = await client.GetStringAsync("/legal/prohibited-content");
+
+        Assert.Contains("Редакция:</strong> 2026-06-24-v1", html);
+        Assert.Contains("Общее правило", html);
+        Assert.Contains("Запрещённое содержание", html);
+        Assert.Contains("Тема, отправитель и ссылки", html);
+        Assert.Contains("Рекламные и сомнительные письма", html);
+        Assert.Contains("Проверка и последствия нарушения", html);
+        Assert.Contains("href='/legal/anti-spam'", html);
     }
 
     [Fact]
