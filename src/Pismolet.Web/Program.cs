@@ -93,7 +93,6 @@ app.UseAuthorization();
 app.UseAdminMenuVisibility();
 app.UseUnifiedAdminSidebar();
 app.UseDashboardHeroRemoval();
-app.UseCompactRecipientDeclarationUi();
 app.UseRecipientManagementAjax();
 app.UseLegalDeclarationEvidenceCapture();
 app.UseMailingLaunchEvidenceCapture();
