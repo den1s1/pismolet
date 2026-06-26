@@ -148,11 +148,74 @@
 }
 
 .import-summary {
-  margin: 20px 0 26px;
+  margin: 14px 0 0;
+}
+
+.address-step .panel {
+  display: grid;
+  gap: 18px;
+}
+
+.address-block {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #fff;
+  padding: 18px;
+}
+
+.address-block h2,
+.address-block p {
+  margin: 0;
+}
+
+.address-block-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.address-upload-grid {
+  margin-top: 0;
+}
+
+.address-inline-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.address-add-form {
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
+.address-inline-field {
+  gap: 6px;
+  font-weight: 500;
+}
+
+.address-inline-field input {
+  min-height: 38px;
+  padding: 8px 11px;
+  border-radius: 12px;
+}
+
+.address-base-summary {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
+}
+
+.compact-base-submit {
+  width: max-content !important;
+  min-width: 190px;
 }
 
 .inline-base-confirm form.row .btn,
 .inline-base-confirm form.row .button,
+.address-inline-form .btn,
+.address-inline-form .button,
 .table-wrap form .btn.ghost {
   min-height: 34px;
   padding: 7px 12px;
@@ -574,7 +637,13 @@
 }
 
 @media (max-width: 640px) {
+  .address-inline-form,
+  .address-add-form,
   .issue-list li {
     grid-template-columns: 1fr;
+  }
+
+  .compact-base-submit {
+    width: 100% !important;
   }
 }
