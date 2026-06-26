@@ -374,10 +374,11 @@ public sealed class SendEventEntity
     public string Reason { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
-    public DateOnly? AcceptedUtcDay { get; set; }
+    public int? AcceptedUtcDay { get; set; }
     public DateTimeOffset? AcceptedAt { get; set; }
     public string Provider { get; set; } = string.Empty;
     public string? ProviderMessageId { get; set; }
+    public int Attempt { get; set; }
     public string? TrackingToken { get; set; }
     public string? ErrorCode { get; set; }
     public string? ErrorMessage { get; set; }
@@ -398,6 +399,7 @@ public sealed class TrackedLinkEntity
     public string OriginalUrl { get; set; } = string.Empty;
     public int ClickCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? FirstClickedAt { get; set; }
     public DateTimeOffset? LastClickedAt { get; set; }
 }
@@ -432,6 +434,7 @@ public sealed class ProviderWebhookEventEntity
     public string? ReasonCode { get; set; }
     public string? ReasonMessage { get; set; }
     public string ProcessingStatus { get; set; } = string.Empty;
+    public Guid CorrelationId { get; set; }
 }
 
 public sealed class ClientSuppressionEntity
@@ -440,9 +443,10 @@ public sealed class ClientSuppressionEntity
     public string ClientId { get; set; } = string.Empty;
     public string EmailNormalized { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
-    public DateTimeOffset FirstSeenAt { get; set; }
-    public DateTimeOffset LastSeenAt { get; set; }
+    public Guid? SourceMailingId { get; set; }
     public string? SourceProviderMessageId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset LastSeenAt { get; set; }
 }
 
 public sealed class ReplyEventEntity
@@ -458,7 +462,12 @@ public sealed class ReplyEventEntity
     public string? ReplyTokenHash { get; set; }
     public string SubjectPreview { get; set; } = string.Empty;
     public DateTimeOffset ReceivedAt { get; set; }
+    public DateTimeOffset? ProcessedAt { get; set; }
+    public DateTimeOffset? ForwardQueuedAt { get; set; }
+    public DateTimeOffset? ForwardedAt { get; set; }
+    public string? ForwardToEmailNormalized { get; set; }
     public string ProcessingStatus { get; set; } = string.Empty;
+    public int ForwardRetryCount { get; set; }
     public string BodyStorageStatus { get; set; } = string.Empty;
     public DateTimeOffset? BodyExpiresAt { get; set; }
     public string? BodyTextStored { get; set; }
