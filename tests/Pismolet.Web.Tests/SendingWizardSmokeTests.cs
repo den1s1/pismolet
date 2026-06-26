@@ -31,13 +31,28 @@ public sealed class SendingWizardSmokeTests
         await PrepareAndApprove(factory, client, mailingId, "Launch smoke campaign");
 
         var launchHtml = await client.GetStringAsync($"/mailings/{mailingId}/send");
-        Assert.Contains("Запуск рассылки", launchHtml);
+        Assert.Contains("Готово к запуску", launchHtml);
         Assert.Contains("Запустить отправку", launchHtml);
-        Assert.Contains("Писем в очереди", launchHtml);
+        Assert.Contains("Всего писем", launchHtml);
+        Assert.Contains("Отправлено", launchHtml);
+        Assert.Contains("Не удалось", launchHtml);
+        Assert.Contains("Ответов", launchHtml);
+        Assert.Contains("<details class='detailed-report'>", launchHtml);
+        Assert.DoesNotContain("<details class='detailed-report' open>", launchHtml);
+        Assert.DoesNotContain("<details open>", launchHtml);
+        Assert.DoesNotContain("Dev-сводка событий", launchHtml);
         Assert.Contains("Правила оплаты, запуска и возвратов", launchHtml);
         Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/send", launchHtml);
         Assert.Contains("Правила хранения и удаления ответов", launchHtml);
         Assert.Contains($"/legal/reply-retention?returnUrl=/mailings/{mailingId}/send", launchHtml);
+
+        var reportStart = launchHtml.IndexOf("<details class='detailed-report'>", StringComparison.Ordinal);
+        Assert.True(reportStart > 0, "Detailed report was not found.");
+        var mainScreen = launchHtml[..reportStart];
+        Assert.DoesNotContain("Доставка по получателям", mainScreen);
+        Assert.DoesNotContain("Переходы по ссылкам", mainScreen);
+        Assert.DoesNotContain("ProviderMessageId", mainScreen);
+        Assert.DoesNotContain("raw provider payload", mainScreen);
 
         var response = await client.PostAsync($"/mailings/{mailingId}/send/start", new FormUrlEncodedContent(new Dictionary<string, string>()));
         var html = await response.Content.ReadAsStringAsync();
@@ -45,17 +60,23 @@ public sealed class SendingWizardSmokeTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Рассылка запущена", html);
         Assert.Contains("Отправка идёт постепенно", html);
-        Assert.Contains("Писем в очереди", html);
-        Assert.Contains("Оплачено писем", html);
-        Assert.Contains("Открыто сейчас", html);
+        Assert.Contains("Всего писем", html);
+        Assert.Contains("Отправлено", html);
+        Assert.Contains("Не удалось", html);
+        Assert.Contains("Ответов", html);
+        Assert.Contains("Подробный отчёт", html);
+        Assert.Contains("Доставка по получателям", html);
+        Assert.Contains("Переходы по ссылкам", html);
         Assert.Contains("Открытий всего", html);
-        Assert.Contains("Последнее открытие", html);
-        Assert.Contains("Кликнувшие сейчас", html);
         Assert.Contains("Кликнувшие получатели", html);
         Assert.Contains("Кликов всего", html);
         Assert.Contains("Последнее нажатие", html);
-        Assert.Contains("Переходы по ссылкам", html);
-        Assert.Contains("Ответов сейчас", html);
+        Assert.DoesNotContain("Писем в очереди", html);
+        Assert.DoesNotContain("Оплачено писем", html);
+        Assert.DoesNotContain("Открыто сейчас", html);
+        Assert.DoesNotContain("Кликнувшие сейчас", html);
+        Assert.DoesNotContain("Ответов сейчас", html);
+        Assert.DoesNotContain("Dev-сводка событий", html);
         Assert.Contains("Скачать Excel-отчёт", html);
         Assert.DoesNotContain("Прочитано", html, StringComparison.OrdinalIgnoreCase);
     }
