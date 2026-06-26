@@ -348,8 +348,10 @@ public static class PaymentEndpoints
         var next = payment is null
             ? "<p><a class='btn secondary' href='/'>На главную</a></p>"
             : payment.Status == PaymentStatus.Paid
-                ? $"<form method='post' action='/mailings/{payment.MailingId}/checks/start'><button class='btn'>Перейти к проверке рассылки</button></form><p><a href='/mailings/{payment.MailingId}/payment'>Открыть страницу оплаты</a></p>"
-                : $"<p><a class='btn secondary' href='/mailings/{payment.MailingId}/payment'>Открыть страницу оплаты</a></p>";
+                ? $"<form method='post' action='/mailings/{payment.MailingId}/checks/start'><button class='btn'>Перейти к проверке рассылки</button></form><p><a href='/mailings/{payment.MailingId}/checks'>Открыть статус проверки</a></p>"
+                : $@"<div class='notice warn'>Мы получили возврат из платёжного модуля и ждём серверное подтверждение оплаты. Обычно оно приходит быстро, но финальный статус меняет только ResultURL.</div>
+  <p><a class='btn' href='/mailings/{payment.MailingId}/checks'>Проверить статус и продолжить</a></p>
+  <p><a href='/dashboard'>В личный кабинет</a></p>";
         var inv = string.IsNullOrWhiteSpace(invId) ? string.Empty : $"<p class='muted'>InvId: {H(invId)}</p>";
 
         return $@"

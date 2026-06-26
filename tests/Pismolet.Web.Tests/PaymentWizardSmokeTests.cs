@@ -149,6 +149,36 @@ public sealed class PaymentWizardSmokeTests
     }
 
     [Fact]
+    public async Task Robokassa_success_url_pending_payment_does_not_loop_back_to_payment()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory, "Robokassa pending success");
+        using var client = CreateAuthenticatedClient(factory);
+        await Prepare(client, mailingId, MessageType.Transactional);
+        var startHtml = await StartPayment(client, mailingId);
+        var fields = ExtractHiddenFields(startHtml);
+        var successFields = BuildSuccessCallbackFields(factory, fields);
+
+        var success = await client.PostAsync("/payments/robokassa/success", new FormUrlEncodedContent(successFields));
+        var successHtml = await success.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, success.StatusCode);
+        Assert.Contains("Переход после оплаты получен", successHtml);
+        Assert.Contains("ждём серверное подтверждение оплаты", successHtml);
+        Assert.Contains($"href='/mailings/{mailingId}/checks'", successHtml);
+        Assert.Contains("В личный кабинет", successHtml);
+        Assert.DoesNotContain("Открыть страницу оплаты", successHtml);
+        Assert.DoesNotContain($"href='/mailings/{mailingId}/payment'", successHtml);
+
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.Equal(MailingStatus.PaymentPending, mailing.Status);
+    }
+
+    [Fact]
     public async Task Fake_robokassa_checkout_can_complete_successful_payment()
     {
         using var factory = CreateAuthorizedFactory();
@@ -170,6 +200,9 @@ public sealed class PaymentWizardSmokeTests
         Assert.Equal(HttpStatusCode.OK, success.StatusCode);
         Assert.Contains("Оплата подтверждена", successHtml);
         Assert.Contains($"ResultURL вернул OK{fields["InvId"]}", successHtml);
+        Assert.Contains("Перейти к проверке рассылки", successHtml);
+        Assert.Contains($"/mailings/{mailingId}/checks", successHtml);
+        Assert.DoesNotContain("Открыть страницу оплаты", successHtml);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
@@ -262,6 +295,21 @@ public sealed class PaymentWizardSmokeTests
             match => WebUtility.HtmlDecode(match.Groups["name"].Value),
             match => WebUtility.HtmlDecode(match.Groups["value"].Value),
             StringComparer.Ordinal);
+
+    private static Dictionary<string, string> BuildSuccessCallbackFields(WebApplicationFactory<Program> factory, IReadOnlyDictionary<string, string> startFields)
+    {
+        using var scope = factory.Services.CreateScope();
+        var options = scope.ServiceProvider.GetRequiredService<RobokassaPaymentOptions>();
+        var shp = new Dictionary<string, string> { ["Shp_mailingId"] = startFields["Shp_mailingId"] };
+        var fields = new Dictionary<string, string>
+        {
+            ["OutSum"] = startFields["OutSum"],
+            ["InvId"] = startFields["InvId"],
+            ["Shp_mailingId"] = startFields["Shp_mailingId"]
+        };
+        fields["SignatureValue"] = RobokassaPaymentModule.BuildSuccessSignature(fields["OutSum"], fields["InvId"], options.Password1, shp);
+        return fields;
+    }
 
     private static WebApplicationFactory<Program> CreateAuthorizedFactory() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
