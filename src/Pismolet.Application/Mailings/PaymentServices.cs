@@ -24,7 +24,7 @@ public interface IMailingPricingService
 public interface IPaymentProvider
 {
     PaymentAttempt Start(Payment payment);
-    PaymentAttempt ConfirmSuccess(Payment payment, string providerOperationId);
+    PaymentAttempt ConfirmSuccess(Payment payment, string providerOperationId, string rawCallback = "success");
 }
 
 public interface IMailingPaymentService
@@ -32,6 +32,7 @@ public interface IMailingPaymentService
     MailingPaymentResult GetPaymentReview(string userEmail, Guid mailingId, RequestMetadata request);
     MailingPaymentResult StartPayment(string userEmail, Guid mailingId, RequestMetadata request);
     MailingPaymentResult ConfirmPayment(string userEmail, Guid mailingId, string providerOperationId, RequestMetadata request);
+    MailingPaymentResult ConfirmProviderPayment(string providerOperationId, RequestMetadata request, string rawCallback);
 }
 
 public sealed class MailingPricingService(IPriceSettingsRepository prices) : IMailingPricingService
@@ -58,18 +59,20 @@ public sealed class MailingPricingService(IPriceSettingsRepository prices) : IMa
     }
 }
 
-public sealed class FakePaymentProvider : IPaymentProvider
+public sealed class FakeRobokassaPaymentProvider : IPaymentProvider
 {
     public PaymentAttempt Start(Payment payment)
     {
-        var operationId = $"fake-{payment.Id:N}";
-        return payment.Attempts.FirstOrDefault(x => x.ProviderOperationId == operationId) ?? PaymentAttempt.Pending(payment.Id, operationId);
+        var operationId = RobokassaPaymentModule.BuildInvId(payment.Id);
+        return payment.Attempts.FirstOrDefault(x => x.ProviderOperationId == operationId)
+            ?? PaymentAttempt.Pending(payment.Id, operationId, PaymentAttempt.RobokassaFakeProvider);
     }
 
-    public PaymentAttempt ConfirmSuccess(Payment payment, string providerOperationId)
+    public PaymentAttempt ConfirmSuccess(Payment payment, string providerOperationId, string rawCallback = "success")
     {
-        var attempt = payment.Attempts.FirstOrDefault(x => x.ProviderOperationId == providerOperationId) ?? PaymentAttempt.Pending(payment.Id, providerOperationId);
-        return attempt.Status == PaymentAttemptStatus.Succeeded ? attempt : attempt.MarkSucceeded("success");
+        var attempt = payment.Attempts.FirstOrDefault(x => x.ProviderOperationId == providerOperationId)
+            ?? PaymentAttempt.Pending(payment.Id, providerOperationId, PaymentAttempt.RobokassaFakeProvider);
+        return attempt.Status == PaymentAttemptStatus.Succeeded ? attempt : attempt.MarkSucceeded(rawCallback);
     }
 }
 
@@ -136,7 +139,29 @@ public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentR
             payments.Save(payment);
             mailing = mailing.WithStatus(MailingStatus.Paid);
             mailings.Update(mailing);
-            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "fake_payment_succeeded", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
+            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "robokassa_payment_succeeded", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
+        }
+
+        return BuildReview(mailing.WithStatus(MailingStatus.Paid), payment);
+    }
+
+    public MailingPaymentResult ConfirmProviderPayment(string providerOperationId, RequestMetadata request, string rawCallback)
+    {
+        var payment = payments.GetByProviderOperationId(providerOperationId);
+        if (payment is null) return MailingPaymentResult.Failure("Платёжная попытка не найдена.");
+        var mailing = mailings.Get(payment.MailingId);
+        if (mailing is null) return MailingPaymentResult.Failure("Рассылка не найдена.");
+        var blockError = ValidateNotBlocked(mailing);
+        if (!string.IsNullOrWhiteSpace(blockError)) return MailingPaymentResult.Failure(blockError);
+
+        if (payment.Status != PaymentStatus.Paid)
+        {
+            var attempt = provider.ConfirmSuccess(payment, providerOperationId, rawCallback);
+            payment = payment.MarkPaid(attempt);
+            payments.Save(payment);
+            mailing = mailing.WithStatus(MailingStatus.Paid);
+            mailings.Update(mailing);
+            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "robokassa_result_paid", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
         }
 
         return BuildReview(mailing.WithStatus(MailingStatus.Paid), payment);

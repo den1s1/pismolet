@@ -70,11 +70,12 @@ public sealed record PaymentAttempt(
     string RawCallback)
 {
     public const string FakeProvider = "Fake";
+    public const string RobokassaFakeProvider = "RobokassaFake";
 
-    public static PaymentAttempt Pending(Guid paymentId, string providerOperationId) => new(
+    public static PaymentAttempt Pending(Guid paymentId, string providerOperationId, string provider = FakeProvider) => new(
         Guid.NewGuid(),
         paymentId,
-        FakeProvider,
+        provider,
         providerOperationId,
         PaymentAttemptStatus.Pending,
         DateTimeOffset.UtcNow,

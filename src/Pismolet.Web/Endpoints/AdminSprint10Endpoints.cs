@@ -49,7 +49,7 @@ public static class AdminSprint10Endpoints
                 {Card("Клиенты", "Лимиты, блокировки и премодерация", "/admin/clients")}
                 {Card("Рассылки", "Статусы, блокировки, диагностика", "/admin/campaigns")}
                 {Card("Импорты", "Сводка accepted/invalid/suppressed", "/admin/imports")}
-                {Card("Платежи", "Стоимость и fake payment attempts", "/admin/payments")}
+                {Card("Платежи", "Стоимость и Robokassa-like оплаты", "/admin/payments")}
                 {Card("Отписки", "Global suppression", "/admin/recipients")}
                 {Card("Жалобы", "Complaint-сигналы", "/admin/complaints")}
                 {Card("Ошибки доставки", "Soft/hard bounce и rejected", "/admin/delivery-errors")}
