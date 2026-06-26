@@ -415,22 +415,6 @@ public sealed class ClickEventEntity
     public string? UserAgentHash { get; set; }
 }
 
-public sealed class PostfixDeliveryEventEntity
-{
-    public Guid Id { get; set; }
-    public string QueueId { get; set; } = string.Empty;
-    public string RecipientEmailNormalized { get; set; } = string.Empty;
-    public string ProviderMessageId { get; set; } = string.Empty;
-    public string SmtpStatusCode { get; set; } = string.Empty;
-    public string Dsn { get; set; } = string.Empty;
-    public string Relay { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public string RawLineHash { get; set; } = string.Empty;
-    public string RawLinePreview { get; set; } = string.Empty;
-    public DateTimeOffset ObservedAt { get; set; }
-    public DateTimeOffset ParsedAt { get; set; }
-}
-
 public sealed class ProviderWebhookEventEntity
 {
     public Guid Id { get; set; }
