@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Configuration;
 using Pismolet.Web.Application.Mail;
+using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.BackgroundServices;
 using Pismolet.Web.Endpoints;
 using Pismolet.Web.Infrastructure.DependencyInjection;
@@ -54,6 +55,8 @@ builder.Services.AddAuthorization(options =>
         }));
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
+builder.Services.AddScoped<MailingPaymentService>();
+builder.Services.AddScoped<IMailingPaymentService, AdminWaivedMailingPaymentService>();
 if (!isRunningUnderTests && ShouldUseSmtpConfirmation(builder.Configuration))
 {
     builder.Services.AddSingleton<IFakeMailer, SmtpAccountConfirmationMailer>();
