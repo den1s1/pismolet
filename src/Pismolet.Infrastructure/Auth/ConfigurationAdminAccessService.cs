@@ -86,19 +86,26 @@ public sealed class ConfigurationAdminAccessService(IConfiguration configuration
 
             _managedAdmins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var path = ManagedAdminsPath(configuration);
-            if (File.Exists(path))
+            try
             {
-                foreach (var line in File.ReadAllLines(path))
+                if (File.Exists(path))
                 {
-                    foreach (var item in Split(line))
+                    foreach (var line in File.ReadAllLines(path))
                     {
-                        var normalized = Normalize(item);
-                        if (!string.IsNullOrWhiteSpace(normalized))
+                        foreach (var item in Split(line))
                         {
-                            _managedAdmins.Add(normalized);
+                            var normalized = Normalize(item);
+                            if (!string.IsNullOrWhiteSpace(normalized))
+                            {
+                                _managedAdmins.Add(normalized);
+                            }
                         }
                     }
                 }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                _managedAdmins.Clear();
             }
 
             return new HashSet<string>(_managedAdmins, StringComparer.OrdinalIgnoreCase);
