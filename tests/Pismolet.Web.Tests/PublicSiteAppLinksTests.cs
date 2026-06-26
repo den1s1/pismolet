@@ -126,8 +126,21 @@ public sealed class PublicSiteAppLinksTests
         Assert.Contains(".account-hint a", css);
         Assert.Contains(".footer-links", css);
         Assert.Contains("@media (max-width: 520px)", css);
-        Assert.Contains(@"content: ""\2713"";", css);
+        Assert.Contains("content: \"✓\";", css);
+        Assert.DoesNotContain(@"content: ""\2713"";", css);
         Assert.DoesNotContain(@"content: ""\\2713"";", css);
+    }
+
+    [Fact]
+    public void Public_pages_cache_bust_shared_site_css()
+    {
+        foreach (var page in PublicHtmlPagesWithHeader())
+        {
+            var html = File.ReadAllText(page);
+
+            Assert.Contains("href=\"/assets/site.css?v=", html);
+            Assert.DoesNotContain("href=\"/assets/site.css\"", html);
+        }
     }
 
     private static IReadOnlyCollection<string> PublicHtmlPagesWithHeader()
