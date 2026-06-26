@@ -1,0 +1,66 @@
+.checkbox-list {
+  display: grid;
+  gap: 8px;
+}
+
+.checkbox-row,
+.compact-base-check,
+.confirmation-list label.check {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  font-weight: 400 !important;
+  line-height: 1.4 !important;
+}
+
+.checkbox-control,
+input[type="checkbox"].checkbox-control,
+.compact-base-check input[type="checkbox"],
+.confirmation-list label.check input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  max-width: 18px !important;
+  flex: 0 0 18px !important;
+  margin: 2px 0 0 !important;
+  padding: 0 !important;
+  appearance: auto !important;
+}
+
+.checkbox-text,
+.compact-base-check .checkbox-text,
+.confirmation-list label.check .checkbox-text,
+.compact-base-check span,
+.confirmation-list label.check span {
+  font-weight: 400 !important;
+  line-height: 1.4;
+}
+
+.checkbox-text a,
+.compact-base-check a,
+.confirmation-list label.check a {
+  font-weight: 500;
+}
+
+.form-consents {
+  display: grid;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.form-consents .checkbox-row {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.compact-base-check {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.confirmation-list label.check {
+  padding: 12px 14px !important;
+}
