@@ -21,7 +21,7 @@ public sealed class EfAuditLogger(PismoletDbContext db) : IAuditLogger
         db.AuditRecords.Add(new AuditRecordEntity
         {
             Id = Guid.NewGuid(),
-            CreatedAt = record.CreatedAt.ToUniversalTime(),
+            At = record.CreatedAt.ToUniversalTime(),
             User = record.User,
             EventType = record.EventType,
             Ip = record.Ip,
@@ -32,7 +32,7 @@ public sealed class EfAuditLogger(PismoletDbContext db) : IAuditLogger
     }
 
     public IReadOnlyCollection<AuditRecord> GetRecords() => db.AuditRecords
-        .OrderByDescending(x => x.CreatedAt)
-        .Select(x => new AuditRecord(x.CreatedAt, x.User, x.EventType, x.Ip, x.UserAgent, x.Context))
+        .OrderByDescending(x => x.At)
+        .Select(x => new AuditRecord(x.At, x.User, x.EventType, x.Ip, x.UserAgent, x.Context))
         .ToArray();
 }
