@@ -32,6 +32,10 @@ a {
   color: inherit;
 }
 
+button {
+  font: inherit;
+}
+
 .app-header {
   background: rgba(248, 250, 252, 0.9);
   backdrop-filter: blur(10px);
@@ -236,8 +240,7 @@ a {
 }
 
 .btn,
-.button,
-button {
+.button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -246,7 +249,7 @@ button {
   border-radius: 999px;
   padding: 13px 20px;
   font: inherit;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
   text-decoration: none;
   background: var(--accent);
@@ -255,8 +258,7 @@ button {
 }
 
 .btn:hover,
-.button:hover,
-button:hover {
+.button:hover {
   background: var(--accent-dark);
 }
 
@@ -268,6 +270,36 @@ button:hover {
   box-shadow: none;
 }
 
+.btn.tertiary,
+.button.tertiary,
+.btn.ghost,
+.button.ghost {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.btn.tertiary:hover,
+.button.tertiary:hover,
+.btn.ghost:hover,
+.button.ghost:hover {
+  background: #f1f5f9;
+  color: var(--text);
+}
+
+.btn.compact,
+.button.compact,
+.compact-button,
+.compact-action {
+  min-height: 34px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.control-link,
 .text-link {
   border: 0;
   background: transparent;
@@ -275,7 +307,7 @@ button:hover {
   padding: 0;
   font: inherit;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -538,12 +570,6 @@ th {
   border-color: #fed7aa;
   background: var(--warn-soft);
   color: #9a3412;
-}
-
-.btn.ghost {
-  background: transparent;
-  color: var(--muted);
-  box-shadow: none;
 }
 
 @media (max-width: 900px) {
