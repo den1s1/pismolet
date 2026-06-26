@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using Microsoft.Extensions.Configuration;
+using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Rendering;
 
 namespace Pismolet.Web.Endpoints;
@@ -14,17 +15,19 @@ public static class AdminSettingsEndpoints
             .WithOrder(-1);
         app.MapPost("/admin/settings/billing", () => SettingsAction("billing")).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         app.MapPost("/admin/settings/limits", () => SettingsAction("limits")).RequireAuthorization(AdminEndpoints.AdminPolicyName);
+        app.MapPost("/admin/settings/warmup", SaveWarmupSettings).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         app.MapPost("/admin/settings/moderation", () => SettingsAction("moderation")).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         app.MapPost("/admin/settings/smtp", () => SettingsAction("smtp")).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         app.MapPost("/admin/settings/smtp-test", () => SettingsAction("smtp-test")).RequireAuthorization(AdminEndpoints.AdminPolicyName);
         return app;
     }
 
-    private static IResult ShowSettings(HttpContext http, IConfiguration configuration)
+    private static IResult ShowSettings(HttpContext http, IConfiguration configuration, IMailWarmupRuntimeSettingsRepository warmupSettingsRepository)
     {
         var adminEmail = CurrentEmail(http) ?? "admin@example.test";
         var action = http.Request.Query["action"].ToString();
-        var alert = SettingsActionMessage(action);
+        var actionError = http.Request.Query["error"].ToString();
+        var alert = SettingsActionMessage(action, actionError);
         var alertHtml = string.IsNullOrWhiteSpace(alert) ? string.Empty : $"<p class='admin-alert'>{H(alert)}</p>";
         var smtpHost = C(configuration, "Smtp:Host", "не задан");
         var smtpPort = C(configuration, "Smtp:Port", "не задан");
@@ -39,6 +42,8 @@ public static class AdminSettingsEndpoints
         var inboundLifetime = C(configuration, "InboundReplies:TokenLifetimeDays", "180");
         var workerCount = C(configuration, "Hangfire:WorkerCount", "1");
         var fakeSender = C(configuration, "Webhooks:FakeSenderEnabled", "false");
+        var warmupSettings = warmupSettingsRepository.Get();
+        var warmupSource = warmupSettingsRepository.HasStoredSettings ? "админка" : "env / значения по умолчанию";
 
         var body = $"""
             <section class='admin-panel'>
@@ -71,6 +76,20 @@ public static class AdminSettingsEndpoints
                         <form method='post' action='/admin/settings/limits'><button class='admin-button' type='submit'>Сохранить лимиты</button></form>
                     </section>
                     <section class='admin-settings-card'>
+                        <p class='eyebrow'>Warmup</p>
+                        <h2>Прогрев и темп отправки</h2>
+                        <p class='admin-muted'>Эти параметры раньше задавались через env `MailWarmup__...`. Теперь они сохраняются в runtime-настройках админки.</p>
+                        <form method='post' action='/admin/settings/warmup' class='form-grid'>
+                            {NumberInput("maxPerMinute", "Максимум в минуту", warmupSettings.MaxPerMinute, 0, MailWarmupRuntimeSettings.MaxLimitValue, "Например: 10")}
+                            {NumberInput("maxPerHour", "Максимум в час", warmupSettings.MaxPerHour, 0, MailWarmupRuntimeSettings.MaxLimitValue, "Например: 100")}
+                            {NumberInput("maxPerDay", "Максимум в день", warmupSettings.MaxPerDay, 0, MailWarmupRuntimeSettings.MaxLimitValue, "Например: 300")}
+                            {NumberInput("minSecondsBetweenSends", "Минимум секунд между письмами", warmupSettings.MinSecondsBetweenSends, 0, MailWarmupRuntimeSettings.MaxDelaySeconds, "Например: 6")}
+                            <button class='admin-button' type='submit'>Сохранить warmup-лимиты</button>
+                        </form>
+                        <dl>{Setting("Источник", warmupSource)}{Setting("Файл", warmupSettingsRepository.StoragePath)}</dl>
+                        <p class='admin-muted'>После сохранения значения будут использованы при следующем старте web/worker-процесса. Для текущего запущенного процесса выполните restart сервиса.</p>
+                    </section>
+                    <section class='admin-settings-card'>
                         <p class='eyebrow'>Контент</p>
                         <h2>Правила модерации</h2>
                         <dl>{Setting("Премодерация", "первые и рискованные кампании")}{Setting("Очередь", "/admin/moderation")}{Setting("Режим", "гибридная проверка")}</dl>
@@ -99,13 +118,29 @@ public static class AdminSettingsEndpoints
         return AdminHtml("Админка - настройки", adminEmail, "settings", body);
     }
 
+    private static async Task<IResult> SaveWarmupSettings(HttpContext http, IMailWarmupRuntimeSettingsRepository warmupSettingsRepository)
+    {
+        var form = await http.Request.ReadFormAsync();
+        var settings = new MailWarmupRuntimeSettings(
+            MaxPerMinute: ReadFormInt(form, "maxPerMinute", MailWarmupRuntimeSettings.Default.MaxPerMinute),
+            MaxPerHour: ReadFormInt(form, "maxPerHour", MailWarmupRuntimeSettings.Default.MaxPerHour),
+            MaxPerDay: ReadFormInt(form, "maxPerDay", MailWarmupRuntimeSettings.Default.MaxPerDay),
+            MinSecondsBetweenSends: ReadFormInt(form, "minSecondsBetweenSends", MailWarmupRuntimeSettings.Default.MinSecondsBetweenSends));
+        var result = warmupSettingsRepository.Save(settings);
+        return result.Ok
+            ? Results.Redirect("/admin/settings?action=warmup")
+            : Results.Redirect($"/admin/settings?action=warmup-error&error={Uri.EscapeDataString(result.Error)}");
+    }
+
     private static IResult SettingsAction(string action) =>
         Results.Redirect($"/admin/settings?action={Uri.EscapeDataString(action)}");
 
-    private static string SettingsActionMessage(string action) => action switch
+    private static string SettingsActionMessage(string action, string? error = null) => action switch
     {
         "billing" => "Настройки биллинга сохранены в UI. Подключение постоянного хранилища настроек будет отдельным backend-спринтом.",
         "limits" => "Настройки лимитов сохранены в UI. Индивидуальные лимиты клиентов меняются через раздел дневных лимитов.",
+        "warmup" => "Warmup-лимиты сохранены в runtime-настройках. Перезапустите web/worker-процесс, чтобы применить их к текущей отправке.",
+        "warmup-error" => string.IsNullOrWhiteSpace(error) ? "Не удалось сохранить warmup-лимиты." : error,
         "moderation" => "Правила модерации сохранены в UI. Боевые правила риск-скоринга останутся в коде до отдельного спринта.",
         "smtp" => "SMTP-настройки сохранены в UI. Фактические секреты остаются в env-файле сервера.",
         "smtp-test" => "Запрос на проверку SMTP принят. Боевой тест отправки будет подключён вместе с собственным SMTP-сервером.",
@@ -114,6 +149,16 @@ public static class AdminSettingsEndpoints
 
     private static string Setting(string name, string value) =>
         $"<div><dt>{H(name)}</dt><dd>{H(value)}</dd></div>";
+
+    private static string NumberInput(string name, string label, int value, int min, int max, string hint) => $"""
+        <label>{H(label)}
+            <input type='number' name='{H(name)}' min='{min}' max='{max}' value='{value}' required>
+            <span class='field-hint'>{H(hint)}</span>
+        </label>
+        """;
+
+    private static int ReadFormInt(IFormCollection form, string key, int fallback) =>
+        int.TryParse(form[key].ToString(), out var parsed) ? parsed : fallback;
 
     private static string C(IConfiguration configuration, string key, string fallback) =>
         string.IsNullOrWhiteSpace(configuration[key]) ? fallback : configuration[key]!;
