@@ -77,6 +77,7 @@ public static class AdminSidebarMiddlewareExtensions
                     {Link(path, "/admin", "Dashboard")}
                     {Link(path, "/admin/users", "Пользователи")}
                     {Link(path, "/admin/campaigns", "Рассылки")}
+                    {Link(path, "/admin/moderation", "Модерация")}
                     {Link(path, "/admin/imports", "Импорты")}
                     {Link(path, "/admin/payments", "Платежи")}
                     {Link(path, "/admin/recipients", "Отписки")}

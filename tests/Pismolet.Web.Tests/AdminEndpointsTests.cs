@@ -230,6 +230,7 @@ public sealed class AdminEndpointsTests
         Assert.Contains("href='/admin'>Dashboard</a>", html);
         Assert.Contains("href='/admin/users'>Пользователи</a>", html);
         Assert.Contains("href='/admin/campaigns'>Рассылки</a>", html);
+        Assert.Contains("href='/admin/moderation'>Модерация</a>", html);
         Assert.Contains("href='/admin/imports'>Импорты</a>", html);
         Assert.Contains("href='/admin/payments'>Платежи</a>", html);
         Assert.Contains("href='/admin/recipients'>Отписки</a>", html);
