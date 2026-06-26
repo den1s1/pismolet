@@ -11,6 +11,8 @@ using Microsoft.Extensions.Options;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Application.Persistence;
+using Pismolet.Web.Domain.Mailings;
 
 namespace Pismolet.Web.Tests;
 
@@ -49,13 +51,38 @@ public sealed class PaymentEndpointUiTests
     }
 
     [Fact]
-    public void Payment_endpoint_requires_advertising_consent_from_saved_declaration_not_payment_checkbox()
+    public async Task Advertising_payment_without_saved_advertising_consent_is_blocked_by_endpoint()
     {
-        var source = File.ReadAllText(RepositoryPath("src/Pismolet.Web/Endpoints/PaymentEndpoints.cs"));
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Payment UI Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Advertising without consent campaign");
+        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+        ForceAdvertisingDraftWithoutAdvertisingConsent(factory, mailingId);
 
-        Assert.Contains("mailing.Declaration?.IsAdvertisingConsentConfirmed", source);
-        Assert.Contains("Для рекламной рассылки сначала подтвердите рекламное согласие", source);
-        Assert.DoesNotContain("form.ContainsKey(\"advertisingConsent\")", source);
+        var paymentHtml = await client.GetStringAsync($"/mailings/{mailingId}/payment");
+
+        Assert.Contains("Нужно подтвердить рекламное согласие", paymentHtml);
+        Assert.Contains($"href='/mailings/{mailingId}/recipients'", paymentHtml);
+        Assert.DoesNotContain("name='advertisingConsent'", paymentHtml);
+
+        using var confirmation = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["campaignLaunchConfirmation"] = "on"
+        });
+        var start = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", confirmation);
+        var startHtml = await start.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, start.StatusCode);
+        Assert.Contains("Для рекламной рассылки сначала подтвердите рекламное согласие", startHtml);
+        Assert.DoesNotContain("Оплата через Robokassa", startHtml);
+
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.NotEqual(MailingStatus.PaymentPending, mailing.Status);
     }
 
     private static async Task ImportAcceptedAddress(HttpClient client, Guid mailingId)
@@ -93,6 +120,24 @@ public sealed class PaymentEndpointUiTests
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
         Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected message response: {(int)response.StatusCode}");
+    }
+
+    private static void ForceAdvertisingDraftWithoutAdvertisingConsent(WebApplicationFactory<Program> factory, Guid mailingId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IMailingRepository>();
+        var mailing = repository.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        Assert.NotNull(mailing.Declaration);
+
+        var declaration = mailing.Declaration with { IsAdvertisingConsentConfirmed = false };
+        var draft = MailingMessageDraft.Create(
+            "Рекламный отправитель",
+            "Рекламная рассылка",
+            "Рекламный текст",
+            MessageType.Advertising,
+            DateTimeOffset.UtcNow);
+        repository.Update(mailing.WithDeclaration(declaration).WithMessageDraft(draft));
     }
 
     private static WebApplicationFactory<Program> CreateFactory() =>
@@ -137,18 +182,6 @@ public sealed class PaymentEndpointUiTests
         Assert.True(result.Ok, result.Error);
         Assert.NotNull(result.Mailing);
         return result.Mailing.Id;
-    }
-
-    private static string RepositoryPath(string relativePath)
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Pismolet.sln")))
-        {
-            directory = directory.Parent;
-        }
-
-        Assert.NotNull(directory);
-        return Path.Combine(directory.FullName, relativePath);
     }
 
     private static RequestMetadata Request() => new("127.0.0.1", "payment-endpoint-ui-tests");
