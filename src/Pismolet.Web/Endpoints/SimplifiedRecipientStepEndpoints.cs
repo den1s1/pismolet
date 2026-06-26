@@ -13,7 +13,8 @@ namespace Pismolet.Web.Endpoints;
 public static class SimplifiedRecipientStepEndpoints
 {
     private const int RecipientListLimit = 100;
-    private const int MaxManualAddressesChars = 1024 * 1024;
+    private const int MaxRecipientUploadBytes = 1024 * 1024;
+    private const int MaxManualAddressBytes = MaxRecipientUploadBytes;
 
     public static IEndpointRouteBuilder MapSimplifiedRecipientStepEndpoints(this IEndpointRouteBuilder app)
     {
@@ -154,9 +155,10 @@ public static class SimplifiedRecipientStepEndpoints
     <section class='address-block address-summary-block'>
       <div class='address-block-head'><div><h2>Сводка импорта</h2><p class='muted'>К оплате попадут только адреса со статусом «Принят к отправке».</p></div></div>
       __STATS__
+      __WARNINGS__
     </section>
     <section class='address-block address-base-block'>
-      <div class='address-block-head'><div><h2>Подтверждение базы</h2><p class='muted'>Источник базы и юридические подтверждения фиксируются перед переходом к письму.</p></div></div>
+      <div class='address-block-head'><div><h2>Подтвердите базу</h2><p class='muted'>Источник базы и юридические подтверждения фиксируются перед переходом к письму.</p></div></div>
       __DECLARATION__
     </section>
     <section class='address-block address-list-block'>
@@ -184,6 +186,7 @@ public static class SimplifiedRecipientStepEndpoints
             .Replace("__QUERY__", H(query), StringComparison.Ordinal)
             .Replace("__ALERT__", alert, StringComparison.Ordinal)
             .Replace("__STATS__", Stats(mailing), StringComparison.Ordinal)
+            .Replace("__WARNINGS__", WarningsBlock(mailing), StringComparison.Ordinal)
             .Replace("__DECLARATION__", declaration, StringComparison.Ordinal)
             .Replace("__ROWS__", rows, StringComparison.Ordinal)
             .Replace("__NEXT_ACTION__", mailing.Declaration is null ? string.Empty : $"<a class='button' href='/mailings/{mailing.Id}/message'>Перейти к письму</a>", StringComparison.Ordinal);
@@ -252,6 +255,23 @@ __SCRIPT__
         var stats = mailing.LastImportStats;
         var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
         return $"<div class='stats import-summary'><div class='stat'><b>{stats.TotalRows}</b><span>Строк в файле</span></div><div class='stat'><b>{stats.Accepted}</b><span>Принято к отправке</span></div><div class='stat'><b>{stats.Duplicates + stats.Invalid}</b><span>Дублей и ошибок</span></div><div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div><div class='stat'><b>{stats.GloballySuppressed}</b><span>Ранее отписались</span></div></div>";
+    }
+
+    private static string WarningsBlock(Mailing mailing)
+    {
+        var warnings = (mailing.LastImportBatch?.Issues ?? Array.Empty<RecipientImportIssue>())
+            .Where(IsWarningIssue)
+            .Take(10)
+            .ToArray();
+        return warnings.Length == 0
+            ? string.Empty
+            : $"<section class='address-warning-block'><h2>Предупреждения</h2>{IssueBlock(warnings)}</section>";
+    }
+
+    private static string IssueBlock(IReadOnlyCollection<RecipientImportIssue> issues)
+    {
+        var rows = string.Join("", issues.Select(issue => $"<li><b>Строка {issue.RowNumber}</b><span>{H(issue.Email)}</span><em>{H(issue.Message)}</em></li>"));
+        return $"<ul class='issue-list'>{rows}</ul>";
     }
 
     private static string DeclarationPanel(Mailing mailing) => mailing.Declaration is null
@@ -369,6 +389,11 @@ __SCRIPT__
         var file = form.Files.GetFile("file");
         if (file is { Length: > 0 })
         {
+            if (file.Length > MaxRecipientUploadBytes)
+            {
+                return ImportSourceInput.Failure("Файл слишком большой для dev-среза.");
+            }
+
             var stream = new MemoryStream();
             await file.CopyToAsync(stream, cancellationToken);
             stream.Position = 0;
@@ -381,7 +406,7 @@ __SCRIPT__
             return ImportSourceInput.Failure("Добавьте файл или вставьте адреса вручную.");
         }
 
-        if (manual.Length > MaxManualAddressesChars)
+        if (Encoding.UTF8.GetByteCount(manual) > MaxManualAddressBytes)
         {
             return ImportSourceInput.Failure("Ручная вставка слишком большая. Загрузите CSV или XLSX-файл.");
         }
