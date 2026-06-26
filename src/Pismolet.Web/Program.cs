@@ -77,6 +77,15 @@ if (!isRunningUnderTests)
     {
         app.Logger.LogError(ex, "Не удалось инициализировать хранилище legal evidence. Приложение продолжит запуск без блокировки старта.");
     }
+
+    try
+    {
+        app.Services.EnsurePismoletRuntimeSchema();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Не удалось проверить runtime-схему основной БД. Приложение продолжит запуск.");
+    }
 }
 
 if (app.Environment.IsDevelopment() && !isRunningUnderTests)
