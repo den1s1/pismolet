@@ -19,7 +19,7 @@ public sealed class PaymentEndpointUiTests
     private const string OwnerEmail = "payment-ui-owner@example.test";
 
     [Fact]
-    public async Task Payment_step_keeps_confirmation_checkbox_text_in_single_span_and_legal_link()
+    public async Task Payment_step_shows_readonly_base_summary_and_single_final_confirmation()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Payment UI Owner");
@@ -32,11 +32,30 @@ public sealed class PaymentEndpointUiTests
         var html = await client.GetStringAsync($"/mailings/{mailingId}/payment");
 
         Assert.Contains("href='/checkbox.css'", html);
-        Assert.Contains("class='confirmation-list checks'", html);
+        Assert.Contains("payment-legal-summary", html);
+        Assert.Contains("Подтверждения базы", html);
+        Assert.Contains("Источник базы", html);
+        Assert.Contains("Тип письма", html);
+        Assert.Contains("Правомерность базы", html);
+        Assert.Contains("Рекламное согласие", html);
+        Assert.Contains("Финальное подтверждение", html);
         Assert.Contains("<label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>", html);
-        Assert.Contains("<label class='check'><input type='checkbox' name='paymentBaseLegality'><span>", html);
-        Assert.Contains("<label class='check'><input type='checkbox' name='paymentBaseOwnership'><span>", html);
+        Assert.DoesNotContain("name='paymentBaseLegality'", html);
+        Assert.DoesNotContain("name='paymentBaseOwnership'", html);
+        Assert.DoesNotContain("name='advertisingConsent'", html);
         Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/payment", html);
+        Assert.Contains("Оплатить 1 ₽", html);
+        Assert.DoesNotContain("Оплатить 1 ₽ через Robokassa", html);
+    }
+
+    [Fact]
+    public void Payment_endpoint_requires_advertising_consent_from_saved_declaration_not_payment_checkbox()
+    {
+        var source = File.ReadAllText(RepositoryPath("src/Pismolet.Web/Endpoints/PaymentEndpoints.cs"));
+
+        Assert.Contains("mailing.Declaration?.IsAdvertisingConsentConfirmed", source);
+        Assert.Contains("Для рекламной рассылки сначала подтвердите рекламное согласие", source);
+        Assert.DoesNotContain("form.ContainsKey(\"advertisingConsent\")", source);
     }
 
     private static async Task ImportAcceptedAddress(HttpClient client, Guid mailingId)
@@ -118,6 +137,18 @@ public sealed class PaymentEndpointUiTests
         Assert.True(result.Ok, result.Error);
         Assert.NotNull(result.Mailing);
         return result.Mailing.Id;
+    }
+
+    private static string RepositoryPath(string relativePath)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Pismolet.sln")))
+        {
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(directory);
+        return Path.Combine(directory.FullName, relativePath);
     }
 
     private static RequestMetadata Request() => new("127.0.0.1", "payment-endpoint-ui-tests");
