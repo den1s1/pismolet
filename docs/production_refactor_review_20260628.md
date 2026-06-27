@@ -36,7 +36,7 @@ Needed refactor:
 
 ### P1. Automatic sender needs stronger queue idempotency coverage
 
-Status: planned.
+Status: fixed in Sprint 3.
 
 `ExecuteQueuedBatchAsync` re-enqueues the mailing while pending events remain and relies on `SendEvent` state for idempotency. Existing tests cover warmup and basic launch, but not overlapping jobs/reruns against the same mailing under realistic repository behavior.
 
@@ -124,13 +124,23 @@ Result:
 
 ### Sprint 3. Harden automatic sender idempotency
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
 - Extract pending-batch transition rules into a small testable component if needed.
 - Add duplicate/rerun/partial-failure tests.
 - Verify Hangfire delayed warmup path does not hot-loop.
+
+Result:
+
+- Added repository-level `TryClaimPending(...)` before provider send.
+- EF claim uses conditional SQL update from `Pending` to `Sending`; InMemory claim uses `TryUpdate`.
+- Added `SendEventStatus.Sending` and summary `Sending` count so overlapping workers do not mark a campaign complete or enqueue hot-loop jobs while another worker owns the send.
+- Warmup delay releases the claim back to `Pending` before scheduling delayed retry.
+- Provider exceptions now mark the event as failed instead of leaving a permanent `Sending` claim.
+- Added EF/InMemory claim-once tests and batch tests for warmup release, partial provider failure and provider exception.
+- Gate passed: build, full tests Integration 4/4 and Web 314/314.
 
 ### Sprint 4. Reply forwarding practical coverage
 

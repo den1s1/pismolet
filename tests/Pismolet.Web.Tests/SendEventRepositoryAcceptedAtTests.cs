@@ -77,6 +77,29 @@ public sealed class SendEventRepositoryAcceptedAtTests
     }
 
     [Fact]
+    public void Ef_send_event_repository_claims_pending_once()
+    {
+        using var db = CreateContext();
+        var mailingId = Guid.Parse("66666666-aaaa-aaaa-aaaa-666666666666");
+        db.Mailings.Add(Mailing(mailingId, "owner@example.test", DateTimeOffset.Parse("2026-06-21T10:00:00Z")));
+        db.SaveChanges();
+        var repository = new EfSendEventRepository(db);
+        repository.Save(SendEvent.Pending(mailingId, "owner@example.test", "lead@example.test"));
+        db.ChangeTracker.Clear();
+
+        var first = repository.TryClaimPending(mailingId, "lead@example.test");
+        var second = repository.TryClaimPending(mailingId, "lead@example.test");
+        var summary = repository.GetSummary(mailingId, totalAcceptedRecipients: 1);
+
+        Assert.NotNull(first);
+        Assert.Equal(SendEventStatus.Sending, first!.Status);
+        Assert.Null(second);
+        Assert.Empty(repository.GetPendingBatch(mailingId, batchSize: 10));
+        Assert.Equal(0, summary.Pending);
+        Assert.Equal(1, summary.Sending);
+    }
+
+    [Fact]
     public void In_memory_daily_limit_count_uses_accepted_at_not_mutable_updated_at()
     {
         var mailingId = Guid.Parse("33333333-aaaa-aaaa-aaaa-333333333333");
@@ -111,6 +134,25 @@ public sealed class SendEventRepositoryAcceptedAtTests
         Assert.Equal("recent@example.test", item.RecipientEmail);
         Assert.Equal(recentAcceptedAt, item.SentAt);
         Assert.DoesNotContain(history, x => x.RecipientEmail == "old@example.test");
+    }
+
+    [Fact]
+    public void In_memory_send_event_repository_claims_pending_once()
+    {
+        var mailingId = Guid.Parse("77777777-aaaa-aaaa-aaaa-777777777777");
+        var repository = new InMemorySendEventRepository();
+        repository.Save(SendEvent.Pending(mailingId, "owner@example.test", "lead@example.test"));
+
+        var first = repository.TryClaimPending(mailingId, "lead@example.test");
+        var second = repository.TryClaimPending(mailingId, "lead@example.test");
+        var summary = repository.GetSummary(mailingId, totalAcceptedRecipients: 1);
+
+        Assert.NotNull(first);
+        Assert.Equal(SendEventStatus.Sending, first!.Status);
+        Assert.Null(second);
+        Assert.Empty(repository.GetPendingBatch(mailingId, batchSize: 10));
+        Assert.Equal(0, summary.Pending);
+        Assert.Equal(1, summary.Sending);
     }
 
     private static PismoletDbContext CreateContext()

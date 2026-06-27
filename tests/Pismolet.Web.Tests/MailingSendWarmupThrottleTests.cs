@@ -94,13 +94,67 @@ public sealed class MailingSendWarmupThrottleTests
         Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_delayed_by_warmup" && x.Context.Contains("reason=global_minute_limit", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task Execute_batch_after_partial_provider_failure_continues_with_pending_only()
+    {
+        var mailingId = Guid.Parse("dddddddd-4444-4444-4444-dddddddddddd");
+        var mailings = new InMemoryMailingRepository();
+        var sendEvents = new InMemorySendEventRepository();
+        var provider = new CountingEmailProviderAdapter("first@example.test");
+        var queue = new CountingQueue();
+        var audit = new InMemoryAuditLogger();
+        var gate = new FixedWarmupGate(MailWarmupLimitDecision.Allowed);
+        mailings.TryAdd(SendingMailing(mailingId, "first@example.test", "second@example.test"));
+        sendEvents.Save(SendEvent.Pending(mailingId, "owner@example.test", "first@example.test"));
+        sendEvents.Save(SendEvent.Pending(mailingId, "owner@example.test", "second@example.test"));
+        var service = CreateService(mailings, sendEvents, provider, queue, audit, gate, batchSize: 1);
+
+        await service.ExecuteQueuedBatchAsync(mailingId, CancellationToken.None);
+        await service.ExecuteQueuedBatchAsync(mailingId, CancellationToken.None);
+
+        Assert.Equal(new[] { "first@example.test", "second@example.test" }, provider.Recipients);
+        Assert.Equal(1, provider.Recipients.Count(x => x == "first@example.test"));
+        Assert.Equal(1, provider.Recipients.Count(x => x == "second@example.test"));
+        Assert.Equal(MailingStatus.Failed, mailings.Get(mailingId)!.Status);
+        var events = sendEvents.ListByMailingId(mailingId).ToArray();
+        Assert.Contains(events, x => x.RecipientEmail == "first@example.test" && x.Status == SendEventStatus.Failed && x.Attempt == 1);
+        Assert.Contains(events, x => x.RecipientEmail == "second@example.test" && x.Status == SendEventStatus.Accepted && x.Attempt == 1);
+        Assert.Equal(1, queue.EnqueueCalls);
+    }
+
+    [Fact]
+    public async Task Execute_batch_marks_provider_exception_failed_without_leaving_sending_claim()
+    {
+        var mailingId = Guid.Parse("eeeeeeee-5555-5555-5555-eeeeeeeeeeee");
+        var mailings = new InMemoryMailingRepository();
+        var sendEvents = new InMemorySendEventRepository();
+        var provider = new ThrowingEmailProviderAdapter();
+        var queue = new CountingQueue();
+        var audit = new InMemoryAuditLogger();
+        var gate = new FixedWarmupGate(MailWarmupLimitDecision.Allowed);
+        mailings.TryAdd(SendingMailing(mailingId, "lead@example.test"));
+        sendEvents.Save(SendEvent.Pending(mailingId, "owner@example.test", "lead@example.test"));
+        var service = CreateService(mailings, sendEvents, provider, queue, audit, gate);
+
+        await service.ExecuteQueuedBatchAsync(mailingId, CancellationToken.None);
+
+        Assert.Equal(MailingStatus.Failed, mailings.Get(mailingId)!.Status);
+        var item = Assert.Single(sendEvents.ListByMailingId(mailingId));
+        Assert.Equal(SendEventStatus.Failed, item.Status);
+        Assert.Equal("provider_exception", item.ErrorCode);
+        Assert.Equal(0, sendEvents.GetSummary(mailingId, totalAcceptedRecipients: 1).Sending);
+        Assert.Equal(0, queue.EnqueueCalls);
+        Assert.Contains(audit.GetRecords(), x => x.EventType == "email_provider_send_failed" && x.Context.Contains("provider_exception", StringComparison.Ordinal));
+    }
+
     private static MailingSendService CreateService(
         InMemoryMailingRepository mailings,
         InMemorySendEventRepository sendEvents,
         CountingEmailProviderAdapter provider,
         CountingQueue queue,
         InMemoryAuditLogger audit,
-        IMailWarmupSendGate gate) => new(
+        IMailWarmupSendGate gate,
+        int batchSize = 100) => new(
             mailings,
             new InMemoryPaymentRepository(),
             sendEvents,
@@ -113,7 +167,30 @@ public sealed class MailingSendWarmupThrottleTests
             new TestInboundReplyTokenService(),
             queue,
             audit,
-            new MailingSendOptions(100),
+            new MailingSendOptions(batchSize),
+            gate);
+
+    private static MailingSendService CreateService(
+        InMemoryMailingRepository mailings,
+        InMemorySendEventRepository sendEvents,
+        IEmailProviderAdapter provider,
+        CountingQueue queue,
+        InMemoryAuditLogger audit,
+        IMailWarmupSendGate gate,
+        int batchSize = 100) => new(
+            mailings,
+            new InMemoryPaymentRepository(),
+            sendEvents,
+            new InMemoryGlobalSuppressionRepository(),
+            new InMemoryClientSuppressionRepository(),
+            new InMemoryUserRepository(),
+            provider,
+            new EmailNormalizer(),
+            new TestUnsubscribeTokenService(),
+            new TestInboundReplyTokenService(),
+            queue,
+            audit,
+            new MailingSendOptions(batchSize),
             gate);
 
     private static Mailing SendingMailing(Guid id, params string[] recipients) => Mailing.Draft("owner@example.test", "Warmup mailing") with
@@ -145,17 +222,48 @@ public sealed class MailingSendWarmupThrottleTests
         }
     }
 
-    private sealed class CountingEmailProviderAdapter : IEmailProviderAdapter
+    private sealed class CountingEmailProviderAdapter(params string[] failRecipients) : IEmailProviderAdapter
     {
+        private readonly HashSet<string> _failRecipients = failRecipients
+            .Select(x => x.Trim().ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         public string ProviderName => SendEvent.FakeProvider;
 
         public int SendCalls { get; private set; }
 
+        public IReadOnlyList<string> Recipients => _recipients;
+
+        private readonly List<string> _recipients = new();
+
         public Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken)
         {
             SendCalls++;
+            _recipients.Add(message.Recipient.Email);
+            if (_failRecipients.Contains(message.Recipient.Email))
+            {
+                return Task.FromResult(EmailProviderSendResult.Failure("provider_failed", "Provider rejected test recipient."));
+            }
+
             return Task.FromResult(EmailProviderSendResult.Success($"provider-{message.Recipient.Email}"));
         }
+
+        public Task<EmailProviderWebhookParseResult> ParseWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken) =>
+            Task.FromResult(EmailProviderWebhookParseResult.Failure("not-supported"));
+
+        public Task<EmailProviderInboundParseResult> ParseInboundWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken) =>
+            Task.FromResult(EmailProviderInboundParseResult.Failure("not-supported"));
+
+        public Task<EmailProviderSendResult> ForwardReplyToClientAsync(ReplyEvent replyEvent, CancellationToken cancellationToken) =>
+            Task.FromResult(EmailProviderSendResult.Success($"forward-{replyEvent.Id:N}"));
+    }
+
+    private sealed class ThrowingEmailProviderAdapter : IEmailProviderAdapter
+    {
+        public string ProviderName => SendEvent.FakeProvider;
+
+        public Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Synthetic provider explosion.");
 
         public Task<EmailProviderWebhookParseResult> ParseWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken) =>
             Task.FromResult(EmailProviderWebhookParseResult.Failure("not-supported"));

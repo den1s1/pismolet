@@ -6,6 +6,7 @@ namespace Pismolet.Web.Domain.Mailings;
 public enum SendEventStatus
 {
     Pending,
+    Sending,
     Accepted,
     Failed,
     Skipped,
@@ -66,6 +67,7 @@ public static class SendEventStatusLabels
 {
     public static string ToRu(this SendEventStatus status) => status switch
     {
+        SendEventStatus.Sending => "Отправляется",
         SendEventStatus.Accepted => "Отправлено",
         SendEventStatus.Failed => "Ошибка",
         SendEventStatus.Skipped => "Исключено",
@@ -142,6 +144,24 @@ public sealed record SendEvent(
         DateTimeOffset.UtcNow,
         DateTimeOffset.UtcNow,
         TrackingToken: BuildTrackingToken(mailingId, recipientEmail));
+
+    public SendEvent MarkSending() => Status == SendEventStatus.Pending
+        ? this with
+        {
+            Status = SendEventStatus.Sending,
+            Reason = SendSkipReason.None,
+            UpdatedAt = DateTimeOffset.UtcNow
+        }
+        : this;
+
+    public SendEvent ReleaseSendingClaim() => Status == SendEventStatus.Sending
+        ? this with
+        {
+            Status = SendEventStatus.Pending,
+            Reason = SendSkipReason.None,
+            UpdatedAt = DateTimeOffset.UtcNow
+        }
+        : this;
 
     public SendEvent MarkPaused(SendSkipReason reason) => this with
     {
@@ -347,7 +367,8 @@ public sealed record MailingSendSummary(
     int HardBounced = 0,
     int Complaints = 0,
     int Rejected = 0,
-    int UnknownDelivery = 0)
+    int UnknownDelivery = 0,
+    int Sending = 0)
 {
     public static MailingSendSummary Empty(Guid mailingId, int totalAcceptedRecipients = 0) => new(mailingId, 0, 0, 0, 0, 0, 0, 0, 0, totalAcceptedRecipients);
 }

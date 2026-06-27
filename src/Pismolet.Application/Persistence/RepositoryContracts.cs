@@ -160,6 +160,19 @@ public interface ISendEventRepository
 
     IReadOnlyCollection<SendEvent> GetPendingBatch(Guid mailingId, int batchSize);
 
+    SendEvent? TryClaimPending(Guid mailingId, string recipientEmail)
+    {
+        var sendEvent = Get(mailingId, recipientEmail);
+        if (sendEvent?.Status != SendEventStatus.Pending)
+        {
+            return null;
+        }
+
+        var claimed = sendEvent.MarkSending();
+        Save(claimed);
+        return claimed;
+    }
+
     int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate);
 
     IReadOnlyCollection<MailWarmupAcceptedSend> ListAcceptedForWarmupWindow(string ownerEmail, DateTimeOffset sinceUtc);

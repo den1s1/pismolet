@@ -515,24 +515,31 @@ public sealed class MailingSendService(
                 return;
             }
 
-            if (suppressedSet.Contains(sendEvent.RecipientEmail))
+            var claimed = sendEvents.TryClaimPending(mailing.Id, sendEvent.RecipientEmail);
+            if (claimed is null)
             {
-                sendEvents.Save(sendEvent.MarkSkipped(SendSkipReason.GlobalSuppression));
-                AuditSuppressedSend(mailing, sendEvent, "suppressed_email_skipped_before_send", "background", "background");
                 continue;
             }
 
-            if (clientSuppressedSet.Contains(sendEvent.RecipientEmail))
+            if (suppressedSet.Contains(claimed.RecipientEmail))
             {
-                sendEvents.Save(sendEvent.MarkSkipped(SendSkipReason.ClientSuppression));
-                AuditSuppressedSend(mailing, sendEvent, "client_suppressed_email_skipped_before_send", "background", "background");
+                sendEvents.Save(claimed.MarkSkipped(SendSkipReason.GlobalSuppression));
+                AuditSuppressedSend(mailing, claimed, "suppressed_email_skipped_before_send", "background", "background");
                 continue;
             }
 
-            var warmupDecision = warmupGate.Evaluate(mailing.OwnerEmail, sendEvent.RecipientEmail, DateTimeOffset.UtcNow);
+            if (clientSuppressedSet.Contains(claimed.RecipientEmail))
+            {
+                sendEvents.Save(claimed.MarkSkipped(SendSkipReason.ClientSuppression));
+                AuditSuppressedSend(mailing, claimed, "client_suppressed_email_skipped_before_send", "background", "background");
+                continue;
+            }
+
+            var warmupDecision = warmupGate.Evaluate(mailing.OwnerEmail, claimed.RecipientEmail, DateTimeOffset.UtcNow);
             if (!warmupDecision.IsAllowed)
             {
                 var retryAfter = NormalizeWarmupRetryAfter(warmupDecision.RetryAfter);
+                sendEvents.Save(claimed.ReleaseSendingClaim());
                 mailings.Update(mailing.WithStatus(MailingStatus.Sending));
                 auditLogger.Write(new AuditRecord(
                     DateTimeOffset.UtcNow,
@@ -540,21 +547,37 @@ public sealed class MailingSendService(
                     "mailing_send_delayed_by_warmup",
                     "background",
                     "background",
-                    $"mailingId={mailing.Id};eventId={sendEvent.Id};reason={warmupDecision.Reason};retryAfterSeconds={Math.Ceiling(retryAfter.TotalSeconds)}"));
+                    $"mailingId={mailing.Id};eventId={claimed.Id};reason={warmupDecision.Reason};retryAfterSeconds={Math.Ceiling(retryAfter.TotalSeconds)}"));
                 queue.Enqueue(mailing.Id, retryAfter);
                 return;
             }
 
-            var message = BuildEmailMessage(mailing, draft, sendEvent.RecipientEmail);
-            var result = await provider.SendAsync(message, cancellationToken);
+            var message = BuildEmailMessage(mailing, draft, claimed.RecipientEmail);
+            EmailProviderSendResult result;
+            try
+            {
+                result = await provider.SendAsync(message, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                sendEvents.Save(claimed.ReleaseSendingClaim());
+                return;
+            }
+            catch (Exception ex)
+            {
+                sendEvents.Save(claimed.MarkFailed("provider_exception", ex.Message));
+                auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "email_provider_send_failed", "background", "background", $"mailingId={mailing.Id};eventId={claimed.Id};errorCode=provider_exception"));
+                continue;
+            }
+
             if (result.Accepted && !string.IsNullOrWhiteSpace(result.ProviderMessageId))
             {
-                sendEvents.Save(sendEvent.MarkAccepted(result.ProviderMessageId));
+                sendEvents.Save(claimed.MarkAccepted(result.ProviderMessageId));
             }
             else
             {
-                sendEvents.Save(sendEvent.MarkFailed(result.ErrorCode ?? "provider_failed", result.ErrorMessage ?? "Fake provider вернул ошибку."));
-                auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "email_provider_send_failed", "background", "background", $"mailingId={mailing.Id};eventId={sendEvent.Id};errorCode={result.ErrorCode ?? "provider_failed"}"));
+                sendEvents.Save(claimed.MarkFailed(result.ErrorCode ?? "provider_failed", result.ErrorMessage ?? "Fake provider вернул ошибку."));
+                auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "email_provider_send_failed", "background", "background", $"mailingId={mailing.Id};eventId={claimed.Id};errorCode={result.ErrorCode ?? "provider_failed"}"));
             }
         }
 
@@ -564,6 +587,12 @@ public sealed class MailingSendService(
         {
             mailings.Update(mailing.WithStatus(MailingStatus.Sending));
             queue.Enqueue(mailing.Id);
+            return;
+        }
+
+        if (summary.Sending > 0)
+        {
+            mailings.Update(mailing.WithStatus(MailingStatus.Sending));
             return;
         }
 

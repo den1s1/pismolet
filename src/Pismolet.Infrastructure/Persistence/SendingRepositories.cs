@@ -32,6 +32,26 @@ public sealed class InMemorySendEventRepository : ISendEventRepository
         .Take(Math.Max(1, batchSize))
         .ToArray();
 
+    public SendEvent? TryClaimPending(Guid mailingId, string recipientEmail)
+    {
+        var key = Key(mailingId, recipientEmail);
+        while (_items.TryGetValue(key, out var current))
+        {
+            if (current.Status != SendEventStatus.Pending)
+            {
+                return null;
+            }
+
+            var claimed = current.MarkSending();
+            if (_items.TryUpdate(key, claimed, current))
+            {
+                return claimed;
+            }
+        }
+
+        return null;
+    }
+
     public int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate) => _items.Values.Count(x =>
         x.Status == SendEventStatus.Accepted &&
         x.AcceptedAt is not null &&
@@ -92,7 +112,7 @@ public sealed class InMemorySendEventRepository : ISendEventRepository
         var skippedOther = events.Count(x => x.Status == SendEventStatus.Skipped && x.Reason is not SendSkipReason.GlobalSuppression and not SendSkipReason.ClientSuppression);
         return new MailingSendSummary(
             mailingId,
-            events.Count(x => x.Status is SendEventStatus.Pending or SendEventStatus.Accepted or SendEventStatus.Failed),
+            events.Count(x => x.Status is SendEventStatus.Pending or SendEventStatus.Sending or SendEventStatus.Accepted or SendEventStatus.Failed),
             events.Count(x => x.Status == SendEventStatus.Accepted),
             events.Count(x => x.Status == SendEventStatus.Failed),
             suppressed,
@@ -107,7 +127,8 @@ public sealed class InMemorySendEventRepository : ISendEventRepository
             events.Count(x => x.DeliveryStatus == DeliveryStatus.HardBounce),
             events.Count(x => x.DeliveryStatus == DeliveryStatus.Complaint),
             events.Count(x => x.DeliveryStatus == DeliveryStatus.Rejected),
-            events.Count(x => x.DeliveryStatus == DeliveryStatus.Unknown));
+            events.Count(x => x.DeliveryStatus == DeliveryStatus.Unknown),
+            events.Count(x => x.Status == SendEventStatus.Sending));
     }
 
     private static string Key(Guid mailingId, string recipientEmail) => $"{mailingId:N}:{recipientEmail.Trim().ToLowerInvariant()}";

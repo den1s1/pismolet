@@ -26,9 +26,41 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         return db.SendEvents.AsNoTracking().FirstOrDefault(x => x.TrackingToken == normalized) is { } entity ? ToDomain(entity) : null;
     }
 
-    public IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId) => db.SendEvents.AsNoTracking().Where(x => x.MailingId == mailingId).OrderBy(x => x.CreatedAt).ThenBy(x => x.RecipientEmail).Select(x => ToDomain(x)).ToArray();
+    public IReadOnlyCollection<SendEvent> ListByMailingId(Guid mailingId) => db.SendEvents
+        .AsNoTracking()
+        .Where(x => x.MailingId == mailingId)
+        .ToArray()
+        .OrderBy(x => x.CreatedAt)
+        .ThenBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase)
+        .Select(x => ToDomain(x))
+        .ToArray();
 
-    public IReadOnlyCollection<SendEvent> GetPendingBatch(Guid mailingId, int batchSize) => db.SendEvents.AsNoTracking().Where(x => x.MailingId == mailingId && x.Status == SendEventStatus.Pending.ToString()).OrderBy(x => x.CreatedAt).ThenBy(x => x.RecipientEmail).Take(Math.Max(1, batchSize)).Select(x => ToDomain(x)).ToArray();
+    public IReadOnlyCollection<SendEvent> GetPendingBatch(Guid mailingId, int batchSize) => db.SendEvents
+        .AsNoTracking()
+        .Where(x => x.MailingId == mailingId && x.Status == SendEventStatus.Pending.ToString())
+        .ToArray()
+        .OrderBy(x => x.CreatedAt)
+        .ThenBy(x => x.RecipientEmail, StringComparer.OrdinalIgnoreCase)
+        .Take(Math.Max(1, batchSize))
+        .Select(x => ToDomain(x))
+        .ToArray();
+
+    public SendEvent? TryClaimPending(Guid mailingId, string recipientEmail)
+    {
+        var normalized = Normalize(recipientEmail);
+        var now = DateTimeOffset.UtcNow;
+        var updated = db.SendEvents
+            .Where(x =>
+                x.MailingId == mailingId &&
+                x.RecipientEmail == normalized &&
+                x.Status == SendEventStatus.Pending.ToString())
+            .ExecuteUpdate(setters => setters
+                .SetProperty(x => x.Status, SendEventStatus.Sending.ToString())
+                .SetProperty(x => x.Reason, SendSkipReason.None.ToString())
+                .SetProperty(x => x.UpdatedAt, now));
+
+        return updated == 0 ? null : Get(mailingId, normalized);
+    }
 
     public int CountAcceptedForOwnerOnUtcDate(string ownerEmail, DateOnly utcDate)
     {
@@ -139,7 +171,7 @@ public sealed class EfSendEventRepository(PismoletDbContext db) : ISendEventRepo
         var clientSuppressed = events.Count(x => x.Status == SendEventStatus.Skipped && x.Reason == SendSkipReason.ClientSuppression);
         var pausedByLimit = events.Count(x => x.Status == SendEventStatus.Paused && x.Reason is SendSkipReason.DailyLimit or SendSkipReason.WarmupLimit);
         var skippedOther = events.Count(x => x.Status == SendEventStatus.Skipped && x.Reason is not SendSkipReason.GlobalSuppression and not SendSkipReason.ClientSuppression);
-        return new MailingSendSummary(mailingId, events.Count(x => x.Status is SendEventStatus.Pending or SendEventStatus.Accepted or SendEventStatus.Failed), events.Count(x => x.Status == SendEventStatus.Accepted), events.Count(x => x.Status == SendEventStatus.Failed), suppressed, clientSuppressed, pausedByLimit, skippedOther, events.Count(x => x.Status == SendEventStatus.Pending), totalAcceptedRecipients, events.Count(x => x.DeliveryStatus == DeliveryStatus.Accepted), events.Count(x => x.DeliveryStatus == DeliveryStatus.Delivered), events.Count(x => x.DeliveryStatus == DeliveryStatus.SoftBounce), events.Count(x => x.DeliveryStatus == DeliveryStatus.HardBounce), events.Count(x => x.DeliveryStatus == DeliveryStatus.Complaint), events.Count(x => x.DeliveryStatus == DeliveryStatus.Rejected), events.Count(x => x.DeliveryStatus == DeliveryStatus.Unknown));
+        return new MailingSendSummary(mailingId, events.Count(x => x.Status is SendEventStatus.Pending or SendEventStatus.Sending or SendEventStatus.Accepted or SendEventStatus.Failed), events.Count(x => x.Status == SendEventStatus.Accepted), events.Count(x => x.Status == SendEventStatus.Failed), suppressed, clientSuppressed, pausedByLimit, skippedOther, events.Count(x => x.Status == SendEventStatus.Pending), totalAcceptedRecipients, events.Count(x => x.DeliveryStatus == DeliveryStatus.Accepted), events.Count(x => x.DeliveryStatus == DeliveryStatus.Delivered), events.Count(x => x.DeliveryStatus == DeliveryStatus.SoftBounce), events.Count(x => x.DeliveryStatus == DeliveryStatus.HardBounce), events.Count(x => x.DeliveryStatus == DeliveryStatus.Complaint), events.Count(x => x.DeliveryStatus == DeliveryStatus.Rejected), events.Count(x => x.DeliveryStatus == DeliveryStatus.Unknown), events.Count(x => x.Status == SendEventStatus.Sending));
     }
 
     private static SendEventEntity ToEntity(SendEvent sendEvent) => new()
