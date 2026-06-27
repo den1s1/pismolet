@@ -62,7 +62,11 @@ public sealed record MailWarmupLimitSnapshot(
     int DomainSentLastMinute = 0,
     int DomainSentLastHour = 0,
     int DomainSentToday = 0,
-    DateTimeOffset? DomainLastSentAt = null);
+    DateTimeOffset? DomainLastSentAt = null,
+    DateTimeOffset? GlobalOldestSentLastMinuteAt = null,
+    DateTimeOffset? GlobalOldestSentLastHourAt = null,
+    DateTimeOffset? DomainOldestSentLastMinuteAt = null,
+    DateTimeOffset? DomainOldestSentLastHourAt = null);
 
 public sealed record MailWarmupLimitDecision(
     bool IsAllowed,
