@@ -5,7 +5,18 @@ namespace Pismolet.Web.Infrastructure.Mail;
 
 public sealed class HangfireMailingSendQueue(IBackgroundJobClient jobs) : IBackgroundMailingSendQueue, IBackgroundReplyQueue
 {
-    public void Enqueue(Guid mailingId) => jobs.Enqueue<MailingSendJob>(job => job.ExecuteAsync(mailingId));
+    public void Enqueue(Guid mailingId) => Enqueue(mailingId, TimeSpan.Zero);
+
+    public void Enqueue(Guid mailingId, TimeSpan delay)
+    {
+        if (delay <= TimeSpan.Zero)
+        {
+            jobs.Enqueue<MailingSendJob>(job => job.ExecuteAsync(mailingId));
+            return;
+        }
+
+        jobs.Schedule<MailingSendJob>(job => job.ExecuteAsync(mailingId), delay);
+    }
 
     public void EnqueueForward(Guid replyEventId) => jobs.Enqueue<ReplyForwardJob>(job => job.ExecuteAsync(replyEventId));
 
