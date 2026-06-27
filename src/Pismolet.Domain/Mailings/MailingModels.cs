@@ -189,20 +189,25 @@ public sealed record MailingMessageDraft
     public const int MaxSubjectLength = 160;
     public const long MaxAttachmentsTotalBytes = 10 * 1024 * 1024;
 
-    private MailingMessageDraft(
+    public MailingMessageDraft(string senderName, string subject, string body, MessageType messageType, DateTimeOffset updatedAt)
+        : this(senderName, subject, body, messageType, updatedAt, Array.Empty<MailingAttachment>())
+    {
+    }
+
+    public MailingMessageDraft(
         string senderName,
         string subject,
         string body,
         MessageType messageType,
         DateTimeOffset updatedAt,
-        IReadOnlyCollection<MailingAttachment> attachments)
+        IReadOnlyCollection<MailingAttachment>? attachments)
     {
         SenderName = senderName;
         Subject = subject;
         Body = body;
         MessageType = messageType;
         UpdatedAt = updatedAt;
-        Attachments = attachments;
+        Attachments = attachments ?? Array.Empty<MailingAttachment>();
     }
 
     public string SenderName { get; init; }
