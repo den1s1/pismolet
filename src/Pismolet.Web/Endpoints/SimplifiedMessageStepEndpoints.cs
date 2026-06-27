@@ -94,6 +94,12 @@ public static class SimplifiedMessageStepEndpoints
         }
 
         var body = bodyFormat == BodyFormatHtml ? htmlBody : plainBody;
+        var attachments = await ReadAttachmentsAsync(form);
+        if (!attachments.Ok)
+        {
+            return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(existing, attachments.Error, bodyFormat, plainBody, htmlBody), authenticated: true));
+        }
+
         var result = messages.Save(new SaveMailingMessageCommand(
             email,
             id,
@@ -101,7 +107,8 @@ public static class SimplifiedMessageStepEndpoints
             form["subject"].ToString(),
             body,
             ResolveMessageType(existing),
-            ToRequestMetadata(http)));
+            ToRequestMetadata(http),
+            attachments.HasFiles ? attachments.Items : null));
 
         var mailing = result.Mailing ?? existing;
         if (!result.Ok || mailing is null)
@@ -148,6 +155,7 @@ public static class SimplifiedMessageStepEndpoints
         var htmlPanelStyle = format == BodyFormatHtml ? string.Empty : " style='display:none'";
         var prohibitedContentHref = $"/legal/prohibited-content?returnUrl=/mailings/{mailing.Id}/message";
         var serviceFooterHref = $"/legal/service-email-footer?returnUrl=/mailings/{mailing.Id}/message";
+        var attachmentsBlock = AttachmentsBlock(draft?.Attachments ?? Array.Empty<MailingAttachment>());
 
         return $@"
 <section class='wizard-shell'>
@@ -162,7 +170,7 @@ public static class SimplifiedMessageStepEndpoints
       <span class='badge warn'>Письмо</span>
     </div>
     {alert}
-    <form method='post' action='/mailings/{mailing.Id}/message' class='form-grid message-editor-form'>
+    <form method='post' action='/mailings/{mailing.Id}/message' enctype='multipart/form-data' class='form-grid message-editor-form'>
       <label class='write-field'>
         <span class='field-title'>От кого <span class='required'>*</span></span>
         <input name='senderName' maxlength='{MailingMessageDraft.MaxSenderNameLength}' required value='{senderName}' placeholder='Например: Библиотека №5'>
@@ -193,6 +201,11 @@ public static class SimplifiedMessageStepEndpoints
           <span class='field-hint'>Пишите только HTML тела письма. Скрипты, iframe и внешние интерактивные элементы могут не работать в почтовых клиентах.</span>
         </div>
       </section>
+      <label>Вложения
+        <input type='file' name='attachments' multiple>
+        <span class='field-hint'>Можно добавить один или несколько файлов. Общий размер вложений — до 10 МБ. Если выбрать новые файлы, они заменят ранее сохранённые вложения.</span>
+      </label>
+      {attachmentsBlock}
       <div class='notice warn'>Не отправляйте мошенничество, фишинг, вредоносные ссылки, незаконные товары или услуги и контент, вводящий получателей в заблуждение. <a href='{prohibitedContentHref}'>Политика запрещённого контента</a></div>
       <div class='notice warn'>Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки. <a href='{serviceFooterHref}'>Служебный блок письма</a>.</div>
       <div class='actions'>
@@ -229,6 +242,7 @@ public static class SimplifiedMessageStepEndpoints
             ? HtmlBodyPreview(draft.Body, reasonBlock, unsubscribeUrl, serviceBlock)
             : PlainBodyPreview(draft.Body, reasonBlock, unsubscribeUrl, serviceBlock);
         var formatLabel = format == BodyFormatHtml ? "HTML" : "Обычный текст";
+        var attachmentsPreview = AttachmentsBlock(draft.Attachments);
 
         return $@"
 <section class='wizard-shell'>
@@ -251,6 +265,7 @@ public static class SimplifiedMessageStepEndpoints
         </div>
       </div>
     </section>
+    {attachmentsPreview}
     <div class='actions'>
       <a class='button' href='/mailings/{mailing.Id}/payment'>Проверить и оплатить</a>
       <a class='btn secondary' href='/mailings/{mailing.Id}/message'>Редактировать</a>
@@ -265,7 +280,7 @@ public static class SimplifiedMessageStepEndpoints
 <p class='service-preview-note'>Письмолёт автоматически добавит причину получения, отписку и служебный номер.</p>
 <details class='service-preview-details'>
   <summary>Показать служебный блок</summary>
-  <div class='unsubscribe service-preview-full'>
+  <div class='unsubscribe service-preview-footer'>
     <p>{reasonBlock}</p>
     <p>Отписаться: <code>{unsubscribeUrl}</code></p>
     <p>{serviceBlock}</p>
@@ -292,6 +307,61 @@ public static class SimplifiedMessageStepEndpoints
 </html>";
 
         return $"<iframe title='HTML-предпросмотр письма' sandbox style='width:100%;min-height:520px;border:1px solid #dbe4ef;border-radius:16px;background:white' srcdoc='{H(srcdoc)}'></iframe>";
+    }
+
+    private static async Task<AttachmentReadResult> ReadAttachmentsAsync(IFormCollection form)
+    {
+        var files = form.Files
+            .Where(x => string.Equals(x.Name, "attachments", StringComparison.OrdinalIgnoreCase) && x.Length > 0)
+            .ToArray();
+        if (files.Length == 0)
+        {
+            return AttachmentReadResult.Empty;
+        }
+
+        var totalBytes = files.Sum(x => x.Length);
+        if (totalBytes > MailingMessageDraft.MaxAttachmentsTotalBytes)
+        {
+            return AttachmentReadResult.Failure("Общий размер вложений не должен превышать 10 МБ.");
+        }
+
+        var result = new List<MailingAttachment>();
+        foreach (var file in files)
+        {
+            await using var stream = file.OpenReadStream();
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            result.Add(MailingAttachment.Create(file.FileName, file.ContentType, memory.ToArray()));
+        }
+
+        return AttachmentReadResult.Success(result);
+    }
+
+    private static string AttachmentsBlock(IReadOnlyCollection<MailingAttachment> attachments)
+    {
+        if (attachments.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var total = attachments.Sum(x => x.Size);
+        var rows = string.Join(string.Empty, attachments.Select(x => $"<li>{H(x.FileName)} — {FormatBytes(x.Size)}</li>"));
+        return $"<section class='box'><h3>Вложения</h3><ul>{rows}</ul><p class='muted'>Всего: {FormatBytes(total)}.</p></section>";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} байт";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024d:0.#} КБ";
+        }
+
+        return $"{bytes / 1024d / 1024d:0.##} МБ";
     }
 
     private static string BodyEditorScript() => """
@@ -381,4 +451,13 @@ public static class SimplifiedMessageStepEndpoints
         .Replace("\n", "<br>", StringComparison.Ordinal);
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
+
+    private sealed record AttachmentReadResult(bool Ok, bool HasFiles, string Error, IReadOnlyCollection<MailingAttachment>? Items)
+    {
+        public static AttachmentReadResult Empty { get; } = new(true, false, string.Empty, null);
+
+        public static AttachmentReadResult Success(IReadOnlyCollection<MailingAttachment> items) => new(true, items.Count > 0, string.Empty, items);
+
+        public static AttachmentReadResult Failure(string error) => new(false, false, error, null);
+    }
 }
