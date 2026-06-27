@@ -50,7 +50,7 @@ builder.Services.AddAuthorization(options =>
         }));
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
-builder.Services.AddSingleton(InboundReplySpoolOptions.DevelopmentDefault);
+builder.Services.AddSingleton(ReadInboundReplySpoolOptions(builder.Configuration));
 builder.Services.AddScoped<MailingPaymentService>();
 builder.Services.AddScoped<IMailingPaymentService, AdminWaivedMailingPaymentService>();
 if (!isRunningUnderTests && ShouldUseSmtpConfirmation(builder.Configuration))
@@ -180,6 +180,23 @@ static bool ShouldUseSmtpConfirmation(IConfiguration configuration)
         ?? Environment.GetEnvironmentVariable("Smtp__Host"));
 }
 
+static InboundReplySpoolOptions ReadInboundReplySpoolOptions(IConfiguration configuration)
+{
+    var fallback = InboundReplySpoolOptions.DevelopmentDefault;
+    var spoolPath = configuration["InboundReplies:SpoolPath"]
+        ?? configuration["InboundReplies__SpoolPath"]
+        ?? fallback.SpoolPath;
+
+    return new InboundReplySpoolOptions(
+        ReadBool(configuration, "InboundReplies:Enabled", fallback.Enabled),
+        spoolPath.Trim(),
+        ReadInt(configuration, "InboundReplies:PollIntervalSeconds", fallback.PollIntervalSeconds, InboundReplySpoolOptions.MinPollIntervalSeconds, InboundReplySpoolOptions.MaxPollIntervalSeconds),
+        ReadLong(configuration, "InboundReplies:MaxMessageBytes", fallback.MaxMessageBytes, InboundReplySpoolOptions.MinMessageBytes, InboundReplySpoolOptions.MaxAllowedMessageBytes),
+        ReadInt(configuration, "InboundReplies:ProcessedRetentionDays", fallback.ProcessedRetentionDays, InboundReplySpoolOptions.MinRetentionDays, InboundReplySpoolOptions.MaxRetentionDays),
+        ReadInt(configuration, "InboundReplies:FailedRetentionDays", fallback.FailedRetentionDays, InboundReplySpoolOptions.MinRetentionDays, InboundReplySpoolOptions.MaxRetentionDays),
+        ReadInt(configuration, "InboundReplies:MaxFilesPerPoll", fallback.MaxFilesPerPoll, InboundReplySpoolOptions.MinFilesPerPoll, InboundReplySpoolOptions.MaxFilesPerPollLimit));
+}
+
 static PostfixDeliveryAutomationSettingsOptions ReadPostfixDeliveryAutomationSettingsOptions(IConfiguration configuration)
 {
     var settingsPath = configuration["PostfixDelivery:SettingsPath"]
@@ -200,6 +217,18 @@ static int ReadInt(IConfiguration configuration, string key, int fallback, int m
 {
     var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
     return int.TryParse(value, out var parsed) ? Math.Clamp(parsed, min, max) : fallback;
+}
+
+static long ReadLong(IConfiguration configuration, string key, long fallback, long min, long max)
+{
+    var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
+    return long.TryParse(value, out var parsed) ? Math.Clamp(parsed, min, max) : fallback;
+}
+
+static bool ReadBool(IConfiguration configuration, string key, bool fallback)
+{
+    var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
+    return bool.TryParse(value, out var parsed) ? parsed : fallback;
 }
 
 public partial class Program;
