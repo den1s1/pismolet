@@ -65,7 +65,7 @@ public static class HtmlRenderer
         var total = mailings.Count;
         var active = mailings.Count(m => m.Status is MailingStatus.PaymentPending or MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired or MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Paused);
         var sent = mailings.Count(m => m.Status is MailingStatus.Sent);
-        return $"""
+        var content = $"""
             <section class='dashboard-shell'>
                 <section class='panel quick-start'>
                     <div>
@@ -85,36 +85,43 @@ public static class HtmlRenderer
                 </section>
             </section>
             """;
+
+        return CabinetShell(user, "dashboard", content);
     }
 
-    public static string UserProfile(UserAccount user, bool profileConfirmed = false) => $"""
-        <section class='cabinet-grid'>
-            <section class='panel cabinet-hero'>
-                <p class='eyebrow'>Профиль</p>
-                <h1>{H(user.DisplayName)}</h1>
-                <p>Здесь собраны данные аккаунта, отправитель по умолчанию и лимиты, которые используются при подготовке рассылок.</p>
-                {(profileConfirmed ? "<div class='notice ok'>Профиль подтверждён через e-mail.</div>" : string.Empty)}
-                <div class='actions'><a class='btn' href='/mailings/new'>Создать рассылку</a><a class='btn secondary' href='/payments'>Открыть платежи</a></div>
+    public static string UserProfile(UserAccount user, bool profileConfirmed = false)
+    {
+        var content = $"""
+            <section class='cabinet-grid'>
+                <section class='panel cabinet-hero'>
+                    <p class='eyebrow'>Профиль</p>
+                    <h1>{H(user.DisplayName)}</h1>
+                    <p>Здесь собраны данные аккаунта, отправитель по умолчанию и лимиты, которые используются при подготовке рассылок.</p>
+                    {(profileConfirmed ? "<div class='notice ok'>Профиль подтверждён через e-mail.</div>" : string.Empty)}
+                    <div class='actions'><a class='btn' href='/mailings/new'>Создать рассылку</a><a class='btn secondary' href='/payments'>Открыть платежи</a></div>
+                </section>
+                <section class='panel'><div class='profile-fields'>
+                    <div class='profile-field'><span>Email для входа</span><b>{H(user.Email)}</b></div>
+                    <div class='profile-field'><span>Телефон для связи</span><b>{H(string.IsNullOrWhiteSpace(user.Phone) ? "Не указан" : user.Phone)}</b></div>
+                    <div class='profile-field'><span>Отправитель по умолчанию</span><b>Письмолёт</b></div>
+                    <div class='profile-field'><span>Email для пересылки ответов</span><b>{H(user.Email)}</b></div>
+                    <div class='profile-field'><span>Статус аккаунта</span><b>{H(user.Profile.Status)}</b></div>
+                    <div class='profile-field'><span>Дневной лимит</span><b>{user.Profile.DailySendLimit}</b></div>
+                    <div class='profile-field'><span>Общий лимит</span><b>{user.Profile.TotalSendLimit}</b></div>
+                    <div class='profile-field'><span>Премодерация</span><b>{(user.Profile.PremoderationRequired ? "Включена" : "Не требуется")}</b></div>
+                </div></section>
             </section>
-            <section class='panel'><div class='profile-fields'>
-                <div class='profile-field'><span>Email для входа</span><b>{H(user.Email)}</b></div>
-                <div class='profile-field'><span>Телефон для связи</span><b>{H(string.IsNullOrWhiteSpace(user.Phone) ? "Не указан" : user.Phone)}</b></div>
-                <div class='profile-field'><span>Отправитель по умолчанию</span><b>Письмолёт</b></div>
-                <div class='profile-field'><span>Email для пересылки ответов</span><b>{H(user.Email)}</b></div>
-                <div class='profile-field'><span>Статус аккаунта</span><b>{H(user.Profile.Status)}</b></div>
-                <div class='profile-field'><span>Дневной лимит</span><b>{user.Profile.DailySendLimit}</b></div>
-                <div class='profile-field'><span>Общий лимит</span><b>{user.Profile.TotalSendLimit}</b></div>
-                <div class='profile-field'><span>Премодерация</span><b>{(user.Profile.PremoderationRequired ? "Включена" : "Не требуется")}</b></div>
-            </div></section>
-        </section>
-        """;
+            """;
+
+        return CabinetShell(user, "profile", content);
+    }
 
     public static string Payments(UserAccount user)
     {
         var mailings = user.Mailings.ToList();
         var waiting = mailings.Where(m => m.Status is MailingStatus.Draft or MailingStatus.MessagePrepared or MailingStatus.PaymentPending).ToList();
         var paid = mailings.Where(m => m.Status is MailingStatus.Paid or MailingStatus.PendingChecks or MailingStatus.ReviewRequired or MailingStatus.Approved or MailingStatus.Sending or MailingStatus.Sent).ToList();
-        return $"""
+        var content = $"""
             <section class='cabinet-grid'>
                 <section class='panel cabinet-hero'><p class='eyebrow'>Платежи</p><h1>Баланс и оплата рассылок</h1><p>Оплачиваются только адреса, принятые к отправке. Дубли, ошибки и ранее отписавшиеся адреса не входят в расчёт.</p><div class='actions'><a class='btn' href='/mailings/new'>Новая рассылка</a><a class='btn secondary' href='/dashboard'>История</a></div></section>
                 <section class='panel'><div class='section-head'><div><p class='eyebrow'>К оплате</p><h2>Ожидают оплаты</h2></div></div><div class='history-list'>{PaymentRows(waiting, "Нет рассылок, ожидающих оплаты.")}</div></section>
@@ -122,6 +129,42 @@ public static class HtmlRenderer
                 <section class='panel'><div class='section-head'><div><p class='eyebrow'>История</p><h2>История оплат</h2></div></div><p class='hint'>Подробная история платежей будет подключена после интеграции биллинга. Сейчас платежный статус хранится в карточке рассылки.</p></section>
             </section>
             """;
+
+        return CabinetShell(user, "payments", content);
+    }
+
+    public static string RecipientLists(UserAccount user)
+    {
+        var mailingsWithRecipients = user.Mailings
+            .Where(mailing => mailing.LastImportStats.Accepted > 0 || mailing.Recipients.Count > 0)
+            .OrderByDescending(mailing => mailing.LastImportBatch?.CreatedAt ?? mailing.CreatedAt)
+            .ToArray();
+        var rows = mailingsWithRecipients.Length == 0
+            ? "<div class='empty-state'>Списков пока нет. Создайте рассылку и загрузите адреса — список появится здесь.</div>"
+            : string.Join(string.Empty, mailingsWithRecipients.Select(mailing => $"""
+                <div class='history-row recipient-list-row'>
+                    <div><b>{H(MailingTitle(mailing))}</b><br><span class='hint'>Источник: {H(mailing.LastImportBatch?.FileName ?? "ручной ввод")}</span></div>
+                    <div><span class='history-label'>Принято</span><b>{mailing.LastImportStats.Accepted}</b></div>
+                    <div><span class='history-label'>Исключено</span><b>{mailing.LastImportStats.Invalid + mailing.LastImportStats.Duplicates + mailing.LastImportStats.GloballySuppressed + mailing.LastImportStats.ClientSuppressed}</b></div>
+                    <div class='history-actions'><a class='text-link' href='/mailings/{mailing.Id}/recipients'>Открыть список</a></div>
+                </div>
+                """));
+        var content = $"""
+            <section class='cabinet-grid'>
+                <section class='panel cabinet-hero'>
+                    <p class='eyebrow'>Списки</p>
+                    <h1>Списки адресатов</h1>
+                    <p>Здесь собраны загруженные списки адресов по вашим рассылкам. Полноценные переиспользуемые списки будут развиваться отдельным блоком.</p>
+                    <div class='actions'><a class='btn' href='/mailings/new'>Создать рассылку</a><a class='btn secondary' href='/dashboard'>История рассылок</a></div>
+                </section>
+                <section class='panel'>
+                    <div class='section-head'><div><p class='eyebrow'>Адресаты</p><h2>Ваши списки</h2></div><span class='badge neutral'>{mailingsWithRecipients.Length}</span></div>
+                    <div class='history-list recipient-lists'>{rows}</div>
+                </section>
+            </section>
+            """;
+
+        return CabinetShell(user, "lists", content);
     }
 
     public static string EmailPreview(EmailMessage message) => $"""
@@ -140,6 +183,29 @@ public static class HtmlRenderer
             <section class='panel'><div class='section-head'><div><p class='eyebrow'>Development</p><h1>Fake mailer</h1></div><span class='badge neutral'>{list.Count}</span></div><div class='history-list'>{rows}</div></section>
             """;
     }
+
+    private static string CabinetShell(UserAccount user, string active, string content) => $"""
+        <section class='cabinet-shell'>
+            <aside class='cabinet-sidebar' aria-label='Навигация личного кабинета'>
+                <div class='cabinet-user-card'>
+                    <small>Личный кабинет</small>
+                    <strong>{H(string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName)}</strong>
+                    <span>{H(user.Email)}</span>
+                </div>
+                <nav class='cabinet-nav'>
+                    {CabinetNavLink("dashboard", "/dashboard", "Главная", active)}
+                    {CabinetNavLink("lists", "/lists", "Списки", active)}
+                    {CabinetNavLink("payments", "/payments", "Платежи", active)}
+                    {CabinetNavLink("profile", "/profile", "Профиль", active)}
+                </nav>
+                <a class='cabinet-new-mailing' href='/mailings/new'>Новая рассылка</a>
+            </aside>
+            <div class='cabinet-content'>{content}</div>
+        </section>
+        """;
+
+    private static string CabinetNavLink(string key, string href, string text, string active) =>
+        $"<a class='cabinet-nav-link{(key == active ? " active" : string.Empty)}' href='{H(href)}'>{H(text)}</a>";
 
     private static string MailingHistoryRows(IReadOnlyCollection<Mailing> mailings)
     {
@@ -173,7 +239,7 @@ public static class HtmlRenderer
     private static string AccountMenu(bool showDevTools)
     {
         return $"""
-            <div class='profile-menu'><button class='profile-button' type='button'>Профиль ▾</button><div class='profile-dropdown'><a href='/mailings/new'>Новая рассылка</a><a href='/dashboard'>История</a><a href='/payments'>Платежи</a><a href='/profile'>Профиль</a><a href='/admin'>Админка</a><form method='post' action='/account/logout'><button type='submit'>Выйти</button></form></div></div>
+            <div class='profile-menu'><button class='profile-button' type='button'>Профиль ▾</button><div class='profile-dropdown'><a href='/mailings/new'>Новая рассылка</a><a href='/dashboard'>История</a><a href='/lists'>Списки</a><a href='/payments'>Платежи</a><a href='/profile'>Профиль</a><a href='/admin'>Админка</a><form method='post' action='/account/logout'><button type='submit'>Выйти</button></form></div></div>
             """;
     }
 
