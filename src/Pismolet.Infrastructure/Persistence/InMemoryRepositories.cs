@@ -9,11 +9,25 @@ public sealed class InMemoryUserRepository : IUserRepository
 {
     private readonly ConcurrentDictionary<string, UserAccount> _users = new(StringComparer.OrdinalIgnoreCase);
 
-    public bool Exists(string email) => _users.ContainsKey(email);
+    public bool Exists(string email) => _users.ContainsKey(NormalizeEmail(email));
 
-    public bool TryAdd(UserAccount user) => _users.TryAdd(user.Email, user);
+    public bool PhoneExists(string phone)
+    {
+        var normalizedPhone = NormalizePhone(phone);
+        return !string.IsNullOrWhiteSpace(normalizedPhone) && _users.Values.Any(user => NormalizePhone(user.Phone) == normalizedPhone);
+    }
 
-    public UserAccount? GetByEmail(string email) => _users.GetValueOrDefault(email);
+    public bool TryAdd(UserAccount user)
+    {
+        if (PhoneExists(user.Phone))
+        {
+            return false;
+        }
+
+        return _users.TryAdd(NormalizeEmail(user.Email), user);
+    }
+
+    public UserAccount? GetByEmail(string email) => _users.GetValueOrDefault(NormalizeEmail(email));
 
     public UserAccount? FindByConfirmationToken(string token) => _users.Values.FirstOrDefault(user => user.ConfirmationToken == token);
 
@@ -21,7 +35,22 @@ public sealed class InMemoryUserRepository : IUserRepository
         .OrderBy(user => user.Email, StringComparer.OrdinalIgnoreCase)
         .ToArray();
 
-    public void Update(UserAccount user) => _users[user.Email] = user;
+    public void Update(UserAccount user) => _users[NormalizeEmail(user.Email)] = user;
+
+    public void Remove(string email) => _users.TryRemove(NormalizeEmail(email), out _);
+
+    private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+
+    private static string NormalizePhone(string phone)
+    {
+        var digits = new string((phone ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (digits.Length == 11 && digits[0] == '8')
+        {
+            digits = "7" + digits[1..];
+        }
+
+        return digits;
+    }
 }
 
 public sealed class InMemoryMailingRepository : IMailingRepository
@@ -68,6 +97,22 @@ public sealed class InMemoryMailingRepository : IMailingRepository
     }
 
     public void Update(Mailing mailing) => _items[mailing.Id] = mailing;
+
+    public int RemoveForOwner(string ownerEmail)
+    {
+        var normalized = Normalize(ownerEmail);
+        var ids = _items
+            .Where(item => string.Equals(item.Value.OwnerEmail, normalized, StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Key)
+            .ToArray();
+
+        foreach (var id in ids)
+        {
+            _items.TryRemove(id, out _);
+        }
+
+        return ids.Length;
+    }
 
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 }
