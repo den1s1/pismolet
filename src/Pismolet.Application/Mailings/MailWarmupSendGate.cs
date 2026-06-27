@@ -17,7 +17,66 @@ public sealed class MailWarmupSendGate(
     public MailWarmupLimitDecision Evaluate(string ownerEmail, string recipientEmail, DateTimeOffset now)
     {
         var utcNow = now.ToUniversalTime();
-        var acceptedSends = sendEvents.ListAcceptedForWarmupWindow(ownerEmail, utcNow - HistoryWindow);
-        return throttle.Evaluate(options, acceptedSends, recipientEmail, utcNow);
+        var acceptedSends = sendEvents.ListAcceptedForWarmupWindow(ownerEmail, utcNow - HistoryWindow).ToArray();
+        var policyDecision = throttle.Evaluate(options, acceptedSends, recipientEmail, utcNow);
+        if (!policyDecision.IsAllowed)
+        {
+            return policyDecision;
+        }
+
+        return EvaluateMinimumDelay(acceptedSends, recipientEmail, utcNow) ?? policyDecision;
+    }
+
+    private MailWarmupLimitDecision? EvaluateMinimumDelay(
+        IReadOnlyCollection<MailWarmupAcceptedSend> acceptedSends,
+        string recipientEmail,
+        DateTimeOffset utcNow)
+    {
+        var snapshot = MailWarmupSnapshotFactory.Build(acceptedSends, recipientEmail, utcNow);
+        var domainLimit = options.GetDomainLimit(GetEmailDomain(recipientEmail));
+        var globalDecision = MinimumDelayDecision(options.MinSecondsBetweenSends, snapshot.GlobalLastSentAt, "global_min_send_interval", utcNow);
+        var domainDecision = MinimumDelayDecision(domainLimit.MinSecondsBetweenSends, snapshot.DomainLastSentAt, "domain_min_send_interval", utcNow);
+
+        if (globalDecision is null)
+        {
+            return domainDecision;
+        }
+
+        if (domainDecision is null)
+        {
+            return globalDecision;
+        }
+
+        return domainDecision.RetryAfter > globalDecision.RetryAfter ? domainDecision : globalDecision;
+    }
+
+    private static MailWarmupLimitDecision? MinimumDelayDecision(
+        int? minSeconds,
+        DateTimeOffset? lastSentAt,
+        string reason,
+        DateTimeOffset utcNow)
+    {
+        if (minSeconds is null or <= 0 || lastSentAt is null)
+        {
+            return null;
+        }
+
+        var retryAfter = lastSentAt.Value.ToUniversalTime().AddSeconds(minSeconds.Value) - utcNow;
+        return retryAfter > TimeSpan.Zero
+            ? MailWarmupLimitDecision.Blocked(reason, retryAfter)
+            : null;
+    }
+
+    private static string? GetEmailDomain(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+
+        var at = email.LastIndexOf('@');
+        return at < 0 || at >= email.Length - 1
+            ? null
+            : email[(at + 1)..].Trim().ToLowerInvariant();
     }
 }
