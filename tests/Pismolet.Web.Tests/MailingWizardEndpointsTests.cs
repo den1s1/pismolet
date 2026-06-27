@@ -119,7 +119,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.Equal(1, mailing.LastImportStats.Invalid);
         Assert.Equal(0, mailing.LastImportStats.GloballySuppressed);
         Assert.Equal(3, mailing.Recipients.Count);
-        var acceptedRecipient = Assert.Single(mailing.Recipients.Where(x => x.Status == RecipientStatus.Accepted));
+        var acceptedRecipient = Assert.Single(mailing.Recipients, x => x.Status == RecipientStatus.Accepted);
         Assert.Equal("first@example.test", acceptedRecipient.Email);
         Assert.Contains(mailing.Recipients, x => x.Status == RecipientStatus.Invalid && x.SourceEmail == "wrong-email");
         Assert.Contains(mailing.Recipients, x => x.Status == RecipientStatus.Duplicate && x.Email == "first@example.test");
@@ -209,7 +209,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Invalid && x.SourceEmail == "wrong-email");
         Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Duplicate && x.SourceEmail == "FIRST@example.test");
 
-        var secondRecipient = Assert.Single(mailingAfterAdd.Recipients.Where(x => x.Email == "second@example.test" && x.Status == RecipientStatus.Accepted));
+        var secondRecipient = Assert.Single(mailingAfterAdd.Recipients, x => x.Email == "second@example.test" && x.Status == RecipientStatus.Accepted);
         using var removeForm = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["email"] = secondRecipient.Email,
