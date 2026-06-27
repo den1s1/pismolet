@@ -32,7 +32,7 @@ public static class SendEndpoints
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.GetState(email, id);
         var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Запуск рассылки", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, null, environment.IsDevelopment(), ReadRecipientPage(http)), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Запуск рассылки", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, null, environment.IsDevelopment(), ReadRecipientPage(http), IsRecipientPagingRequest(http)), authenticated: true));
     }
 
     private static IResult ExportCsv(Guid id, HttpContext http, IMailingSendService sender, IClickTrackingRepository clicks)
@@ -75,7 +75,7 @@ public static class SendEndpoints
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.StartSending(email, id, ToRequestMetadata(http));
         var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Отправка поставлена в очередь." : result.Error, environment.IsDevelopment(), 1), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Отправка поставлена в очередь." : result.Error, environment.IsDevelopment(), 1, false), authenticated: true));
     }
 
     private static IResult ResumeSend(Guid id, HttpContext http, IMailingSendService sender, IReplyEventRepository replies, IClickTrackingRepository clicks, IClientSuppressionRepository clientSuppressions, IEmailNormalizer emailNormalizer, IHostEnvironment environment)
@@ -84,10 +84,10 @@ public static class SendEndpoints
         if (email is null) return Results.Redirect("/account/login");
         var result = sender.ResumeSending(email, id, ToRequestMetadata(http));
         var suppressionPreview = BuildClientSuppressionPreview(result, clientSuppressions, emailNormalizer);
-        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error, environment.IsDevelopment(), 1), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Рассылка запущена", SendPage(result, replies.GetSummary(id), clicks.ListLinksByMailingId(id), suppressionPreview, result.Ok ? "Продолжение отправки поставлено в очередь." : result.Error, environment.IsDevelopment(), 1, false), authenticated: true));
     }
 
-    private static string SendPage(MailingSendResult result, ReplySummary replySummary, IReadOnlyCollection<TrackedLink> trackedLinks, ClientSuppressionPreview suppressionPreview, string? message, bool showDevReport, int recipientPage)
+    private static string SendPage(MailingSendResult result, ReplySummary replySummary, IReadOnlyCollection<TrackedLink> trackedLinks, ClientSuppressionPreview suppressionPreview, string? message, bool showDevReport, int recipientPage, bool keepDetailedReportOpen)
     {
         if (result.State is null)
         {
@@ -178,6 +178,7 @@ public static class SendEndpoints
         var devReport = showDevReport
             ? $"<details><summary>Dev-сводка событий</summary><div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th><th>Доставка</th><th>Последнее событие доставки</th><th>Открыто</th><th>Открытий</th><th>Последнее открытие</th><th>Ошибка</th></tr></thead><tbody>{devRows}</tbody></table></div></details>"
             : string.Empty;
+        var detailedReportOpenAttribute = keepDetailedReportOpen ? " open" : string.Empty;
 
         return $"""
             <section class='wizard-shell send-wizard'>
@@ -211,7 +212,7 @@ public static class SendEndpoints
                   <p>{H(progressText)}</p>
                   {action}
                 </section>
-                <details class='detailed-report'>
+                <details class='detailed-report'{detailedReportOpenAttribute}>
                   <summary>Подробный отчёт</summary>
                   <div class='report-grid'>
                     <section class='box muted-box'>
@@ -565,6 +566,8 @@ public static class SendEndpoints
         var rawValue = http.Request.Query["recipientPage"].FirstOrDefault();
         return int.TryParse(rawValue, out var page) && page > 0 ? page : 1;
     }
+
+    private static bool IsRecipientPagingRequest(HttpContext http) => http.Request.Query.ContainsKey("recipientPage");
 
     private static string RecipientPager(Guid mailingId, int page, int totalPages)
     {
