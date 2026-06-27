@@ -122,32 +122,60 @@ public sealed class SendEndpointUiTests
     private static void SeedUser(WebApplicationFactory<Program> factory)
     {
         using var scope = factory.Services.CreateScope();
-        var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
-        users.Save(new UserProfile(OwnerEmail, RoleNames.Sender));
+        var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
+        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "PassForTests2026!", "Send UI", "+79990000000"), Request());
+        Assert.True(result.Ok, result.Error);
     }
 
-    private static Guid SeedApprovedMailing(WebApplicationFactory<Program> factory) =>
-        SeedMailingWithStatus(factory, MailingStatus.Approved);
+    private static Guid SeedApprovedMailing(WebApplicationFactory<Program> factory)
+    {
+        return SeedMailingWithStatus(factory, MailingStatus.Approved);
+    }
 
     private static Guid SeedMailingWithStatus(WebApplicationFactory<Program> factory, MailingStatus status)
     {
         using var scope = factory.Services.CreateScope();
-        var mailings = scope.ServiceProvider.GetRequiredService<IMailingRepository>();
-        var mailing = Mailing.CreateDraft(OwnerEmail, "UI report campaign");
-        mailing = mailing.WithContent("UI report campaign", "<p>Hello report</p>", "Hello report", Array.Empty<MailingAttachment>());
-        mailing = mailing.WithRecipients(new[]
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var repository = scope.ServiceProvider.GetRequiredService<IMailingRepository>();
+        var result = mailings.CreateDraft(new CreateMailingCommand(OwnerEmail, "Send UI campaign"), Request());
+        Assert.True(result.Ok, result.Error);
+        Assert.NotNull(result.Mailing);
+
+        var mailing = repository.GetForOwner(result.Mailing.Id, OwnerEmail);
+        Assert.NotNull(mailing);
+
+        var recipients = new[]
         {
-            MailingRecipient.Accepted("lead@example.test", null, new Dictionary<string, string>())
-        });
-        mailing = status switch
-        {
-            MailingStatus.ReviewRequired => mailing.SubmitForReview(DateTimeOffset.UtcNow),
-            MailingStatus.Approved => mailing.SubmitForReview(DateTimeOffset.UtcNow).Approve(DateTimeOffset.UtcNow),
-            _ => mailing.WithStatus(status)
+            Recipient.Accepted("first@example.test", "first@example.test", rowNumber: 2),
+            Recipient.Accepted("second@example.test", "second@example.test", rowNumber: 3),
+            Recipient.Accepted("third@example.test", "third@example.test", rowNumber: 4)
         };
-        mailings.Save(mailing);
+        var declaration = new MailingDeclaration(
+            mailing.Id,
+            OwnerEmail,
+            BaseSource.Customers,
+            IsBaseLegalityConfirmed: true,
+            IsAdvertisingConsentConfirmed: false,
+            BaseDeclarationText.CurrentVersion,
+            DateTimeOffset.UtcNow,
+            "127.0.0.1",
+            "send-ui-tests");
+        var draft = MailingMessageDraft.Create(
+            "Библиотека №5",
+            "Приглашаем на встречу",
+            "Здравствуйте!",
+            MessageType.Transactional,
+            DateTimeOffset.UtcNow);
+        var ready = mailing
+            .WithImportResult(new ImportStats(3, 3, 0, 0, 0), recipients)
+            .WithDeclaration(declaration)
+            .WithMessageDraft(draft)
+            .WithStatus(status);
+        repository.Update(ready);
         return mailing.Id;
     }
+
+    private static RequestMetadata Request() => new("127.0.0.1", "send-endpoint-ui-tests");
 
     private sealed class TestAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -159,7 +187,7 @@ public sealed class SendEndpointUiTests
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            var email = Request.Headers[EmailHeaderName].FirstOrDefault();
+            var email = Request.Headers[EmailHeaderName].ToString();
             if (string.IsNullOrWhiteSpace(email))
             {
                 return Task.FromResult(AuthenticateResult.NoResult());
@@ -167,12 +195,14 @@ public sealed class SendEndpointUiTests
 
             var claims = new[]
             {
+                new Claim(ClaimTypes.NameIdentifier, email),
                 new Claim(ClaimTypes.Email, email),
-                new Claim(ClaimTypes.Role, RoleNames.Sender)
+                new Claim(ClaimTypes.Name, email)
             };
             var identity = new ClaimsIdentity(claims, SchemeName);
             var principal = new ClaimsPrincipal(identity);
             var ticket = new AuthenticationTicket(principal, SchemeName);
+
             return Task.FromResult(AuthenticateResult.Success(ticket));
         }
     }
