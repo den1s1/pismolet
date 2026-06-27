@@ -41,6 +41,6 @@ public sealed class InboundReplyProcessingIntegrationTests
         Assert.NotNull(saved);
         Assert.Equal("client@example.test", saved.FromEmailNormalized);
         Assert.Equal("Re: Проверка ответа", saved.SubjectPreview);
-        Assert.Contains("Тестовый ответ", saved.BodyText);
+        Assert.Contains("Тестовый ответ", saved.BodyTextStored);
     }
 }
