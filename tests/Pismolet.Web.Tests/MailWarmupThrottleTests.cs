@@ -8,14 +8,14 @@ public sealed class MailWarmupThrottleTests
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
 
     [Fact]
-    public void Throttle_allows_when_snapshot_is_below_limits()
+    public void Allows_when_history_is_empty()
     {
         var throttle = new MailWarmupThrottle();
 
         var decision = throttle.Evaluate(
             MailWarmupLimitOptions.Default,
             Array.Empty<MailWarmupAcceptedSend>(),
-            "lead@gmail.com",
+            "lead",
             Now);
 
         Assert.True(decision.IsAllowed);
@@ -23,53 +23,23 @@ public sealed class MailWarmupThrottleTests
     }
 
     [Fact]
-    public void Throttle_blocks_by_domain_daily_limit_from_accepted_sends()
+    public void Blocks_by_global_spacing()
     {
         var throttle = new MailWarmupThrottle();
         var options = new MailWarmupLimitOptions(
             MaxPerMinute: 100,
             MaxPerHour: 100,
             MaxPerDay: 100,
-            MinSecondsBetweenSends: 0,
-            DomainLimits: new Dictionary<string, DomainMailWarmupLimitOptions>
-            {
-                ["gmail.com"] = new(MaxPerDay: 2)
-            });
-        var acceptedSends = new[]
+            MinSecondsBetweenSends: 30);
+        var history = new[]
         {
-            new MailWarmupAcceptedSend("first@gmail.com", Now.AddHours(-2)),
-            new MailWarmupAcceptedSend("second@GMAIL.com", Now.AddHours(-1)),
-            new MailWarmupAcceptedSend("other@example.test", Now.AddMinutes(-10))
+            new MailWarmupAcceptedSend("previous", Now.AddSeconds(-10))
         };
 
-        var decision = throttle.Evaluate(options, acceptedSends, "target@gmail.com", Now);
+        var decision = throttle.Evaluate(options, history, "next", Now);
 
         Assert.False(decision.IsAllowed);
-        Assert.Equal("domain_daily_limit", decision.Reason);
-    }
-
-    [Fact]
-    public void Throttle_does_not_block_on_minimum_delay_from_snapshot_and_policy()
-    {
-        var throttle = new MailWarmupThrottle();
-        var options = new MailWarmupLimitOptions(
-            MaxPerMinute: 100,
-            MaxPerHour: 100,
-            MaxPerDay: 100,
-            MinSecondsBetweenSends: 30,
-            DomainLimits: new Dictionary<string, DomainMailWarmupLimitOptions>
-            {
-                ["gmail.com"] = new(MinSecondsBetweenSends: 300)
-            });
-        var acceptedSends = new[]
-        {
-            new MailWarmupAcceptedSend("lead@gmail.com", Now.AddSeconds(-10))
-        };
-
-        var decision = throttle.Evaluate(options, acceptedSends, "target@gmail.com", Now);
-
-        Assert.True(decision.IsAllowed);
-        Assert.Equal("allowed", decision.Reason);
-        Assert.Equal(TimeSpan.Zero, decision.RetryAfter);
+        Assert.Equal("global_min_send_interval", decision.Reason);
+        Assert.Equal(TimeSpan.FromSeconds(20), decision.RetryAfter);
     }
 }
