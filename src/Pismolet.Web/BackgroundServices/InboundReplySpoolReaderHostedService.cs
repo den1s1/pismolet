@@ -28,6 +28,7 @@ public sealed class InboundReplySpoolReaderHostedService(
         {
             try
             {
+                CleanupOldFiles();
                 await ProcessIncomingFilesAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -141,5 +142,39 @@ public sealed class InboundReplySpoolReaderHostedService(
         var target = Path.Combine(options.FailedPath, Path.GetFileName(path));
         File.Move(path, target, overwrite: true);
         File.WriteAllText(target + ".error", reason);
+    }
+
+    private void CleanupOldFiles()
+    {
+        CleanupDirectory(options.ProcessedPath, TimeSpan.FromDays(options.ProcessedRetentionDays));
+        CleanupDirectory(options.FailedPath, TimeSpan.FromDays(options.FailedRetentionDays));
+    }
+
+    private void CleanupDirectory(string directory, TimeSpan retention)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+
+        var threshold = DateTimeOffset.UtcNow.Subtract(retention).UtcDateTime;
+        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly))
+        {
+            try
+            {
+                if (File.GetLastWriteTimeUtc(path) < threshold)
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (IOException ex)
+            {
+                logger.LogDebug(ex, "Inbound reply spool cleanup skipped locked file. path={Path}", path);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                logger.LogWarning(ex, "Inbound reply spool cleanup cannot delete file. path={Path}", path);
+            }
+        }
     }
 }
