@@ -15,6 +15,7 @@ public sealed class MailWarmupConfigurationTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Persistence:Provider"] = "InMemory",
+                ["MailWarmup:SettingsPath"] = TestSettingsPath(),
                 ["MailWarmup:MaxPerMinute"] = "10",
                 ["MailWarmup:MaxPerHour"] = "100",
                 ["MailWarmup:MaxPerDay"] = "1000",
@@ -56,6 +57,7 @@ public sealed class MailWarmupConfigurationTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Persistence:Provider"] = "InMemory",
+                ["MailWarmup:SettingsPath"] = TestSettingsPath(),
                 ["MailWarmup:MaxPerMinute"] = "10",
                 ["MailWarmup:MaxPerHour"] = "100",
                 ["MailWarmup:MaxPerDay"] = "1000",
@@ -82,4 +84,8 @@ public sealed class MailWarmupConfigurationTests
         Assert.Equal(1000, mailRu.MaxPerDay);
         Assert.Equal(300, mailRu.MinSecondsBetweenSends);
     }
+
+    private static string TestSettingsPath() => Path.Combine(
+        Path.GetTempPath(),
+        $"pismolet-warmup-config-test-{Guid.NewGuid():N}.json");
 }
