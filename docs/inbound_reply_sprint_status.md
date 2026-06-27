@@ -12,7 +12,7 @@
 | 3.1. Конфигурация inbound reply и безопасный skeleton | Завершён | Добавлены `InboundReplySpoolOptions`, выключенный по умолчанию hosted service skeleton и регистрация вне Testing. |
 | 3.2. MIME parser и token extraction | Завершён для MVP | Parser извлекает token из envelope, X-Original-To, Delivered-To, To и Cc fallback; добавлены unit-тесты parser. |
 | 3.3. Auto-reply, bounce и дедупликация | Завершён для MVP | Подключён `InboundReplyAutoReplyDetector`; добавлены unit-тесты detector-а; дедупликация по provider event уже есть в processing service. |
-| 3.4. Подключение processing service и очереди пересылки | Частично покрыт текущей архитектурой | Existing `InboundReplyProcessingService` уже связывает inbound event с matching/queue/forward. Отдельный synthetic integration test ещё не добавлен. |
+| 3.4. Подключение processing service и очереди пересылки | Завершён для MVP | Existing `InboundReplyProcessingService` связывает inbound event с matching/queue/forward; добавлен integration-тест processing path до `ReplyEvent`. |
 | 3.5. Spool reader и файловая обработка | Завершён для MVP-каркаса | Reader обрабатывает eml из incoming, двигает файлы в processing, вызывает parser/processor, переносит в processed или failed, пишет error-файл, чистит retention. |
 | 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Используется существующий `/admin/replies`; страница улучшена: маскирует email, показывает статус, рассылку, тему, body status и ошибку без body/raw/token. |
 | 3.7. Инфраструктурный runbook и server dry-run | Завершён для документации | Создан `docs/inbound_reply_runbook.md`; server dry-run выполнять после deploy. |
@@ -22,9 +22,8 @@
 ## Открытые технические подпункты
 
 1. Передать фактический envelope recipient в `InboundReplyRawMessage`, когда будет выбран Postfix pipe/sidecar-контракт.
-2. Добавить integration-тест spool reader -> parser -> processing service.
-3. Выполнить server dry-run по runbook.
-4. После dry-run обновить фактический статус спринта 3.8.
+2. Выполнить server dry-run по runbook.
+3. После dry-run обновить фактический статус спринта 3.8.
 
 ## Последние commit SHA по этапу
 
@@ -53,3 +52,4 @@
 - `8b139fcc86781ee2313e40bb760f26a6e650e99d` — тест существующей страницы `/admin/replies`.
 - `20747807d69d3ab40301e349cfa3ef319064c2af` — улучшение admin диагностики `/admin/replies`.
 - `cc56e5d524f32c32f906d6844d694ebaf89a1642` — ослабление проверки служебного текста admin replies.
+- `005a7f4c667e8181cef79984ab41399783d08e07` — integration-тест processing path ответов.
