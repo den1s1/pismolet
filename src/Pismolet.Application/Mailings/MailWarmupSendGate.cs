@@ -7,16 +7,44 @@ public interface IMailWarmupSendGate
     MailWarmupLimitDecision Evaluate(string ownerEmail, string recipientEmail, DateTimeOffset now);
 }
 
+public interface IMailWarmupLimitOptionsProvider
+{
+    MailWarmupLimitOptions GetCurrent();
+}
+
+public sealed class StaticMailWarmupLimitOptionsProvider(MailWarmupLimitOptions options) : IMailWarmupLimitOptionsProvider
+{
+    public MailWarmupLimitOptions GetCurrent() => options;
+}
+
+public sealed class RuntimeMailWarmupLimitOptionsProvider(
+    IMailWarmupRuntimeSettingsRepository runtimeSettings,
+    MailWarmupLimitOptions configuredOptions) : IMailWarmupLimitOptionsProvider
+{
+    public MailWarmupLimitOptions GetCurrent()
+    {
+        var settings = runtimeSettings.Get();
+        return configuredOptions with
+        {
+            MaxPerMinute = settings.MaxPerMinute,
+            MaxPerHour = settings.MaxPerHour,
+            MaxPerDay = settings.MaxPerDay,
+            MinSecondsBetweenSends = settings.MinSecondsBetweenSends
+        };
+    }
+}
+
 public sealed class MailWarmupSendGate(
     ISendEventRepository sendEvents,
     IMailWarmupThrottle throttle,
-    MailWarmupLimitOptions options) : IMailWarmupSendGate
+    IMailWarmupLimitOptionsProvider optionsProvider) : IMailWarmupSendGate
 {
     private static readonly TimeSpan HistoryWindow = TimeSpan.FromDays(1);
 
     public MailWarmupLimitDecision Evaluate(string ownerEmail, string recipientEmail, DateTimeOffset now)
     {
         var utcNow = now.ToUniversalTime();
+        var options = optionsProvider.GetCurrent();
         var acceptedSends = sendEvents.ListAcceptedForWarmupWindow(ownerEmail, utcNow - HistoryWindow).ToArray();
         var policyDecision = throttle.Evaluate(options, acceptedSends, recipientEmail, utcNow);
         if (!policyDecision.IsAllowed)
@@ -24,10 +52,11 @@ public sealed class MailWarmupSendGate(
             return policyDecision;
         }
 
-        return EvaluateMinimumDelay(acceptedSends, recipientEmail, utcNow) ?? policyDecision;
+        return EvaluateMinimumDelay(options, acceptedSends, recipientEmail, utcNow) ?? policyDecision;
     }
 
     private MailWarmupLimitDecision? EvaluateMinimumDelay(
+        MailWarmupLimitOptions options,
         IReadOnlyCollection<MailWarmupAcceptedSend> acceptedSends,
         string recipientEmail,
         DateTimeOffset utcNow)

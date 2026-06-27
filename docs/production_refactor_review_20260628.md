@@ -60,7 +60,7 @@ Needed tests:
 
 ### P2. Admin warmup settings are runtime-file backed and require restart
 
-Status: planned.
+Status: fixed in Sprint 5.
 
 Admin UI saves warmup limits to a JSON file. Current process reads runtime settings through repository reads, but some option objects may still be built at startup. Need verify all sending paths read latest settings when evaluating warmup.
 
@@ -163,13 +163,22 @@ Result:
 
 ### Sprint 5. Admin warmup settings consistency
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
 - Trace config reads from admin save to warmup gate.
 - Add tests for updated runtime settings and invalid saves.
 - Simplify stale option paths if found.
+
+Result:
+
+- Added `IMailWarmupLimitOptionsProvider`; `MailWarmupSendGate` now reads current runtime settings for every evaluation.
+- Kept configured domain overrides while replacing global limits with admin-saved runtime values.
+- Fixed DI so `FileMailWarmupRuntimeSettingsRepository` uses the configuration instance passed into `AddPismoletWebServices`.
+- Updated admin success text: warmup limits apply to subsequent queue decisions without restart.
+- Added tests that saved runtime settings affect the same gate/provider immediately, and invalid settings keep previous effective values.
+- Gate passed: build, full tests Integration 4/4 and Web 321/321.
 
 ### Sprint 6. User deletion retention policy
 

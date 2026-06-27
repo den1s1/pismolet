@@ -29,13 +29,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAdminAccessService, ConfigurationAdminAccessService>();
         services.AddSingleton<IEmailSyntaxValidator, EmailSyntaxValidator>();
         services.AddSingleton<IAdminMvpSettingsRepository, RuntimeAdminMvpSettingsRepository>();
-        services.AddSingleton<IMailWarmupRuntimeSettingsRepository, FileMailWarmupRuntimeSettingsRepository>();
+        services.AddSingleton<IMailWarmupRuntimeSettingsRepository>(_ => new FileMailWarmupRuntimeSettingsRepository(configuration));
         services.AddSingleton(new PublicUrlOptions(ReadPublicBaseUrl(configuration)));
         services.AddSingleton(ReadRobokassaPaymentOptions(configuration));
         services.AddSingleton(new UnsubscribeTokenOptions(configuration["Unsubscribe:Secret"] ?? configuration["PISMOLET_UNSUBSCRIBE_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_UNSUBSCRIBE_SECRET") ?? UnsubscribeTokenOptions.DevelopmentDefault.Secret, TimeSpan.FromDays(ReadTokenLifetimeDays(configuration))));
         services.AddSingleton(new InboundReplyTokenOptions(configuration["InboundReplies:Secret"] ?? configuration["PISMOLET_INBOUND_REPLY_SECRET"] ?? Environment.GetEnvironmentVariable("PISMOLET_INBOUND_REPLY_SECRET") ?? InboundReplyTokenOptions.DevelopmentDefault.Secret, configuration["InboundReplies:Domain"] ?? InboundReplyTokenOptions.DevelopmentDefault.InboundDomain, TimeSpan.FromDays(ReadInboundTokenLifetimeDays(configuration))));
         services.AddSingleton(new InboundReplyOptions(ReadInt(configuration, "InboundReplies:BodyRetentionDays", 14, 1, 60), ReadInt(configuration, "InboundReplies:MaxStoredBodyChars", 12000, 0, 16000), ReadInt(configuration, "InboundReplies:ForwardBatchSize", 50, 1, 500)));
         services.AddSingleton(ReadMailWarmupLimitOptions(configuration));
+        services.AddSingleton<IMailWarmupLimitOptionsProvider, RuntimeMailWarmupLimitOptionsProvider>();
         services.AddSingleton(ReadPostfixDeliveryLogReaderOptions(configuration));
         services.AddSingleton<IMailWarmupThrottle, MailWarmupThrottle>();
         services.AddScoped<IMailWarmupSendGate, MailWarmupSendGate>();

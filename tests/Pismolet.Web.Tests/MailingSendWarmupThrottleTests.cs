@@ -72,11 +72,11 @@ public sealed class MailingSendWarmupThrottleTests
         var gate = new MailWarmupSendGate(
             sendEvents,
             new MailWarmupThrottle(),
-            new MailWarmupLimitOptions(
+            new StaticMailWarmupLimitOptionsProvider(new MailWarmupLimitOptions(
                 MaxPerMinute: 1,
                 MaxPerHour: 100,
                 MaxPerDay: 1000,
-                MinSecondsBetweenSends: 0));
+                MinSecondsBetweenSends: 0)));
         mailings.TryAdd(SendingMailing(mailingId, "first@example.test", "second@example.test"));
         sendEvents.Save(SendEvent.Pending(mailingId, "owner@example.test", "first@example.test"));
         sendEvents.Save(SendEvent.Pending(mailingId, "owner@example.test", "second@example.test"));

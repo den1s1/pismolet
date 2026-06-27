@@ -62,7 +62,7 @@ public sealed class MailWarmupSendGateTests
     private static MailWarmupSendGate CreateGate(InMemorySendEventRepository sendEvents, MailWarmupLimitOptions options) => new(
         sendEvents,
         new MailWarmupThrottle(),
-        options);
+        new StaticMailWarmupLimitOptionsProvider(options));
 
     private static SendEvent AcceptedEvent(string ownerEmail, string recipientEmail, DateTimeOffset acceptedAt, DateTimeOffset updatedAt) => new(
         Guid.NewGuid(),
