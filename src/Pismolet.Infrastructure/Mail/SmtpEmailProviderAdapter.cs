@@ -42,13 +42,14 @@ public sealed class SmtpEmailProviderAdapter(
         var fromDomain = GetEmailDomain(options.FromEmail);
 
         logger.LogInformation(
-            "SMTP send started. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain} subjectLength={SubjectLength}",
+            "SMTP send started. transport={Transport} host={Host} port={Port} fromDomain={FromDomain} recipientDomain={RecipientDomain} subjectLength={SubjectLength} attachmentCount={AttachmentCount}",
             transport,
             options.Host,
             options.Port,
             fromDomain,
             recipientDomain,
-            message.Subject?.Length ?? 0);
+            message.Subject?.Length ?? 0,
+            message.Attachments?.Count ?? 0);
 
         try
         {
@@ -222,8 +223,38 @@ public sealed class SmtpEmailProviderAdapter(
                 ? BuildHtmlBodyFromHtml(textBody, unsubscribeUrl, trackingPixelUrl, clickTrackingUrlFactory)
                 : BuildHtmlBody(textBody, unsubscribeUrl, trackingPixelUrl, clickTrackingUrlFactory)
         };
+        AddAttachments(body, message.Attachments);
         mime.Body = body.ToMessageBody();
         return mime;
+    }
+
+    private static void AddAttachments(BodyBuilder body, IReadOnlyCollection<EmailAttachment>? attachments)
+    {
+        if (attachments is null || attachments.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var attachment in attachments)
+        {
+            body.Attachments.Add(attachment.FileName, attachment.Content, ParseAttachmentContentType(attachment.ContentType));
+        }
+    }
+
+    private static ContentType ParseAttachmentContentType(string? contentType)
+    {
+        if (!string.IsNullOrWhiteSpace(contentType))
+        {
+            try
+            {
+                return ContentType.Parse(contentType);
+            }
+            catch (FormatException)
+            {
+            }
+        }
+
+        return new ContentType("application", "octet-stream");
     }
 
     private async Task<string?> SendMimeMessageAsync(MimeMessage message, CancellationToken cancellationToken)
