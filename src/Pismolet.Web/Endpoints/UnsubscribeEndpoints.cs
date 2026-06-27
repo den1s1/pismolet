@@ -25,7 +25,7 @@ public static class UnsubscribeEndpoints
         var result = service.GetView(token, ToRequestMetadata(http));
         var legalHref = LegalHref(http, token);
         var body = result.TokenValid
-            ? $"<section class='card'><h1>Отписка от рассылок</h1><p>Вы можете отписать адрес <b>{H(result.MaskedEmail)}</b> от всех писем, которые отправляются через сервис «Письмолёт».</p><p class='muted'>Отписка действует глобально: этот адрес больше не будет получать письма через сервис ни от одного клиента. <a href='{H(legalHref)}'>Правила отписки</a></p><form method='post'><button class='button'>Отписаться</button></form></section>"
+            ? $"<section class='card'><h1>Отписка от рассылок</h1><p>Вы можете отписать адрес <b>{H(result.MaskedEmail)}</b> от всех писем, которые отправляются через сервис «Письмолёт».</p><p class='muted'>Отписка действует через Письмолёт: этот адрес больше не будет получать письма через сервис. <a href='{H(legalHref)}'>Правила отписки</a></p><form method='post'><button class='button'>Отписаться</button></form></section>"
             : $"<section class='card'><h1>Отписка от рассылок</h1><p>{H(result.Error)}</p><p class='muted'>Если вы уже отписывались раньше, повторных действий не требуется. <a href='{H(legalHref)}'>Правила отписки</a></p></section>";
 
         return HtmlRenderer.Html(HtmlRenderer.Page("Отписка", body));
