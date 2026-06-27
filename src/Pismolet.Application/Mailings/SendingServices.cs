@@ -14,6 +14,8 @@ namespace Pismolet.Web.Application.Mailings;
 
 public sealed record EmailRecipient(string Email);
 
+public sealed record EmailAttachment(string FileName, string ContentType, byte[] Content, long Size);
+
 public sealed record EmailMessage(
     Guid MailingId,
     EmailRecipient Recipient,
@@ -24,7 +26,8 @@ public sealed record EmailMessage(
     string ServiceIdentifier,
     string ReplyToAddress,
     string ReplyToken,
-    IReadOnlyDictionary<string, string> Metadata);
+    IReadOnlyDictionary<string, string> Metadata,
+    IReadOnlyCollection<EmailAttachment>? Attachments = null);
 
 public sealed record EmailProviderSendResult(bool Accepted, string? ProviderMessageId, string? ErrorCode, string? ErrorMessage)
 {
@@ -623,6 +626,10 @@ public sealed class MailingSendService(
         var replyToAddress = replyTokens.BuildReplyToAddress(replyToken);
         var serviceId = MailingServiceEmailFooter.ServiceIdentifier(mailing.PublicId);
         var plain = MailingServiceEmailFooter.PlainText(draft.Body, draft.SenderName, unsubscribeUrl, serviceId);
+        var attachments = draft.Attachments
+            .Select(x => new EmailAttachment(x.FileName, x.ContentType, x.Content, x.Size))
+            .ToArray();
+
         return new EmailMessage(
             mailing.Id,
             new EmailRecipient(recipientEmail),
@@ -638,7 +645,8 @@ public sealed class MailingSendService(
                 ["mailingId"] = mailing.Id.ToString("N"),
                 ["recipientKey"] = replyTokens.BuildRecipientKey(mailing.Id, recipientEmail),
                 ["replyPurpose"] = "inbound_reply"
-            });
+            },
+            attachments);
     }
 
     private void AuditSuppressedSend(Mailing mailing, SendEvent sendEvent, string eventType, string ip, string userAgent) => auditLogger.Write(new AuditRecord(
