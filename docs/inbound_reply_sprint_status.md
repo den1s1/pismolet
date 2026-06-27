@@ -14,7 +14,7 @@
 | 3.3. Auto-reply, bounce и дедупликация | Завершён для MVP | Подключён `InboundReplyAutoReplyDetector`; добавлены unit-тесты detector-а; дедупликация по provider event уже есть в processing service. |
 | 3.4. Подключение processing service и очереди пересылки | Частично покрыт текущей архитектурой | Existing `InboundReplyProcessingService` уже связывает inbound event с matching/queue/forward. Отдельный synthetic integration test ещё не добавлен. |
 | 3.5. Spool reader и файловая обработка | Завершён для MVP-каркаса | Reader обрабатывает eml из incoming, двигает файлы в processing, вызывает parser/processor, переносит в processed или failed, пишет error-файл, чистит retention. |
-| 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Используется существующий `/admin/replies` из `AdminSprint10Endpoints`; дублирующий route отключён, добавлен UI-тест страницы. |
+| 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Используется существующий `/admin/replies`; страница улучшена: маскирует email, показывает статус, рассылку, тему, body status и ошибку без body/raw/token. |
 | 3.7. Инфраструктурный runbook и server dry-run | Завершён для документации | Создан `docs/inbound_reply_runbook.md`; server dry-run выполнять после deploy. |
 | 3.8. Production smoke и включение reply-домена | Не начат | Выполнять только после runbook и серверной настройки. |
 | 3.9. Юридическая и retention-синхронизация | Не начат | Выполнять после финального фактического поведения retention. |
@@ -51,3 +51,5 @@
 - `f7f4473bfe54bbf15e7e25f79d46dd1c45f3f9e9` — совместимая проверка raw MIME в admin тесте.
 - `be73ef763367ee9d22fb0c781caf63b6ddffeb71` — отключение дублирующего admin replies route.
 - `8b139fcc86781ee2313e40bb760f26a6e650e99d` — тест существующей страницы `/admin/replies`.
+- `20747807d69d3ab40301e349cfa3ef319064c2af` — улучшение admin диагностики `/admin/replies`.
+- `cc56e5d524f32c32f906d6844d694ebaf89a1642` — ослабление проверки служебного текста admin replies.
