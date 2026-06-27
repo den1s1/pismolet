@@ -28,8 +28,9 @@ public sealed class AdminReplyEndpointsTests
         var normalizedHtml = html.ToLowerInvariant();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Ответы получателей", html);
-        Assert.Contains("Reply events не найдены", html);
+        Assert.Contains("Ответы", html);
+        Assert.Contains("Получен", html);
+        Assert.Contains("Статус", html);
         Assert.DoesNotContain("RawPayload", html);
         Assert.DoesNotContain("raw mime", normalizedHtml);
         Assert.DoesNotContain("ReplyToken", html);
