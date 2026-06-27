@@ -107,6 +107,7 @@ public static class SendEndpoints
             .Select(x => x.RecipientEmail)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
+        var unsubscribedRecipients = CountUnsubscribed(state.Events);
         var launched = result.Ok && !string.IsNullOrWhiteSpace(message) && message.Contains("поставлен", StringComparison.OrdinalIgnoreCase);
         var title = launched ? "Рассылка запущена" : mailing.Status switch
         {
@@ -216,7 +217,7 @@ public static class SendEndpoints
                       {deliveryNote}
                       {openNote}
                       {clickNote}
-                      <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Всего получателей</td><td>{summary.TotalAcceptedRecipients}</td></tr><tr><td>Отправлено</td><td>{summary.Sent}</td></tr><tr><td>Ошибки отправки</td><td>{sendErrors}</td></tr><tr><td>Отписались</td><td>{summary.Suppressed}</td></tr><tr><td>Доставлено</td><td>{deliveredRecipients}</td></tr><tr><td>Открыто</td><td>{openedRecipients}</td></tr><tr><td>Открыли ссылку</td><td>{clickedRecipients}</td></tr><tr><td>Жалобы на спам</td><td>{summary.Complaints}</td></tr></tbody></table>
+                      <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Всего получателей</td><td>{summary.TotalAcceptedRecipients}</td></tr><tr><td>Отправлено</td><td>{summary.Sent}</td></tr><tr><td>Ошибки отправки</td><td>{sendErrors}</td></tr><tr><td>Отписались</td><td>{unsubscribedRecipients}</td></tr><tr><td>Доставлено</td><td>{deliveredRecipients}</td></tr><tr><td>Открыто</td><td>{openedRecipients}</td></tr><tr><td>Открыли ссылку</td><td>{clickedRecipients}</td></tr><tr><td>Жалобы на спам</td><td>{summary.Complaints}</td></tr></tbody></table>
                       <h3>Ответы получателей</h3>
                       <p>{replyStatus}</p>
                       <p class='muted'>Ответы пересылаются на ваш email. Тут показаны только счётчик и статус пересылки. <a href='{replyRetentionHref}'>Правила хранения и удаления ответов</a>.</p>
@@ -367,14 +368,14 @@ public static class SendEndpoints
         var deliveryStatus = sendEvent.DeliveryStatus.ToString();
         var reason = sendEvent.Reason?.ToString() ?? string.Empty;
 
-        if (reason.Contains("Client", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Исключён";
-        }
-
-        if (reason.Contains("Unsub", StringComparison.OrdinalIgnoreCase) || reason.Contains("Suppress", StringComparison.OrdinalIgnoreCase))
+        if (sendEvent.Reason == SendSkipReason.Unsubscribed)
         {
             return "Отписался";
+        }
+
+        if (reason.Contains("Client", StringComparison.OrdinalIgnoreCase) || reason.Contains("Suppress", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Исключён";
         }
 
         if (sendStatus is "Pending" or "Queued")
@@ -539,6 +540,8 @@ public static class SendEndpoints
     };
 
     private static int CountDeliveryStatus(IEnumerable<SendEvent> events, string status) => events.Count(x => string.Equals(x.DeliveryStatus.ToString(), status, StringComparison.Ordinal));
+
+    private static int CountUnsubscribed(IEnumerable<SendEvent> events) => events.Count(x => x.Reason == SendSkipReason.Unsubscribed);
 
     private static string SuppressionReasonRu(string reason) => reason switch
     {
