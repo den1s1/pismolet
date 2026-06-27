@@ -18,7 +18,7 @@ public sealed class MailWarmupLimitPolicyTests
         var decision = MailWarmupLimitPolicy.Evaluate(
             MailWarmupLimitOptions.Default,
             snapshot,
-            "lead@example.test",
+            "lead",
             now);
 
         Assert.True(decision.IsAllowed);
@@ -38,7 +38,7 @@ public sealed class MailWarmupLimitPolicyTests
         var decision = MailWarmupLimitPolicy.Evaluate(
             MailWarmupLimitOptions.Default,
             snapshot,
-            "lead@example.test",
+            "lead",
             now);
 
         Assert.False(decision.IsAllowed);
@@ -59,7 +59,7 @@ public sealed class MailWarmupLimitPolicyTests
         var decision = MailWarmupLimitPolicy.Evaluate(
             MailWarmupLimitOptions.Default,
             snapshot,
-            "lead@example.test",
+            "lead",
             now);
 
         Assert.True(decision.IsAllowed);
@@ -78,7 +78,7 @@ public sealed class MailWarmupLimitPolicyTests
             MinSecondsBetweenSends: 30,
             DomainLimits: new Dictionary<string, DomainMailWarmupLimitOptions>
             {
-                ["gmail.com"] = new(MinSecondsBetweenSends: 300)
+                ["domain"] = new(MinSecondsBetweenSends: 300)
             });
         var snapshot = new MailWarmupLimitSnapshot(
             GlobalSentLastMinute: 0,
@@ -90,7 +90,7 @@ public sealed class MailWarmupLimitPolicyTests
         var decision = MailWarmupLimitPolicy.Evaluate(
             options,
             snapshot,
-            "lead@gmail.com",
+            "lead",
             now);
 
         Assert.True(decision.IsAllowed);
@@ -109,7 +109,7 @@ public sealed class MailWarmupLimitPolicyTests
             MinSecondsBetweenSends: 0,
             DomainLimits: new Dictionary<string, DomainMailWarmupLimitOptions>
             {
-                ["Gmail.com"] = new(MaxPerDay: 2)
+                ["domain"] = new(MaxPerDay: 2)
             });
         var snapshot = new MailWarmupLimitSnapshot(
             GlobalSentLastMinute: 0,
@@ -121,10 +121,37 @@ public sealed class MailWarmupLimitPolicyTests
         var decision = MailWarmupLimitPolicy.Evaluate(
             options,
             snapshot,
-            "lead@gmail.com",
+            "lead",
             now);
 
         Assert.False(decision.IsAllowed);
         Assert.Equal("domain_daily_limit", decision.Reason);
+    }
+
+    [Fact]
+    public void Warmup_policy_waits_only_until_oldest_minute_send_leaves_window()
+    {
+        var now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
+        var options = new MailWarmupLimitOptions(
+            MaxPerMinute: 10,
+            MaxPerHour: 100,
+            MaxPerDay: 1000,
+            MinSecondsBetweenSends: 0);
+        var snapshot = new MailWarmupLimitSnapshot(
+            GlobalSentLastMinute: 10,
+            GlobalSentLastHour: 10,
+            GlobalSentToday: 10,
+            GlobalLastSentAt: now.AddSeconds(-6),
+            GlobalOldestSentLastMinuteAt: now.AddSeconds(-54));
+
+        var decision = MailWarmupLimitPolicy.Evaluate(
+            options,
+            snapshot,
+            "lead",
+            now);
+
+        Assert.False(decision.IsAllowed);
+        Assert.Equal("global_minute_limit", decision.Reason);
+        Assert.Equal(TimeSpan.FromSeconds(6), decision.RetryAfter);
     }
 }
