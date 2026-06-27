@@ -72,6 +72,11 @@ public sealed class UserAccountService(
             return RegisterUserResult.Failure("Пользователь уже существует.");
         }
 
+        if (users.PhoneExists(phone))
+        {
+            return RegisterUserResult.Failure("Пользователь с таким номером телефона уже существует.");
+        }
+
         var settings = settingsRepository.Get();
         var token = Guid.NewGuid().ToString("N");
         var user = new UserAccount(
@@ -88,7 +93,7 @@ public sealed class UserAccountService(
 
         if (!users.TryAdd(user))
         {
-            return RegisterUserResult.Failure("Пользователь уже существует.");
+            return RegisterUserResult.Failure("Пользователь уже существует или номер телефона уже занят.");
         }
 
         Audit(email, "registration", request);
@@ -199,7 +204,16 @@ public sealed class UserAccountService(
 
     private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
-    private static string NormalizePhone(string phone) => phone.Trim();
+    private static string NormalizePhone(string phone)
+    {
+        var digits = new string((phone ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (digits.Length == 11 && digits[0] == '8')
+        {
+            digits = "7" + digits[1..];
+        }
+
+        return string.IsNullOrWhiteSpace(digits) ? string.Empty : "+" + digits;
+    }
 
     private static string HashPassword(string password) => "dev:" + password;
 
