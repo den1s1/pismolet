@@ -238,7 +238,8 @@ public sealed class AdminEndpointsTests
         Assert.Contains("href='/admin/delivery-errors'>Ошибки доставки</a>", html);
         Assert.Contains("href='/admin/replies'>Ответы</a>", html);
         Assert.Contains("href='/admin/audit'>Audit log</a>", html);
-        Assert.Contains("href='/admin/settings/mvp'>Настройки</a>", html);
+        Assert.Contains("href='/admin/settings'>Настройки</a>", html);
+        Assert.DoesNotContain("href='/admin/settings/mvp'>Настройки</a>", html);
         Assert.DoesNotContain("href='/admin/clients'>Клиенты</a>", html);
         Assert.DoesNotContain("admin-sidebar-links", html);
     }
