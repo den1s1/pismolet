@@ -16,6 +16,7 @@ public enum SendSkipReason
 {
     None,
     GlobalSuppression,
+    Unsubscribed,
     ClientSuppression,
     DailyLimit,
     WarmupLimit,
@@ -155,6 +156,20 @@ public sealed record SendEvent(
         Reason = reason,
         UpdatedAt = DateTimeOffset.UtcNow
     };
+
+    public SendEvent MarkUnsubscribed()
+    {
+        var nextStatus = Status is SendEventStatus.Pending or SendEventStatus.Paused or SendEventStatus.Skipped
+            ? SendEventStatus.Skipped
+            : Status;
+
+        return this with
+        {
+            Status = nextStatus,
+            Reason = SendSkipReason.Unsubscribed,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+    }
 
     public SendEvent MarkAccepted(string providerMessageId)
     {
