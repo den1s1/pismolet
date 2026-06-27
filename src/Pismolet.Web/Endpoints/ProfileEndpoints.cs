@@ -13,6 +13,7 @@ public static class ProfileEndpoints
         app.MapGet("/profile", ShowProfile).RequireAuthorization();
         app.MapPost("/profile/confirm", ConfirmProfile).RequireAuthorization();
         app.MapGet("/payments", ShowPayments).RequireAuthorization();
+        app.MapGet("/lists", ShowLists).RequireAuthorization();
         return app;
     }
 
@@ -54,6 +55,24 @@ public static class ProfileEndpoints
 
         var shownUser = user with { Mailings = mailings.ListForOwner(email).ToList() };
         return HtmlRenderer.Html(HtmlRenderer.Page("Платежи", HtmlRenderer.Payments(shownUser), authenticated: true));
+    }
+
+    private static IResult ShowLists(HttpContext http, [FromServices] IUserAccountService accounts, [FromServices] IMailingService mailings)
+    {
+        var email = CurrentEmail(http);
+        if (email is null)
+        {
+            return Results.Redirect("/account/login");
+        }
+
+        var user = accounts.GetByEmail(email);
+        if (user is null)
+        {
+            return Results.Redirect("/account/login");
+        }
+
+        var shownUser = user with { Mailings = mailings.ListForOwner(email).ToList() };
+        return HtmlRenderer.Html(HtmlRenderer.Page("Списки", HtmlRenderer.RecipientLists(shownUser), authenticated: true));
     }
 
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
