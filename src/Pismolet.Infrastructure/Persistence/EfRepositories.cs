@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Mailings;
@@ -69,6 +70,8 @@ public sealed class EfGlobalSuppressionRepository(PismoletDbContext db) : IGloba
 
 public sealed class EfMailingRepository(PismoletDbContext db) : IMailingRepository
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     public bool TryAdd(Mailing m)
     {
         if (db.Mailings.Any(x => x.Id == m.Id)) return false;
@@ -195,7 +198,8 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
                 Subject = dr.Subject,
                 Body = dr.Body,
                 MessageType = dr.MessageType.ToString(),
-                UpdatedAt = dr.UpdatedAt.ToUniversalTime()
+                UpdatedAt = dr.UpdatedAt.ToUniversalTime(),
+                AttachmentsJson = SerializeAttachments(dr.Attachments)
             });
         }
     }
@@ -210,8 +214,8 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
             .ToDictionary(x => x.Key, x => (IReadOnlyCollection<RecipientImportIssue>)x.OrderBy(issue => issue.RowNumber).Select(issue => new RecipientImportIssue(issue.RowNumber, issue.Email, issue.Message)).ToArray());
         var batches = db.ImportBatches.AsNoTracking()
             .Where(x => x.MailingId == e.Id)
-            .OrderBy(x => x.CreatedAt)
             .ToArray()
+            .OrderBy(x => x.CreatedAt)
             .Select(x => new ImportBatch(x.Id, x.MailingId, x.FileName, Enum.Parse<ImportSourceFormat>(x.SourceFormat), x.CreatedAt, x.TotalRows, x.Accepted, x.Duplicates, x.Invalid, x.GloballySuppressed, Enum.Parse<ImportBatchStatus>(x.Status), issuesByBatch.GetValueOrDefault(x.Id) ?? Array.Empty<RecipientImportIssue>(), x.ClientSuppressed))
             .ToList();
         var recipients = db.Recipients.AsNoTracking()
@@ -234,9 +238,45 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
             LastImportStats = last?.ToStats() ?? ImportStats.Empty,
             Recipients = recipients,
             Declaration = declaration is null ? null : new MailingDeclaration(declaration.MailingId, declaration.UserEmail, Enum.Parse<BaseSource>(declaration.BaseSource), declaration.IsBaseLegalityConfirmed, declaration.IsAdvertisingConsentConfirmed, declaration.DeclarationVersion, declaration.CreatedAt, declaration.Ip, declaration.UserAgent) { ImportBatchId = declaration.ImportBatchId },
-            MessageDraft = draft is null ? null : new MailingMessageDraft(draft.SenderName, draft.Subject, draft.Body, Enum.Parse<MessageType>(draft.MessageType), draft.UpdatedAt)
+            MessageDraft = draft is null ? null : new MailingMessageDraft(draft.SenderName, draft.Subject, draft.Body, Enum.Parse<MessageType>(draft.MessageType), draft.UpdatedAt, DeserializeAttachments(draft.AttachmentsJson))
         };
     }
 
+    private static string SerializeAttachments(IReadOnlyCollection<MailingAttachment> attachments)
+    {
+        if (attachments.Count == 0)
+        {
+            return "[]";
+        }
+
+        var dto = attachments
+            .Select(x => new MailingAttachmentDto(x.FileName, x.ContentType, x.Content))
+            .ToArray();
+        return JsonSerializer.Serialize(dto, JsonOptions);
+    }
+
+    private static IReadOnlyCollection<MailingAttachment> DeserializeAttachments(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<MailingAttachment>();
+        }
+
+        try
+        {
+            var dto = JsonSerializer.Deserialize<MailingAttachmentDto[]>(json, JsonOptions) ?? Array.Empty<MailingAttachmentDto>();
+            return dto
+                .Where(x => !string.IsNullOrWhiteSpace(x.FileName) && x.Content.Length > 0)
+                .Select(x => MailingAttachment.Create(x.FileName, x.ContentType, x.Content))
+                .ToArray();
+        }
+        catch (Exception ex) when (ex is JsonException or ArgumentException or NotSupportedException)
+        {
+            return Array.Empty<MailingAttachment>();
+        }
+    }
+
     private static string N(string v) => v.Trim().ToLowerInvariant();
+
+    private sealed record MailingAttachmentDto(string FileName, string ContentType, byte[] Content);
 }

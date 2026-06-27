@@ -96,6 +96,7 @@ public partial class PismoletDbContextModelSnapshot : ModelSnapshot
             entity.Property(x => x.Subject).HasMaxLength(160).IsRequired();
             entity.Property(x => x.Body).IsRequired();
             entity.Property(x => x.MessageType).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.AttachmentsJson).IsRequired();
             entity.HasOne<MailingEntity>().WithOne().HasForeignKey<MailingMessageDraftEntity>(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
         });
 

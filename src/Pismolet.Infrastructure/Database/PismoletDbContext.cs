@@ -106,6 +106,7 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.Property(x => x.Subject).HasMaxLength(160).IsRequired();
             entity.Property(x => x.Body).IsRequired();
             entity.Property(x => x.MessageType).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.AttachmentsJson).IsRequired();
             entity.HasOne<MailingEntity>().WithOne().HasForeignKey<MailingMessageDraftEntity>(x => x.MailingId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -338,6 +339,7 @@ public sealed class MailingMessageDraftEntity
     public string Body { get; set; } = string.Empty;
     public string MessageType { get; set; } = string.Empty;
     public DateTimeOffset UpdatedAt { get; set; }
+    public string AttachmentsJson { get; set; } = "[]";
 }
 
 public sealed class AuditRecordEntity
