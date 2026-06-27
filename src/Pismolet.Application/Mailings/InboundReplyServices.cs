@@ -246,7 +246,7 @@ public sealed class InboundReplyMatchingService(
             return localPart["reply+".Length..];
         }
 
-        return localPart.Contains('+', StringComparison.Ordinal) ? null : localPart;
+        return localPart.IndexOf('+') >= 0 ? null : localPart;
     }
 }
 
