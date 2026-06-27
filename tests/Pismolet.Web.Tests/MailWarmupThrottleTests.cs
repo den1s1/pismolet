@@ -23,7 +23,7 @@ public sealed class MailWarmupThrottleTests
     }
 
     [Fact]
-    public void Blocks_by_global_spacing()
+    public void Does_not_block_by_minimum_delay_at_throttle_level()
     {
         var throttle = new MailWarmupThrottle();
         var options = new MailWarmupLimitOptions(
@@ -38,8 +38,8 @@ public sealed class MailWarmupThrottleTests
 
         var decision = throttle.Evaluate(options, history, "next", Now);
 
-        Assert.False(decision.IsAllowed);
-        Assert.Equal("global_min_send_interval", decision.Reason);
-        Assert.Equal(TimeSpan.FromSeconds(20), decision.RetryAfter);
+        Assert.True(decision.IsAllowed);
+        Assert.Equal("allowed", decision.Reason);
+        Assert.Equal(TimeSpan.Zero, decision.RetryAfter);
     }
 }
