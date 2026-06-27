@@ -15,14 +15,14 @@
 | 3.4. Подключение processing service и очереди пересылки | Завершён для MVP | Existing `InboundReplyProcessingService` связывает inbound event с matching/queue/forward; добавлен integration-тест processing path до `ReplyEvent`. |
 | 3.5. Spool reader и файловая обработка | Завершён для MVP-каркаса | Reader обрабатывает eml из incoming, двигает файлы в processing, вызывает parser/processor, переносит в processed или failed, пишет error-файл, чистит retention. |
 | 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Используется существующий `/admin/replies`; страница улучшена: маскирует email, показывает статус, рассылку, тему, body status и ошибку без body/raw/token. |
-| 3.7. Инфраструктурный runbook и server dry-run | Завершён для документации | Создан `docs/inbound_reply_runbook.md`; server dry-run выполнять после deploy. |
-| 3.8. Production smoke и включение reply-домена | Не начат | Выполнять только после runbook и серверной настройки. |
+| 3.7. Инфраструктурный runbook и server dry-run | Завершён для документации | Созданы `docs/inbound_reply_runbook.md` и `docs/inbound_reply_server_dry_run.md`; server dry-run выполнять после deploy. |
+| 3.8. Production smoke и включение reply-домена | Готов к server dry-run | Кодовая часть готова; следующий шаг — выполнить dry-run на сервере без публичного MX по `docs/inbound_reply_server_dry_run.md`. |
 | 3.9. Юридическая и retention-синхронизация | Не начат | Выполнять после финального фактического поведения retention. |
 
 ## Открытые технические подпункты
 
 1. Передать фактический envelope recipient в `InboundReplyRawMessage`, когда будет выбран Postfix pipe/sidecar-контракт.
-2. Выполнить server dry-run по runbook.
+2. Выполнить server dry-run по `docs/inbound_reply_server_dry_run.md`.
 3. После dry-run обновить фактический статус спринта 3.8.
 
 ## Последние commit SHA по этапу
@@ -53,3 +53,5 @@
 - `20747807d69d3ab40301e349cfa3ef319064c2af` — улучшение admin диагностики `/admin/replies`.
 - `cc56e5d524f32c32f906d6844d694ebaf89a1642` — ослабление проверки служебного текста admin replies.
 - `005a7f4c667e8181cef79984ab41399783d08e07` — integration-тест processing path ответов.
+- `20e3bec46bca006e4c9b06a8e702544dcf91a54a` — исправление поля body в integration-тесте.
+- `ec7bc76147ff42bc1d087889e1a61dda87342267` — server dry-run чеклист inbound replies.
