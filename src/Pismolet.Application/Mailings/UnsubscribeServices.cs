@@ -168,6 +168,7 @@ public interface IGlobalUnsubscribeService
 public sealed class GlobalUnsubscribeService(
     IUnsubscribeTokenService tokens,
     IGlobalSuppressionRepository suppressions,
+    ISendEventRepository sendEvents,
     IEmailNormalizer normalizer,
     IAuditLogger audit) : IGlobalUnsubscribeService
 {
@@ -203,9 +204,21 @@ public sealed class GlobalUnsubscribeService(
             Hash(request.UserAgent));
 
         suppressions.AddOrGet(suppression);
+        MarkCurrentMailingUnsubscribe(validation.Payload.MailingId, email);
         Audit(existed ? "unsubscribe_repeated" : "unsubscribe_confirmed", $"emailHash={Hash(email)};mailingId={validation.Payload.MailingId};recipientKey={validation.Payload.RecipientKey}", request);
 
         return new UnsubscribeConfirmResult(true, existed, "Вы отписаны от писем через сервис. Этот адрес больше не будет получать рассылки через Письмолёт.");
+    }
+
+    private void MarkCurrentMailingUnsubscribe(Guid mailingId, string email)
+    {
+        var sendEvent = sendEvents.Get(mailingId, email);
+        if (sendEvent is null)
+        {
+            return;
+        }
+
+        sendEvents.Save(sendEvent.MarkUnsubscribed());
     }
 
     private void Audit(string eventType, string context, RequestMetadata request) => audit.Write(new AuditRecord(
