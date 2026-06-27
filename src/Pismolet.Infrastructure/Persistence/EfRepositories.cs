@@ -10,11 +10,13 @@ namespace Pismolet.Web.Infrastructure.Persistence;
 public sealed class EfUserRepository(PismoletDbContext db) : IUserRepository
 {
     public bool Exists(string email) => db.Users.Any(x => x.NormalizedEmail == N(email));
-    public bool TryAdd(UserAccount user) { if (Exists(user.Email)) return false; db.Users.Add(ToEntity(user)); db.SaveChanges(); SavePhone(user.Email, user.Phone); return true; }
+    public bool PhoneExists(string phone) { var normalized = NormalizePhone(phone); return !string.IsNullOrWhiteSpace(normalized) && ListAll().Any(user => NormalizePhone(user.Phone) == normalized); }
+    public bool TryAdd(UserAccount user) { if (Exists(user.Email) || PhoneExists(user.Phone)) return false; db.Users.Add(ToEntity(user)); db.SaveChanges(); SavePhone(user.Email, user.Phone); return true; }
     public UserAccount? GetByEmail(string email) => db.Users.AsNoTracking().FirstOrDefault(x => x.NormalizedEmail == N(email)) is { } x ? WithPhone(ToDomain(x)) : null;
     public UserAccount? FindByConfirmationToken(string token) => db.Users.AsNoTracking().FirstOrDefault(x => x.ConfirmationToken == token) is { } x ? WithPhone(ToDomain(x)) : null;
     public IReadOnlyCollection<UserAccount> ListAll() => db.Users.AsNoTracking().OrderBy(x => x.NormalizedEmail).ToArray().Select(ToDomain).Select(WithPhone).ToArray();
     public void Update(UserAccount user) { var e = db.Users.FirstOrDefault(x => x.NormalizedEmail == N(user.Email)); if (e is null) db.Users.Add(ToEntity(user)); else { e.Email = user.Email; e.NormalizedEmail = N(user.Email); e.PasswordHash = user.PasswordHash; e.DisplayName = user.DisplayName; e.ConfirmationToken = user.ConfirmationToken; e.EmailConfirmed = user.EmailConfirmed; e.ProfileStatus = user.Profile.Status; e.DailySendLimit = user.Profile.DailySendLimit; e.TotalSendLimit = user.Profile.TotalSendLimit; e.PremoderationRequired = user.Profile.PremoderationRequired; e.UpdatedAt = DateTimeOffset.UtcNow; } db.SaveChanges(); SavePhone(user.Email, user.Phone); }
+    public void Remove(string email) { var e = db.Users.FirstOrDefault(x => x.NormalizedEmail == N(email)); if (e is null) return; db.Users.Remove(e); db.SaveChanges(); }
     private static UserEntity ToEntity(UserAccount u) => new() { Email = u.Email, NormalizedEmail = N(u.Email), PasswordHash = u.PasswordHash, DisplayName = u.DisplayName, ConfirmationToken = u.ConfirmationToken, EmailConfirmed = u.EmailConfirmed, ProfileStatus = u.Profile.Status, DailySendLimit = u.Profile.DailySendLimit, TotalSendLimit = u.Profile.TotalSendLimit, PremoderationRequired = u.Profile.PremoderationRequired, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
     private static UserAccount ToDomain(UserEntity e) => new(e.Email, e.PasswordHash, e.DisplayName, e.ConfirmationToken, e.EmailConfirmed, new ClientProfile(e.ProfileStatus, e.DailySendLimit, e.TotalSendLimit, e.PremoderationRequired), new());
     private UserAccount WithPhone(UserAccount user) => user with { Phone = ReadPhone(user.Email) };
@@ -48,6 +50,7 @@ public sealed class EfUserRepository(PismoletDbContext db) : IUserRepository
         }
     }
     private void EnsurePhoneColumn() => db.Database.ExecuteSqlRaw("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"Phone\" character varying(40) NOT NULL DEFAULT ''; ");
+    private static string NormalizePhone(string phone) { var digits = new string((phone ?? string.Empty).Where(char.IsDigit).ToArray()); if (digits.Length == 11 && digits[0] == '8') digits = "7" + digits[1..]; return digits; }
     private static string N(string v) => v.Trim().ToLowerInvariant();
 }
 
@@ -100,6 +103,16 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
         ClearOwned(m.Id);
         SaveOwned(m);
         db.SaveChanges();
+    }
+
+    public int RemoveForOwner(string ownerEmail)
+    {
+        var normalized = N(ownerEmail);
+        var ids = db.Mailings.Where(x => x.OwnerEmail == normalized).Select(x => x.Id).ToArray();
+        foreach (var id in ids) ClearOwned(id);
+        db.Mailings.RemoveRange(db.Mailings.Where(x => x.OwnerEmail == normalized));
+        db.SaveChanges();
+        return ids.Length;
     }
 
     private MailingEntity ToEntity(Mailing m) => new() { Id = m.Id, OwnerEmail = N(m.OwnerEmail), Subject = m.Subject, StatusRu = m.StatusRu, PublicId = m.PublicId, CreatedAt = m.CreatedAt.ToUniversalTime() };
