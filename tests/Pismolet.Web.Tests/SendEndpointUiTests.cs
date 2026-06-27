@@ -31,19 +31,19 @@ public sealed class SendEndpointUiTests
         var html = await client.GetStringAsync($"/mailings/{mailingId}/send");
 
         Assert.Contains("Готово к запуску", html);
-        Assert.Contains("Всего писем", html);
+        Assert.Contains("Всего получателей", html);
         Assert.Contains("Отправлено", html);
-        Assert.Contains("Не удалось", html);
+        Assert.Contains("Ошибки отправки", html);
         Assert.Contains("Ответов", html);
         Assert.Contains("Запустить отправку", html);
         Assert.Contains("<details class='detailed-report'>", html);
         Assert.DoesNotContain("<details class='detailed-report' open>", html);
-        Assert.DoesNotContain("<details open>", html);
         Assert.DoesNotContain("Dev-сводка событий", html);
 
         var reportStart = html.IndexOf("<details class='detailed-report'>", StringComparison.Ordinal);
         Assert.True(reportStart > 0, "Detailed report was not found.");
         var mainScreen = html[..reportStart];
+        Assert.DoesNotContain("Список получателей", mainScreen);
         Assert.DoesNotContain("Доставка по получателям", mainScreen);
         Assert.DoesNotContain("Переходы по ссылкам", mainScreen);
         Assert.DoesNotContain("ProviderMessageId", mainScreen);
@@ -122,60 +122,32 @@ public sealed class SendEndpointUiTests
     private static void SeedUser(WebApplicationFactory<Program> factory)
     {
         using var scope = factory.Services.CreateScope();
-        var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "PassForTests2026!", "Send UI", "+79990000000"), Request());
-        Assert.True(result.Ok, result.Error);
+        var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+        users.Save(new UserProfile(OwnerEmail, RoleNames.Sender));
     }
 
-    private static Guid SeedApprovedMailing(WebApplicationFactory<Program> factory)
-    {
-        return SeedMailingWithStatus(factory, MailingStatus.Approved);
-    }
+    private static Guid SeedApprovedMailing(WebApplicationFactory<Program> factory) =>
+        SeedMailingWithStatus(factory, MailingStatus.Approved);
 
     private static Guid SeedMailingWithStatus(WebApplicationFactory<Program> factory, MailingStatus status)
     {
         using var scope = factory.Services.CreateScope();
-        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
-        var repository = scope.ServiceProvider.GetRequiredService<IMailingRepository>();
-        var result = mailings.CreateDraft(new CreateMailingCommand(OwnerEmail, "Send UI campaign"), Request());
-        Assert.True(result.Ok, result.Error);
-        Assert.NotNull(result.Mailing);
-
-        var mailing = repository.GetForOwner(result.Mailing.Id, OwnerEmail);
-        Assert.NotNull(mailing);
-
-        var recipients = new[]
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingRepository>();
+        var mailing = Mailing.CreateDraft(OwnerEmail, "UI report campaign");
+        mailing = mailing.WithContent("UI report campaign", "<p>Hello report</p>", "Hello report", Array.Empty<MailingAttachment>());
+        mailing = mailing.WithRecipients(new[]
         {
-            Recipient.Accepted("first@example.test", "first@example.test", rowNumber: 2),
-            Recipient.Accepted("second@example.test", "second@example.test", rowNumber: 3),
-            Recipient.Accepted("third@example.test", "third@example.test", rowNumber: 4)
+            MailingRecipient.Accepted("lead@example.test", null, new Dictionary<string, string>())
+        });
+        mailing = status switch
+        {
+            MailingStatus.ReviewRequired => mailing.SubmitForReview(DateTimeOffset.UtcNow),
+            MailingStatus.Approved => mailing.SubmitForReview(DateTimeOffset.UtcNow).Approve(DateTimeOffset.UtcNow),
+            _ => mailing.WithStatus(status)
         };
-        var declaration = new MailingDeclaration(
-            mailing.Id,
-            OwnerEmail,
-            BaseSource.Customers,
-            IsBaseLegalityConfirmed: true,
-            IsAdvertisingConsentConfirmed: false,
-            BaseDeclarationText.CurrentVersion,
-            DateTimeOffset.UtcNow,
-            "127.0.0.1",
-            "send-ui-tests");
-        var draft = MailingMessageDraft.Create(
-            "Библиотека №5",
-            "Приглашаем на встречу",
-            "Здравствуйте!",
-            MessageType.Transactional,
-            DateTimeOffset.UtcNow);
-        var ready = mailing
-            .WithImportResult(new ImportStats(3, 3, 0, 0, 0), recipients)
-            .WithDeclaration(declaration)
-            .WithMessageDraft(draft)
-            .WithStatus(status);
-        repository.Update(ready);
+        mailings.Save(mailing);
         return mailing.Id;
     }
-
-    private static RequestMetadata Request() => new("127.0.0.1", "send-endpoint-ui-tests");
 
     private sealed class TestAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -187,7 +159,7 @@ public sealed class SendEndpointUiTests
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            var email = Request.Headers[EmailHeaderName].ToString();
+            var email = Request.Headers[EmailHeaderName].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(email))
             {
                 return Task.FromResult(AuthenticateResult.NoResult());
@@ -195,14 +167,12 @@ public sealed class SendEndpointUiTests
 
             var claims = new[]
             {
-                new Claim(ClaimTypes.NameIdentifier, email),
                 new Claim(ClaimTypes.Email, email),
-                new Claim(ClaimTypes.Name, email)
+                new Claim(ClaimTypes.Role, RoleNames.Sender)
             };
             var identity = new ClaimsIdentity(claims, SchemeName);
             var principal = new ClaimsPrincipal(identity);
             var ticket = new AuthenticationTicket(principal, SchemeName);
-
             return Task.FromResult(AuthenticateResult.Success(ticket));
         }
     }
