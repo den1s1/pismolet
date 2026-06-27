@@ -280,9 +280,17 @@ public sealed class AdminEndpointsTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(email, "Password123!", displayName, "+79990000000"), Request());
+        var result = accounts.Register(new RegisterUserCommand(email, "Password123!", displayName, TestPhone(email)), Request());
         Assert.True(result.Ok, result.Error);
     }
+
+    private static string TestPhone(string email) => email.Trim().ToLowerInvariant() switch
+    {
+        OwnerEmail => "+79990000000",
+        OtherEmail => "+79990000001",
+        AdminEmail => "+79990000002",
+        _ => "+79990000003"
+    };
 
     private static void SeedMailing(WebApplicationFactory<Program> factory, string ownerEmail, string subject)
     {
