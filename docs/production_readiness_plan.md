@@ -742,7 +742,326 @@ reply+<token>@reply.pismolet.ru
 14. Подготовить server runbook.
 15. После зелёных тестов выполнить ручной production-like тест на сервере.
 
-### 3.14. Границы MVP и что не делать в первой реализации
+### 3.14. Спринты и подэтапы реализации
+
+Этап 3 нужно вести отдельной серией коротких технических спринтов. Каждый спринт должен завершаться зелёным `dotnet build` и релевантными тестами. Инфраструктурные изменения на сервере выполнять только после того, как соответствующий код умеет безопасно обрабатывать тестовые данные.
+
+#### Спринт 3.0. Инвентаризация текущего reply-контура
+
+Цель: понять, что уже работает в коде, и не продублировать существующие сущности.
+
+Задачи:
+
+1. Найти текущие классы/интерфейсы:
+   - `IInboundReplyTokenService`;
+   - `ReplyEvent`;
+   - `ReplySummary`;
+   - `InboundReplyProcessingService` или его фактический аналог;
+   - очередь пересылки ответов;
+   - repository для reply events.
+2. Зафиксировать текущий формат `Reply-To`:
+   - local-part;
+   - домен;
+   - где хранится token;
+   - какие env/options управляют адресом.
+3. Проверить текущий `ForwardReplyToClientAsync`:
+   - fake provider;
+   - SMTP provider;
+   - формат письма клиенту;
+   - отсутствие loop по Reply-To.
+4. Проверить текущий отчёт рассылки:
+   - как считается `ReplySummary`;
+   - какие статусы видит клиент;
+   - есть ли admin-диагностика.
+5. Составить короткую заметку в этом же плане или отдельном runbook: что реально найдено и какие названия классов будут использоваться дальше.
+
+Результат спринта:
+
+- принято окончательное решение по формату reply-адреса;
+- понятно, какие модели расширять, а какие не трогать;
+- создан список точек изменения кода.
+
+Проверка:
+
+```bash
+dotnet build Pismolet.sln /nr:false -m:1
+dotnet test Pismolet.sln --no-build /nr:false -m:1
+```
+
+#### Спринт 3.1. Конфигурация inbound reply и безопасный skeleton
+
+Цель: добавить выключенный по умолчанию каркас inbound-контура без обработки реальной почты.
+
+Задачи:
+
+1. Добавить `InboundReplySpoolOptions`.
+2. Зарегистрировать options в `Program.cs`/composition root.
+3. Добавить default-конфиг для Development/Production без включения worker в Testing.
+4. Добавить hosted service skeleton:
+   - стартует только при `InboundReplies__Enabled=true`;
+   - логирует старт/остановку;
+   - проверяет наличие spool-директорий;
+   - не читает письма до реализации parser.
+5. Добавить health/log warning, если включённый worker не видит spool path.
+6. Добавить unit/integration тест, что в Testing worker не стартует самопроизвольно.
+
+Результат спринта:
+
+- есть безопасный feature flag;
+- можно задеплоить код без влияния на production;
+- server env можно готовить заранее.
+
+Проверка:
+
+```bash
+dotnet build Pismolet.sln /nr:false -m:1
+dotnet test Pismolet.sln --no-build /nr:false -m:1
+```
+
+#### Спринт 3.2. MIME parser и token extraction
+
+Цель: научиться превращать raw `.eml` в нормализованный inbound event без записи в базу и без пересылки клиенту.
+
+Задачи:
+
+1. Добавить parser на MimeKit.
+2. Поддержать `text/plain`, `text/html` fallback и multipart/alternative.
+3. Извлекать headers, `From`, `Subject`, дату, message-id.
+4. Извлекать token из:
+   - envelope recipient;
+   - `X-Original-To`;
+   - `Delivered-To`;
+   - `To`;
+   - `Cc` как fallback.
+5. Поддержать форматы `reply+<token>@reply.pismolet.ru` и `<token>@reply.pismolet.ru`.
+6. Добавить fixtures `.eml` для обычного plain/html/multipart письма.
+7. Добавить тесты на русские темы/тела, quoted-printable/base64 и malformed MIME.
+
+Результат спринта:
+
+- parser возвращает `EmailProviderInboundParseResult`;
+- нет пересылки клиенту;
+- нет записи raw MIME в UI;
+- ошибки parser безопасно логируются.
+
+Проверка:
+
+```bash
+dotnet test tests/Pismolet.Web.Tests/Pismolet.Web.Tests.csproj --filter InboundReplyParserTests --no-restore
+dotnet build Pismolet.sln /nr:false -m:1
+```
+
+#### Спринт 3.3. Auto-reply, bounce и дедупликация
+
+Цель: до подключения пересылки отфильтровать письма, которые нельзя отправлять клиенту как обычные ответы.
+
+Задачи:
+
+1. Добавить detector системных писем:
+   - `Auto-Submitted`;
+   - `Precedence`;
+   - `Return-Path: <>`;
+   - `X-Autoreply`/`X-Autorespond`;
+   - mailer-daemon/postmaster/no-reply отправители;
+   - типовые subject-признаки bounce/autoreply.
+2. Добавить вычисление dedupe key:
+   - provider event id;
+   - `Message-Id + From + To + Date + Subject`;
+   - raw MIME hash fallback.
+3. Расширить repository/service, если текущая модель не умеет хранить ignored/duplicate events.
+4. Добавить статусы диагностики без увеличения клиентского счётчика обычных ответов.
+5. Добавить тесты fixtures для auto-reply, bounce и duplicate.
+
+Результат спринта:
+
+- системные письма не ставятся в очередь пересылки;
+- повторная обработка одного письма не создаёт повторную пересылку;
+- причины ignore видны в логах/admin-диагностике.
+
+Проверка:
+
+```bash
+dotnet test tests/Pismolet.Web.Tests/Pismolet.Web.Tests.csproj --filter InboundReply --no-restore
+dotnet build Pismolet.sln /nr:false -m:1
+```
+
+#### Спринт 3.4. Подключение processing service и очереди пересылки
+
+Цель: соединить parser с текущей доменной обработкой ответов и очередью пересылки.
+
+Задачи:
+
+1. Передать нормализованный inbound event в существующий processing service.
+2. Проверить matching token -> mailingId/client/recipient.
+3. Создавать `ReplyEvent` для human reply.
+4. Ставить ответ в очередь пересылки клиенту.
+5. Обновлять статусы:
+   - received/matched;
+   - queued;
+   - forwarded;
+   - failed.
+6. Проверить, что `ForwardReplyToClientAsync` отправляет понятное письмо клиенту.
+7. Не пересылать raw headers и вложения входящего ответа.
+8. Не создавать loop, если клиент отвечает на пересланное письмо.
+
+Результат спринта:
+
+- synthetic inbound event проходит до fake forward;
+- SMTP forward остаётся совместимым;
+- в отчёте рассылки растёт счётчик ответов.
+
+Проверка:
+
+```bash
+dotnet test tests/Pismolet.Web.Tests/Pismolet.Web.Tests.csproj --filter Reply --no-restore
+dotnet test Pismolet.sln --no-build /nr:false -m:1
+```
+
+#### Спринт 3.5. Spool reader и файловая обработка
+
+Цель: подключить реальный файловый inbound-транспорт без серверной настройки Postfix.
+
+Задачи:
+
+1. Реализовать чтение `incoming/*.eml`.
+2. Добавить атомарное перемещение `incoming -> processing`.
+3. Проверять размер файла до чтения.
+4. Передавать parser исходный файл и metadata.
+5. При успехе переносить в `processed` или удалять по настройке.
+6. При ошибке переносить в `failed` и писать `.error`/лог.
+7. Добавить retention cleanup для `processed` и `failed`.
+8. Добавить тест на обработку временной директории со spool-структурой.
+
+Результат спринта:
+
+- можно положить `.eml` в локальную `incoming` и получить обработанный reply event;
+- один плохой файл не останавливает worker;
+- worker выключается feature flag-ом.
+
+Проверка:
+
+```bash
+dotnet test tests/Pismolet.Web.Tests/Pismolet.Web.Tests.csproj --filter InboundReplySpool --no-restore
+dotnet build Pismolet.sln /nr:false -m:1
+```
+
+#### Спринт 3.6. Админ-диагностика и отчёт клиента
+
+Цель: сделать поддержку reply-контура наблюдаемой без раскрытия лишних персональных данных и тела ответа.
+
+Задачи:
+
+1. Проверить существующие admin endpoints.
+2. Добавить или расширить страницу reply events.
+3. Показать последние события с фильтрами:
+   - mailingId;
+   - client email;
+   - status;
+   - период.
+4. Не показывать raw MIME и полный body по умолчанию.
+5. В клиентском отчёте оставить только счётчик и статус пересылки.
+6. Добавить тесты на доступность admin-view только admin-пользователям.
+7. Проверить отсутствие тела ответа в обычном клиентском UI.
+
+Результат спринта:
+
+- support может понять, почему ответ не переслался;
+- клиент не получает inbox внутри ЛК;
+- privacy/retention модель не ломается UI-ом.
+
+Проверка:
+
+```bash
+dotnet test tests/Pismolet.Web.Tests/Pismolet.Web.Tests.csproj --filter ReplyAdmin --no-restore
+dotnet test Pismolet.sln --no-build /nr:false -m:1
+```
+
+#### Спринт 3.7. Инфраструктурный runbook и server dry-run
+
+Цель: подготовить серверный маршрут до включения на реальном домене.
+
+Задачи:
+
+1. Создать/обновить runbook в `docs/`.
+2. Зафиксировать DNS/MX для `reply.pismolet.ru`.
+3. Описать Postfix virtual/transport/pipe настройки.
+4. Описать владельца и права spool-директорий.
+5. Описать env-переменные приложения.
+6. Подготовить команды проверки `dig`, `postconf`, `tail -f /var/log/mail.log`.
+7. Подготовить процедуру replay failed `.eml`.
+8. Подготовить процедуру аварийного отключения `InboundReplies__Enabled=false`.
+9. На сервере выполнить dry-run без публичного MX: положить тестовый `.eml` в spool и проверить обработку.
+
+Результат спринта:
+
+- есть воспроизводимая инструкция для production;
+- приложение умеет обработать файл на сервере;
+- публичный MX ещё можно не переключать.
+
+Проверка:
+
+```bash
+dotnet build Pismolet.sln /nr:false -m:1
+dotnet test Pismolet.sln --no-build /nr:false -m:1
+```
+
+#### Спринт 3.8. Production smoke и включение reply-домена
+
+Цель: включить реальный inbound reply путь и подтвердить его на живом письме.
+
+Задачи:
+
+1. Включить MX/transport для `reply.pismolet.ru`.
+2. Включить `InboundReplies__Enabled=true` на сервере.
+3. Отправить тестовую рассылку на внешний адрес.
+4. Ответить обычной кнопкой Reply.
+5. Проверить Postfix mail.log.
+6. Проверить spool-файлы и app-логи.
+7. Проверить, что клиент получил пересланный ответ.
+8. Проверить отчёт рассылки: счётчик ответов вырос.
+9. Проверить auto-reply/bounce fixture: клиенту не ушло.
+10. Зафиксировать результат smoke в плане или runbook.
+
+Результат спринта:
+
+- reply на реальное письмо доходит до клиента;
+- loop/auto-reply защита проверена;
+- есть инструкция отката.
+
+Проверка:
+
+```bash
+dotnet build Pismolet.sln /nr:false -m:1
+dotnet test Pismolet.sln --no-build /nr:false -m:1
+```
+
+#### Спринт 3.9. Юридическая и retention-синхронизация
+
+Цель: после фактической реализации привести документы и поведение к одному описанию.
+
+Задачи:
+
+1. Сравнить фактическое хранение тела ответа с `/legal/reply-retention`.
+2. Обновить app legal text, если TTL/body cleanup отличаются.
+3. Проверить, что клиентский UI не обещает inbox.
+4. Проверить, что privacy/data-processing не противоречат обработке входящих ответов.
+5. Проверить audit/legal evidence, если для входящих ответов нужны отдельные события.
+6. Зафиксировать финальное описание в `docs/specification.md`, если решение влияет на юридический или продуктовый контур.
+
+Результат спринта:
+
+- legal/UI/docs синхронизированы;
+- known-gap по retention закрыт;
+- этап 3 готов к закрытию.
+
+Проверка:
+
+```bash
+dotnet build Pismolet.sln /nr:false -m:1
+dotnet test Pismolet.sln --no-build /nr:false -m:1
+```
+
+### 3.15. Границы MVP и что не делать в первой реализации
 
 В MVP этапа 3 не делать:
 
@@ -754,7 +1073,7 @@ reply+<token>@reply.pismolet.ru
 - сложную CRM-переписку внутри Письмолёта;
 - автоответ клиенту от имени Письмолёта на каждый входящий reply.
 
-### 3.15. Риски
+### 3.16. Риски
 
 Основные риски:
 
@@ -776,7 +1095,7 @@ reply+<token>@reply.pismolet.ru
 - логировать минимум персональных данных;
 - добавить ручной выключатель `InboundReplies__Enabled=false`.
 
-### 3.16. Acceptance criteria этапа 3
+### 3.17. Acceptance criteria этапа 3
 
 Этап можно считать закрытым, когда:
 
