@@ -24,6 +24,7 @@ public static class HtmlRenderer
                 <link rel='stylesheet' href='/app.css'>
                 <link rel='stylesheet' href='/checkbox.css'>
                 <link rel='stylesheet' href='/cabinet.css'>
+                <link rel='stylesheet' href='/cabinet-shell.css'>
                 <link rel='stylesheet' href='/payment.css'>
             </head>
             <body>
