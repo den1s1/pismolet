@@ -40,6 +40,7 @@ public sealed class SendingWizardSmokeTests
         Assert.Contains("<details class='detailed-report'>", launchHtml);
         Assert.DoesNotContain("<details class='detailed-report' open>", launchHtml);
         Assert.DoesNotContain("Dev-сводка событий", launchHtml);
+        Assert.DoesNotContain("Финальный запуск", launchHtml);
         Assert.Contains("Правила оплаты, запуска и возвратов", launchHtml);
         Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/send", launchHtml);
         Assert.Contains("Правила хранения и удаления ответов", launchHtml);
@@ -66,13 +67,17 @@ public sealed class SendingWizardSmokeTests
         Assert.Contains("Ответов", html);
         Assert.Contains("Подробный отчёт", html);
         Assert.Contains("Сводка", html);
-        Assert.Contains("Список получателей", html);
+        Assert.Contains("<section id='recipient-list'>", html);
+        Assert.DoesNotContain("<summary>Список получателей</summary>", html);
         Assert.Contains("Открыто", html);
         Assert.Contains("Открыли ссылку", html);
         Assert.Contains("Жалобы на спам", html);
-        Assert.Contains("Открыл ссылку (общее число раз)", html);
+        Assert.Contains("Переход по ссылкам", html);
+        Assert.Contains("Ответы пересылаются на ваш email", html);
         Assert.DoesNotContain("Доставка по получателям", html);
         Assert.DoesNotContain("<summary>Переходы по ссылкам</summary>", html);
+        Assert.DoesNotContain("Переходы по ссылкам появятся", html);
+        Assert.DoesNotContain("Показаны ", html);
         Assert.DoesNotContain("Открытий всего", html);
         Assert.DoesNotContain("Кликнувшие получатели", html);
         Assert.DoesNotContain("Кликов всего", html);
@@ -82,6 +87,7 @@ public sealed class SendingWizardSmokeTests
         Assert.DoesNotContain("Открыто сейчас", html);
         Assert.DoesNotContain("Кликнувшие сейчас", html);
         Assert.DoesNotContain("Ответов сейчас", html);
+        Assert.DoesNotContain("Финальный запуск", html);
         Assert.DoesNotContain("Dev-сводка событий", html);
         Assert.Contains("Скачать Excel-отчёт", html);
         Assert.DoesNotContain("Прочитано", html, StringComparison.OrdinalIgnoreCase);
