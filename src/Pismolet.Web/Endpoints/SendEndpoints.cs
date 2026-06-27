@@ -226,7 +226,7 @@ public static class SendEndpoints
                       <p class='muted'>Ответы пересылаются клиенту на email отправителя. Личный кабинет показывает только счётчик и статус пересылки, без inbox и без raw provider payload. <a href='{replyRetentionHref}'>Правила хранения и удаления ответов</a>.</p>
                     </section>
                   </div>
-                  <details open><summary>Список получателей</summary>{recipientListNote}<div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th><th>Открыл ссылку (общее число раз)</th><th>Жалоба на спам</th></tr></thead><tbody>{recipientRowsHtml}</tbody></table></div>{recipientPager}</details>
+                  <details id='recipient-list' open><summary>Список получателей</summary>{recipientListNote}<div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th><th>Открыл ссылку (общее число раз)</th><th>Жалоба на спам</th></tr></thead><tbody>{recipientRowsHtml}</tbody></table></div>{recipientPager}</details>
                   {devReport}
                 </details>
                 <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a><a class='btn ghost' href='/mailings/{mailing.Id}/send/export.xlsx'>Скачать Excel-отчёт</a></div>
@@ -577,10 +577,10 @@ public static class SendEndpoints
         }
 
         var previous = page > 1
-            ? $"<a class='btn ghost' href='/mailings/{mailingId}/send?recipientPage={page - 1}'>← Назад</a>"
+            ? $"<a class='btn ghost' href='/mailings/{mailingId}/send?recipientPage={page - 1}#recipient-list'>← Назад</a>"
             : string.Empty;
         var next = page < totalPages
-            ? $"<a class='btn ghost' href='/mailings/{mailingId}/send?recipientPage={page + 1}'>Вперёд →</a>"
+            ? $"<a class='btn ghost' href='/mailings/{mailingId}/send?recipientPage={page + 1}#recipient-list'>Вперёд →</a>"
             : string.Empty;
 
         return $"<div class='actions'>{previous}<span class='muted'>Страница {page} из {totalPages}</span>{next}</div>";
