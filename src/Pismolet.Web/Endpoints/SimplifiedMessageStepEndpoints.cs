@@ -94,6 +94,7 @@ public static class SimplifiedMessageStepEndpoints
         }
 
         var body = bodyFormat == BodyFormatHtml ? htmlBody : plainBody;
+        var messageBodyFormat = ToMessageBodyFormat(bodyFormat);
         var attachments = await ReadAttachmentsAsync(form);
         if (!attachments.Ok)
         {
@@ -108,7 +109,8 @@ public static class SimplifiedMessageStepEndpoints
             body,
             ResolveMessageType(existing),
             ToRequestMetadata(http),
-            attachments.HasFiles ? attachments.Items : null));
+            attachments.HasFiles ? attachments.Items : null,
+            messageBodyFormat));
 
         var mailing = result.Mailing ?? existing;
         if (!result.Ok || mailing is null)
@@ -142,7 +144,7 @@ public static class SimplifiedMessageStepEndpoints
         }
 
         var draft = mailing.MessageDraft;
-        var format = NormalizeBodyFormat(activeFormat ?? InferBodyFormat(draft?.Body));
+        var format = NormalizeBodyFormat(activeFormat ?? ToBodyFormatCode(draft?.BodyFormat ?? MessageBodyFormat.Text));
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         var senderName = H(draft?.SenderName ?? string.Empty);
         var messageSubject = H(draft?.Subject ?? string.Empty);
@@ -228,7 +230,7 @@ public static class SimplifiedMessageStepEndpoints
         }
 
         var preview = renderer.RenderPreview(mailing);
-        var format = InferBodyFormat(draft.Body);
+        var format = ToBodyFormatCode(draft.BodyFormat);
         var previewSender = string.IsNullOrWhiteSpace(draft.SenderName) ? "Письмолёт" : H(draft.SenderName);
         var previewSubject = string.IsNullOrWhiteSpace(draft.Subject) ? "Тема письма" : H(draft.Subject);
         var reasonBlock = string.IsNullOrWhiteSpace(preview.ReasonBlock)
@@ -424,25 +426,17 @@ public static class SimplifiedMessageStepEndpoints
         ? BodyFormatHtml
         : BodyFormatText;
 
+    private static MessageBodyFormat ToMessageBodyFormat(string value) => string.Equals(value, BodyFormatHtml, StringComparison.OrdinalIgnoreCase)
+        ? MessageBodyFormat.Html
+        : MessageBodyFormat.Text;
+
+    private static string ToBodyFormatCode(MessageBodyFormat value) => value == MessageBodyFormat.Html
+        ? BodyFormatHtml
+        : BodyFormatText;
+
     private static string InferBodyFormat(string? body)
     {
-        if (string.IsNullOrWhiteSpace(body))
-        {
-            return BodyFormatText;
-        }
-
-        var value = body.TrimStart();
-        return value.Contains("<!doctype", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("<html", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("<body", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("<table", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("<div", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("<p", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("<br", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("<h1", StringComparison.OrdinalIgnoreCase) ||
-            value.Contains("<a ", StringComparison.OrdinalIgnoreCase)
-                ? BodyFormatHtml
-                : BodyFormatText;
+        return ToBodyFormatCode(MessageBodyFormatDetector.InferFromBody(body));
     }
 
     private static string ToHtmlText(string value) => H(value)

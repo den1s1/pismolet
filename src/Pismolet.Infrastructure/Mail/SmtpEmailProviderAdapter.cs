@@ -188,7 +188,7 @@ public sealed class SmtpEmailProviderAdapter(
         textBody = KeepSingleVisibleUnsubscribeLink(textBody, unsubscribeUrl);
         var trackingPixelUrl = BuildTrackingPixelUrl(message);
         var clickTrackingUrlFactory = BuildClickTrackingUrlFactory(message);
-        var isHtmlBody = LooksLikeHtmlBody(textBody);
+        var isHtmlBody = message.BodyFormat == MessageBodyFormat.Html;
 
         mime.From.Add(new MailboxAddress(displayName, options.FromEmail));
         mime.To.Add(MailboxAddress.Parse(message.Recipient.Email));
@@ -437,24 +437,6 @@ public sealed class SmtpEmailProviderAdapter(
                 return null;
             }
         };
-    }
-
-    private static bool LooksLikeHtmlBody(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return false;
-        }
-
-        return text.Contains("<!doctype", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("<html", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("<body", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("<table", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("<div", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("<p", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("<br", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("<h1", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("<a ", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildHtmlBody(string plainText, string unsubscribeUrl, string? trackingPixelUrl, Func<string, string?>? clickTrackingUrlFactory = null)

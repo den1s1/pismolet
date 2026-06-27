@@ -24,7 +24,7 @@ Needed tests:
 
 ### P1. Message body format is inferred from text instead of persisted
 
-Status: planned.
+Status: fixed in Sprint 2.
 
 The editor has explicit text/html tabs, but the saved domain model stores only `Body`. Rendering and preview infer HTML by tag heuristics. A plain-text message containing HTML-like fragments can be sent as HTML, and some HTML fragments can be misclassified.
 
@@ -104,7 +104,7 @@ Result:
 
 ### Sprint 2. Persist explicit message body format
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
@@ -112,6 +112,15 @@ Tasks:
 - Stop using HTML tag sniffing as the primary source of truth.
 - Keep old data readable.
 - Add editor, preview and SMTP rendering tests.
+
+Result:
+
+- Added `MessageBodyFormat` to the domain draft, save command and queued `EmailMessage`.
+- Added EF `BodyFormat` storage with migration and legacy fallback inference for old rows.
+- SMTP MIME generation now uses explicit `BodyFormat`, not tag sniffing.
+- Editor and preview use the saved body format after save/reload.
+- Added EF roundtrip/legacy tests, UI preview tests and SMTP MIME tests for HTML-like plain text and explicit HTML.
+- Gate passed: build, full tests Integration 4/4 and Web 310/310.
 
 ### Sprint 3. Harden automatic sender idempotency
 

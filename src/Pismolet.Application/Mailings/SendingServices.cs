@@ -27,7 +27,8 @@ public sealed record EmailMessage(
     string ReplyToAddress,
     string ReplyToken,
     IReadOnlyDictionary<string, string> Metadata,
-    IReadOnlyCollection<EmailAttachment>? Attachments = null);
+    IReadOnlyCollection<EmailAttachment>? Attachments = null,
+    MessageBodyFormat BodyFormat = MessageBodyFormat.Text);
 
 public sealed record EmailProviderSendResult(bool Accepted, string? ProviderMessageId, string? ErrorCode, string? ErrorMessage)
 {
@@ -646,7 +647,8 @@ public sealed class MailingSendService(
                 ["recipientKey"] = replyTokens.BuildRecipientKey(mailing.Id, recipientEmail),
                 ["replyPurpose"] = "inbound_reply"
             },
-            attachments);
+            attachments,
+            draft.BodyFormat);
     }
 
     private void AuditSuppressedSend(Mailing mailing, SendEvent sendEvent, string eventType, string ip, string userAgent) => auditLogger.Write(new AuditRecord(

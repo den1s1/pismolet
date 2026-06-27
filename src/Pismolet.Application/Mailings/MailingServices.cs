@@ -177,7 +177,8 @@ public sealed record SaveMailingMessageCommand(
     string Body,
     MessageType MessageType,
     RequestMetadata Request,
-    IReadOnlyCollection<MailingAttachment>? Attachments = null);
+    IReadOnlyCollection<MailingAttachment>? Attachments = null,
+    MessageBodyFormat BodyFormat = MessageBodyFormat.Text);
 
 public sealed record MailingMessageResult(bool Ok, string Error, Mailing? Mailing)
 {
@@ -224,7 +225,7 @@ public sealed class MailingMessageService(
         try
         {
             var attachments = command.Attachments ?? mailing.MessageDraft?.Attachments ?? Array.Empty<MailingAttachment>();
-            draft = MailingMessageDraft.Create(command.SenderName, command.Subject, command.Body, command.MessageType, DateTimeOffset.UtcNow, attachments);
+            draft = MailingMessageDraft.Create(command.SenderName, command.Subject, command.Body, command.MessageType, DateTimeOffset.UtcNow, attachments, command.BodyFormat);
         }
         catch (ArgumentException ex)
         {

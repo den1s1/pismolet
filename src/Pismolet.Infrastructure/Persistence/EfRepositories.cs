@@ -198,6 +198,7 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
                 Subject = dr.Subject,
                 Body = dr.Body,
                 MessageType = dr.MessageType.ToString(),
+                BodyFormat = dr.BodyFormat.ToString(),
                 UpdatedAt = dr.UpdatedAt.ToUniversalTime(),
                 AttachmentsJson = SerializeAttachments(dr.Attachments)
             });
@@ -238,8 +239,18 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
             LastImportStats = last?.ToStats() ?? ImportStats.Empty,
             Recipients = recipients,
             Declaration = declaration is null ? null : new MailingDeclaration(declaration.MailingId, declaration.UserEmail, Enum.Parse<BaseSource>(declaration.BaseSource), declaration.IsBaseLegalityConfirmed, declaration.IsAdvertisingConsentConfirmed, declaration.DeclarationVersion, declaration.CreatedAt, declaration.Ip, declaration.UserAgent) { ImportBatchId = declaration.ImportBatchId },
-            MessageDraft = draft is null ? null : new MailingMessageDraft(draft.SenderName, draft.Subject, draft.Body, Enum.Parse<MessageType>(draft.MessageType), draft.UpdatedAt, DeserializeAttachments(draft.AttachmentsJson))
+            MessageDraft = draft is null ? null : new MailingMessageDraft(draft.SenderName, draft.Subject, draft.Body, Enum.Parse<MessageType>(draft.MessageType), draft.UpdatedAt, DeserializeAttachments(draft.AttachmentsJson), ParseBodyFormat(draft.BodyFormat, draft.Body))
         };
+    }
+
+    private static MessageBodyFormat ParseBodyFormat(string? value, string body)
+    {
+        if (Enum.TryParse<MessageBodyFormat>(value, ignoreCase: true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return MessageBodyFormatDetector.InferFromBody(body);
     }
 
     private static string SerializeAttachments(IReadOnlyCollection<MailingAttachment> attachments)

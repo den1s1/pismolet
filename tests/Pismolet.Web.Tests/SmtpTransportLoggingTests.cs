@@ -1,6 +1,8 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
+using MimeKit;
 using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Domain.Mailings;
 using Pismolet.Web.Infrastructure.Mail;
 using Xunit;
 
@@ -102,6 +104,41 @@ public sealed class SmtpTransportLoggingTests
         Assert.DoesNotContain("<img", html, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void Smtp_mime_message_treats_html_like_text_as_text_when_body_format_is_text()
+    {
+        var adapter = CreateAdapter("127.0.0.1");
+        var message = TestEmailMessage(
+            "Покажите строку <p data-marker=\"plain\"> как обычный текст.\nОтписаться: /unsubscribe/test",
+            MessageBodyFormat.Text);
+
+        var mime = InvokeMimeMessage(adapter, message);
+        var parts = TextParts(mime.Body);
+        var plain = Assert.Single(parts, x => x.IsPlain);
+        var html = Assert.Single(parts, x => x.IsHtml);
+
+        Assert.Contains("<p data-marker=\"plain\">", plain.Text, StringComparison.Ordinal);
+        Assert.Contains("&lt;p data-marker=&quot;plain&quot;&gt;", html.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Smtp_mime_message_uses_html_body_when_body_format_is_html()
+    {
+        var adapter = CreateAdapter("127.0.0.1");
+        var message = TestEmailMessage(
+            "<h1>Hello</h1><p>HTML body</p>\nОтписаться: /unsubscribe/test",
+            MessageBodyFormat.Html);
+
+        var mime = InvokeMimeMessage(adapter, message);
+        var parts = TextParts(mime.Body);
+        var plain = Assert.Single(parts, x => x.IsPlain);
+        var html = Assert.Single(parts, x => x.IsHtml);
+
+        Assert.DoesNotContain("<h1>", plain.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Hello", plain.Text, StringComparison.Ordinal);
+        Assert.Contains("<h1>Hello</h1>", html.Text, StringComparison.Ordinal);
+    }
+
     private static SmtpEmailProviderAdapter CreateAdapter(string host) => CreateAdapter(host, new SilentLogger<SmtpEmailProviderAdapter>());
 
     private static SmtpEmailProviderAdapter CreateAdapter(string host, ILogger<SmtpEmailProviderAdapter> logger, int port = 25)
@@ -136,6 +173,58 @@ public sealed class SmtpTransportLoggingTests
     {
         var method = typeof(SmtpEmailProviderAdapter).GetMethod("GetEmailDomain", BindingFlags.Static | BindingFlags.NonPublic)!;
         return (string)method.Invoke(null, new object?[] { email })!;
+    }
+
+    private static MimeMessage InvokeMimeMessage(SmtpEmailProviderAdapter adapter, EmailMessage message)
+    {
+        var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildMimeMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        return (MimeMessage)method.Invoke(adapter, new object[] { message })!;
+    }
+
+    private static EmailMessage TestEmailMessage(string body, MessageBodyFormat bodyFormat) => new(
+        Guid.Parse("22222222-3333-4444-5555-666666666666"),
+        new EmailRecipient("reader@example.test"),
+        "Sender",
+        "Subject",
+        body,
+        "/unsubscribe/test",
+        "Service id",
+        "reply@test.pismolet.ru",
+        "reply-token",
+        new Dictionary<string, string>
+        {
+            ["mailingId"] = "22222222333344445555666666666666",
+            ["recipientKey"] = "recipient-key"
+        },
+        BodyFormat: bodyFormat);
+
+    private static IReadOnlyCollection<TextPart> TextParts(MimeEntity? entity)
+    {
+        if (entity is null)
+        {
+            throw new InvalidOperationException("MIME body was not built.");
+        }
+
+        var result = new List<TextPart>();
+        Collect(entity, result);
+        return result;
+
+        static void Collect(MimeEntity current, ICollection<TextPart> result)
+        {
+            if (current is TextPart text)
+            {
+                result.Add(text);
+                return;
+            }
+
+            if (current is Multipart multipart)
+            {
+                foreach (var child in multipart)
+                {
+                    Collect(child, result);
+                }
+            }
+        }
     }
 
     private static string InvokeHtmlBody(string plainText, string unsubscribeUrl, string? trackingPixelUrl)

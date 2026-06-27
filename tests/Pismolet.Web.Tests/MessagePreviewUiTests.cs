@@ -72,6 +72,57 @@ public sealed class MessagePreviewUiTests
         Assert.Contains(preview.ServiceIdentifier, preview.PlainText);
     }
 
+    [Fact]
+    public async Task Html_message_preview_uses_saved_explicit_html_format()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+        await SaveMessage(
+            client,
+            mailingId,
+            "html",
+            "Plain body should not be saved",
+            "<h1>Акция</h1><p>HTML body</p>");
+
+        var html = await client.GetStringAsync($"/mailings/{mailingId}/message/preview");
+
+        Assert.Contains("HTML-предпросмотр письма", html);
+        Assert.Contains("&lt;h1&gt;Акция&lt;/h1&gt;", html);
+        Assert.DoesNotContain("Plain body should not be saved", html);
+        var mailing = GetMailing(factory, mailingId);
+        Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
+        Assert.Equal("<h1>Акция</h1><p>HTML body</p>", mailing.MessageDraft?.Body);
+    }
+
+    [Fact]
+    public async Task Text_message_preview_keeps_html_like_plain_text_when_text_format_is_selected()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+        await SaveMessage(
+            client,
+            mailingId,
+            "text",
+            "Покажите строку <p data-marker=\"plain\"> как текст.",
+            "<h1>Wrong HTML body</h1>");
+
+        var html = await client.GetStringAsync($"/mailings/{mailingId}/message/preview");
+
+        Assert.DoesNotContain("HTML-предпросмотр письма", html);
+        Assert.Contains("&lt;p data-marker=&quot;plain&quot;&gt;", html);
+        Assert.DoesNotContain("Wrong HTML body", html);
+        var mailing = GetMailing(factory, mailingId);
+        Assert.Equal(MessageBodyFormat.Text, mailing.MessageDraft?.BodyFormat);
+    }
+
     private static async Task ImportAcceptedAddress(HttpClient client, Guid mailingId)
     {
         using var content = new MultipartFormDataContent
@@ -103,6 +154,21 @@ public sealed class MessagePreviewUiTests
             ["senderName"] = "Библиотека №5",
             ["subject"] = "Приглашаем на встречу",
             ["body"] = "Здравствуйте!\n\nБудем рады видеть вас."
+        });
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected message response: {(int)response.StatusCode}");
+    }
+
+    private static async Task SaveMessage(HttpClient client, Guid mailingId, string bodyFormat, string plainBody, string htmlBody)
+    {
+        using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Библиотека №5",
+            ["subject"] = "Приглашаем на встречу",
+            ["bodyFormat"] = bodyFormat,
+            ["plainBody"] = plainBody,
+            ["htmlBody"] = htmlBody
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -146,6 +212,15 @@ public sealed class MessagePreviewUiTests
         Assert.True(result.Ok, result.Error);
         Assert.NotNull(result.Mailing);
         return result.Mailing.Id;
+    }
+
+    private static Mailing GetMailing(WebApplicationFactory<Program> factory, Guid mailingId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing);
+        return mailing;
     }
 
     private static RequestMetadata Request() => new("127.0.0.1", "message-preview-ui-tests");

@@ -150,6 +150,35 @@ public enum MessageType
     Advertising
 }
 
+public enum MessageBodyFormat
+{
+    Text,
+    Html
+}
+
+public static class MessageBodyFormatDetector
+{
+    public static MessageBodyFormat InferFromBody(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return MessageBodyFormat.Text;
+        }
+
+        return body.Contains("<!doctype", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("<html", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("<body", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("<table", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("<div", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("<p", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("<br", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("<h1", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("<a ", StringComparison.OrdinalIgnoreCase)
+                ? MessageBodyFormat.Html
+                : MessageBodyFormat.Text;
+    }
+}
+
 public static class MessageTypeLabels
 {
     public static string ToRu(this MessageType type) => type == MessageType.Advertising ? "Рекламное" : "Информационное";
@@ -190,7 +219,7 @@ public sealed record MailingMessageDraft
     public const long MaxAttachmentsTotalBytes = 10 * 1024 * 1024;
 
     public MailingMessageDraft(string senderName, string subject, string body, MessageType messageType, DateTimeOffset updatedAt)
-        : this(senderName, subject, body, messageType, updatedAt, Array.Empty<MailingAttachment>())
+        : this(senderName, subject, body, messageType, updatedAt, Array.Empty<MailingAttachment>(), MessageBodyFormat.Text)
     {
     }
 
@@ -201,6 +230,18 @@ public sealed record MailingMessageDraft
         MessageType messageType,
         DateTimeOffset updatedAt,
         IReadOnlyCollection<MailingAttachment>? attachments)
+        : this(senderName, subject, body, messageType, updatedAt, attachments, MessageBodyFormat.Text)
+    {
+    }
+
+    public MailingMessageDraft(
+        string senderName,
+        string subject,
+        string body,
+        MessageType messageType,
+        DateTimeOffset updatedAt,
+        IReadOnlyCollection<MailingAttachment>? attachments,
+        MessageBodyFormat bodyFormat)
     {
         SenderName = senderName;
         Subject = subject;
@@ -208,6 +249,7 @@ public sealed record MailingMessageDraft
         MessageType = messageType;
         UpdatedAt = updatedAt;
         Attachments = attachments ?? Array.Empty<MailingAttachment>();
+        BodyFormat = bodyFormat;
     }
 
     public string SenderName { get; init; }
@@ -222,13 +264,16 @@ public sealed record MailingMessageDraft
 
     public IReadOnlyCollection<MailingAttachment> Attachments { get; init; }
 
+    public MessageBodyFormat BodyFormat { get; init; }
+
     public static MailingMessageDraft Create(
         string senderName,
         string subject,
         string body,
         MessageType messageType,
         DateTimeOffset updatedAt,
-        IReadOnlyCollection<MailingAttachment>? attachments = null)
+        IReadOnlyCollection<MailingAttachment>? attachments = null,
+        MessageBodyFormat bodyFormat = MessageBodyFormat.Text)
     {
         senderName = senderName.Trim();
         subject = subject.Trim();
@@ -266,7 +311,7 @@ public sealed record MailingMessageDraft
             throw new ArgumentException("Общий размер вложений не должен превышать 10 МБ.", nameof(attachments));
         }
 
-        return new MailingMessageDraft(senderName, subject, body, messageType, updatedAt, normalizedAttachments);
+        return new MailingMessageDraft(senderName, subject, body, messageType, updatedAt, normalizedAttachments, bodyFormat);
     }
 }
 

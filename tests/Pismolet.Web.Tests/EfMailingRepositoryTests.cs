@@ -43,6 +43,53 @@ public sealed class EfMailingRepositoryTests
     }
 
     [Fact]
+    public void Ef_mailing_repository_roundtrips_message_body_format()
+    {
+        using var db = CreateContext();
+        var repository = new EfMailingRepository(db);
+        var mailing = ReadyMailing(Guid.NewGuid()).WithMessageDraft(MailingMessageDraft.Create(
+            "Sender",
+            "Subject",
+            "<h1>Hello</h1><p>HTML body</p>",
+            MessageType.Transactional,
+            DateTimeOffset.Parse("2026-06-28T08:05:00Z"),
+            bodyFormat: MessageBodyFormat.Html));
+
+        repository.Update(mailing);
+        db.ChangeTracker.Clear();
+
+        var saved = repository.GetForOwner(mailing.Id, OwnerEmail);
+
+        Assert.NotNull(saved?.MessageDraft);
+        Assert.Equal(MessageBodyFormat.Html, saved.MessageDraft.BodyFormat);
+        Assert.Equal("<h1>Hello</h1><p>HTML body</p>", saved.MessageDraft.Body);
+    }
+
+    [Fact]
+    public void Ef_mailing_repository_infers_legacy_empty_message_body_format()
+    {
+        using var db = CreateContext();
+        var repository = new EfMailingRepository(db);
+        var mailing = ReadyMailing(Guid.NewGuid()).WithMessageDraft(MailingMessageDraft.Create(
+            "Sender",
+            "Subject",
+            "<p>Legacy HTML body</p>",
+            MessageType.Transactional,
+            DateTimeOffset.Parse("2026-06-28T08:07:00Z"),
+            bodyFormat: MessageBodyFormat.Html));
+        repository.Update(mailing);
+        var draftEntity = db.MailingMessageDrafts.Single(x => x.MailingId == mailing.Id);
+        draftEntity.BodyFormat = string.Empty;
+        db.SaveChanges();
+        db.ChangeTracker.Clear();
+
+        var saved = repository.GetForOwner(mailing.Id, OwnerEmail);
+
+        Assert.NotNull(saved?.MessageDraft);
+        Assert.Equal(MessageBodyFormat.Html, saved.MessageDraft.BodyFormat);
+    }
+
+    [Fact]
     public void Mailing_message_service_keeps_existing_ef_attachments_when_no_new_files_are_uploaded()
     {
         using var db = CreateContext();
