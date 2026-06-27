@@ -10,8 +10,8 @@
 |---|---|---|
 | 3.0. Инвентаризация текущего reply-контура | Завершён | Создан `docs/inbound_reply_inventory.md`; зафиксированы существующие модели, сервисы, endpoints, queue, token и ограничения. |
 | 3.1. Конфигурация inbound reply и безопасный skeleton | Завершён | Добавлены `InboundReplySpoolOptions`, выключенный по умолчанию hosted service skeleton и регистрация вне Testing. |
-| 3.2. MIME parser и token extraction | Частично завершён | Добавлены `IInboundReplyMimeParser`, `InboundReplyRawMessage`, базовый MimeKit parser. Полный token extraction из envelope/headers остаётся открытым подпунктом. |
-| 3.3. Auto-reply, bounce и дедупликация | Завершён для MVP | Подключён `InboundReplyAutoReplyDetector`; дедупликация по provider event уже есть в processing service. |
+| 3.2. MIME parser и token extraction | Завершён для MVP | Parser извлекает token из envelope, X-Original-To, Delivered-To, To и Cc fallback; добавлены unit-тесты parser. |
+| 3.3. Auto-reply, bounce и дедупликация | Завершён для MVP | Подключён `InboundReplyAutoReplyDetector`; добавлены unit-тесты detector-а; дедупликация по provider event уже есть в processing service. |
 | 3.4. Подключение processing service и очереди пересылки | Частично покрыт текущей архитектурой | Existing `InboundReplyProcessingService` уже связывает inbound event с matching/queue/forward. Отдельный synthetic integration test ещё не добавлен. |
 | 3.5. Spool reader и файловая обработка | Завершён для MVP-каркаса | Reader обрабатывает eml из incoming, двигает файлы в processing, вызывает parser/processor, переносит в processed или failed, пишет error-файл, чистит retention. |
 | 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Добавлен admin endpoint диагностики reply events и подключён route в `Program.cs`. |
@@ -21,14 +21,9 @@
 
 ## Открытые технические подпункты
 
-1. Расширить token extraction для `.eml` после выбора Postfix pipe/sidecar-контракта:
-   - envelope recipient;
-   - X-Original-To;
-   - Delivered-To;
-   - To;
-   - Cc fallback.
-2. Передать envelope recipient в `InboundReplyRawMessage`, когда будет выбран Postfix pipe/sidecar-контракт.
-3. Добавить тесты parser/spool/auto-reply/admin.
+1. Передать фактический envelope recipient в `InboundReplyRawMessage`, когда будет выбран Postfix pipe/sidecar-контракт.
+2. Добавить integration-тест spool reader -> parser -> processing service.
+3. Добавить admin UI тест для `/admin/replies`.
 4. Выполнить server dry-run по runbook.
 5. После dry-run обновить фактический статус спринта 3.8.
 
@@ -36,7 +31,7 @@
 
 - `8fd0130087e71c6f0cfd7c8ffc8a09c588d3df50` — инвентаризация reply-контура.
 - `6b3def1fe0e6dae5cc344c6c1cc9c49c180f0c26` — настройки spool.
-- `6fb88a2bb3025215863e3dc7dcd34c6c1cc9c49c180f0c80` — skeleton spool reader.
+- `6fb88a2bb3025215863e3dc7dcd34b66226d0c80` — skeleton spool reader.
 - `768350357bca27d3968e0011e5fdc39115a35904` — чтение настроек inbound spool.
 - `208d03fd2ec0aa8f5c781b40acc15a6c0780cf89` — контракт MIME parser.
 - `0c5fc9d0fcfc5883eb46e733a6c505936945664c` — базовый MimeKit parser.
@@ -48,3 +43,8 @@
 - `d322018838d7af1ce940f547058cf8d882706827` — inbound reply runbook.
 - `4c7b16596551589afb15ac935d5b52dccfd8b912` — подключение admin route.
 - `a9ee303089c2601c243795319646d47d0ca5ef15` — подключение detector и fallback token extraction.
+- `63acf9b9ba5ea61917db49676c8b5ad1c86284eb` — token extraction в MIME parser.
+- `6b6f5e81eb41f119680d5ceac731b5b19db28831` — совместимая проверка символов parser.
+- `b6202466ffbecb8cba4c07746fb6c5b7560447bb` — unit-тесты MIME parser.
+- `4ac6ab429766dcc4f8f9363b7e451b6bd1b03afe` — совместимая проверка local-part matching.
+- `f535ab8180c0542db71b0a768824b7f88d2c0c32` — unit-тесты auto-reply detector.
