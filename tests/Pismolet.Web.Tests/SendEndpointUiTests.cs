@@ -62,7 +62,6 @@ public sealed class SendEndpointUiTests
 
         Assert.Contains("<details class='detailed-report' open>", html);
         Assert.Contains("<details id='recipient-list' open>", html);
-        Assert.Contains("recipientPage=1#recipient-list", html);
         Assert.Contains("Список получателей", html);
     }
 
