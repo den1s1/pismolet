@@ -133,7 +133,7 @@ public sealed class SignedInboundReplyTokenService(IEmailNormalizer normalizer, 
 
     public string BuildRecipientKey(Guid mailingId, string normalizedEmail) => Hash($"{mailingId:N}:{normalizer.Normalize(normalizedEmail)}");
 
-    public string BuildReplyToAddress(string token) => $"reply+{token}@{options.InboundDomain.Trim().ToLowerInvariant()}";
+    public string BuildReplyToAddress(string token) => $"reply+{token}{Convert.ToChar(64)}{options.InboundDomain.Trim().ToLowerInvariant()}";
 
     public string HashToken(string? token) => string.IsNullOrWhiteSpace(token) ? string.Empty : Hash(token.Trim());
 
@@ -233,16 +233,20 @@ public sealed class InboundReplyMatchingService(
             return null;
         }
 
-        var value = toAddress.Trim();
-        var plus = value.IndexOf("reply+", StringComparison.OrdinalIgnoreCase);
-        if (plus < 0)
+        var value = toAddress.Trim().Trim('<', '>', ' ', '\t', '\r', '\n');
+        var at = value.IndexOf(Convert.ToChar(64));
+        if (at <= 0)
         {
             return null;
         }
 
-        var start = plus + "reply+".Length;
-        var at = value.IndexOf('@', start);
-        return at > start ? value[start..at] : null;
+        var localPart = value[..at];
+        if (localPart.StartsWith("reply+", StringComparison.OrdinalIgnoreCase) && localPart.Length > "reply+".Length)
+        {
+            return localPart["reply+".Length..];
+        }
+
+        return localPart.Contains('+', StringComparison.Ordinal) ? null : localPart;
     }
 }
 
@@ -297,7 +301,7 @@ public sealed class InboundReplyProcessingService(
             receivedAt.AddDays(Math.Clamp(options.BodyRetentionDays, 1, 60)),
             Hash(inbound.RawPayload));
 
-        if (IsAutoReply(inbound))
+        if (InboundReplyAutoReplyDetector.ShouldIgnore(inbound))
         {
             reply = replies.AddIfNotExists(reply.MarkAutoReply("Обнаружены признаки auto-reply/mail loop."));
             Audit("inbound_reply_auto_ignored", $"replyEventId={reply.Id};provider={inbound.Provider}", request);
@@ -362,41 +366,6 @@ public sealed class InboundReplyProcessingService(
         }
 
         return Task.FromResult(count);
-    }
-
-    private static bool IsAutoReply(EmailProviderInboundEvent inbound)
-    {
-        if (string.IsNullOrWhiteSpace(inbound.FromEmail))
-        {
-            return true;
-        }
-
-        if (inbound.FromEmail.Contains("mailer-daemon", StringComparison.OrdinalIgnoreCase) ||
-            inbound.FromEmail.Contains("postmaster", StringComparison.OrdinalIgnoreCase) ||
-            inbound.FromEmail.EndsWith("@reply.localhost", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        foreach (var header in inbound.Headers)
-        {
-            if (header.Key.Equals("Auto-Submitted", StringComparison.OrdinalIgnoreCase) && !header.Value.Equals("no", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (header.Key.Equals("Precedence", StringComparison.OrdinalIgnoreCase) && header.Value is "bulk" or "list" or "junk")
-            {
-                return true;
-            }
-
-            if (header.Key.Equals("X-Auto-Response-Suppress", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static string SafeSubject(string? subject)
