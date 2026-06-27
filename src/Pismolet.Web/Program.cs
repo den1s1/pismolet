@@ -50,6 +50,7 @@ builder.Services.AddAuthorization(options =>
         }));
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
+builder.Services.AddSingleton(InboundReplySpoolOptions.DevelopmentDefault);
 builder.Services.AddScoped<MailingPaymentService>();
 builder.Services.AddScoped<IMailingPaymentService, AdminWaivedMailingPaymentService>();
 if (!isRunningUnderTests && ShouldUseSmtpConfirmation(builder.Configuration))
@@ -63,6 +64,7 @@ builder.Services.AddSingleton<IPostfixDeliveryAutomationSettingsRepository, File
 if (!isRunningUnderTests)
 {
     builder.Services.AddHostedService<PostfixDeliveryLogReaderHostedService>();
+    builder.Services.AddHostedService<InboundReplySpoolReaderHostedService>();
 }
 
 var app = builder.Build();
