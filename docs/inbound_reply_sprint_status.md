@@ -14,7 +14,7 @@
 | 3.3. Auto-reply, bounce и дедупликация | Завершён для MVP | Подключён `InboundReplyAutoReplyDetector`; добавлены unit-тесты detector-а; дедупликация по provider event уже есть в processing service. |
 | 3.4. Подключение processing service и очереди пересылки | Частично покрыт текущей архитектурой | Existing `InboundReplyProcessingService` уже связывает inbound event с matching/queue/forward. Отдельный synthetic integration test ещё не добавлен. |
 | 3.5. Spool reader и файловая обработка | Завершён для MVP-каркаса | Reader обрабатывает eml из incoming, двигает файлы в processing, вызывает parser/processor, переносит в processed или failed, пишет error-файл, чистит retention. |
-| 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Добавлен admin endpoint диагностики reply events и подключён route в `Program.cs`. |
+| 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Добавлен admin endpoint диагностики reply events, route подключён в `Program.cs`, добавлен UI-тест пустой admin страницы. |
 | 3.7. Инфраструктурный runbook и server dry-run | Завершён для документации | Создан `docs/inbound_reply_runbook.md`; server dry-run выполнять после deploy. |
 | 3.8. Production smoke и включение reply-домена | Не начат | Выполнять только после runbook и серверной настройки. |
 | 3.9. Юридическая и retention-синхронизация | Не начат | Выполнять после финального фактического поведения retention. |
@@ -23,9 +23,8 @@
 
 1. Передать фактический envelope recipient в `InboundReplyRawMessage`, когда будет выбран Postfix pipe/sidecar-контракт.
 2. Добавить integration-тест spool reader -> parser -> processing service.
-3. Добавить admin UI тест для `/admin/replies`.
-4. Выполнить server dry-run по runbook.
-5. После dry-run обновить фактический статус спринта 3.8.
+3. Выполнить server dry-run по runbook.
+4. После dry-run обновить фактический статус спринта 3.8.
 
 ## Последние commit SHA по этапу
 
@@ -48,3 +47,5 @@
 - `b6202466ffbecb8cba4c07746fb6c5b7560447bb` — unit-тесты MIME parser.
 - `4ac6ab429766dcc4f8f9363b7e451b6bd1b03afe` — совместимая проверка local-part matching.
 - `f535ab8180c0542db71b0a768824b7f88d2c0c32` — unit-тесты auto-reply detector.
+- `b11efcae36a547e7f067ae77b8cf705bdae7ec3a` — admin UI тест ответов.
+- `f7f4473bfe54bbf15e7e25f79d46dd1c45f3f9e9` — совместимая проверка raw MIME в admin тесте.
