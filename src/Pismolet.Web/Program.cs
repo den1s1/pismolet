@@ -51,6 +51,7 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
 builder.Services.AddSingleton(ReadInboundReplySpoolOptions(builder.Configuration));
+builder.Services.AddSingleton<IInboundReplyMimeParser, PostfixRawMimeInboundReplyParser>();
 builder.Services.AddScoped<MailingPaymentService>();
 builder.Services.AddScoped<IMailingPaymentService, AdminWaivedMailingPaymentService>();
 if (!isRunningUnderTests && ShouldUseSmtpConfirmation(builder.Configuration))
