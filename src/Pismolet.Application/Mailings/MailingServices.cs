@@ -176,7 +176,8 @@ public sealed record SaveMailingMessageCommand(
     string Subject,
     string Body,
     MessageType MessageType,
-    RequestMetadata Request);
+    RequestMetadata Request,
+    IReadOnlyCollection<MailingAttachment>? Attachments = null);
 
 public sealed record MailingMessageResult(bool Ok, string Error, Mailing? Mailing)
 {
@@ -222,7 +223,8 @@ public sealed class MailingMessageService(
         MailingMessageDraft draft;
         try
         {
-            draft = MailingMessageDraft.Create(command.SenderName, command.Subject, command.Body, command.MessageType, DateTimeOffset.UtcNow);
+            var attachments = command.Attachments ?? mailing.MessageDraft?.Attachments ?? Array.Empty<MailingAttachment>();
+            draft = MailingMessageDraft.Create(command.SenderName, command.Subject, command.Body, command.MessageType, DateTimeOffset.UtcNow, attachments);
         }
         catch (ArgumentException ex)
         {
@@ -238,7 +240,7 @@ public sealed class MailingMessageService(
             "mailing_message_saved",
             command.Request.Ip,
             command.Request.UserAgent,
-            $"{{\"mailingId\":\"{mailing.Id}\",\"messageType\":\"{draft.MessageType}\"}}"));
+            $"{{\"mailingId\":\"{mailing.Id}\",\"messageType\":\"{draft.MessageType}\",\"attachments\":{draft.Attachments.Count}}}"));
 
         return MailingMessageResult.Success(updated);
     }
