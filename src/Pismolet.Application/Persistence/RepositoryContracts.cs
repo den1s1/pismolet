@@ -8,6 +8,8 @@ public interface IUserRepository
 {
     bool Exists(string email);
 
+    bool PhoneExists(string phone);
+
     bool TryAdd(UserAccount user);
 
     UserAccount? GetByEmail(string email);
@@ -17,6 +19,8 @@ public interface IUserRepository
     IReadOnlyCollection<UserAccount> ListAll();
 
     void Update(UserAccount user);
+
+    void Remove(string email);
 }
 
 public interface IMailingRepository
@@ -34,6 +38,8 @@ public interface IMailingRepository
     IReadOnlyDictionary<string, int> CountByOwners(IEnumerable<string> ownerEmails);
 
     void Update(Mailing mailing);
+
+    int RemoveForOwner(string ownerEmail);
 }
 
 public interface IGlobalSuppressionRepository
