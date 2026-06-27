@@ -7,6 +7,8 @@ namespace Pismolet.Web.Infrastructure.Mail;
 
 public sealed class PostfixRawMimeInboundReplyParser : IInboundReplyMimeParser
 {
+    private static readonly char At = Convert.ToChar(64);
+
     public Task<EmailProviderInboundParseResult> ParseAsync(InboundReplyRawMessage rawMessage, CancellationToken cancellationToken)
     {
         if (rawMessage.RawMime.Length == 0)
@@ -19,22 +21,22 @@ public sealed class PostfixRawMimeInboundReplyParser : IInboundReplyMimeParser
             cancellationToken.ThrowIfCancellationRequested();
             using var stream = new MemoryStream(rawMessage.RawMime);
             var mime = MimeMessage.Load(stream, cancellationToken);
+            var headers = mime.Headers
+                .GroupBy(x => x.Field, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => string.Join("\n", x.Select(y => y.Value)), StringComparer.OrdinalIgnoreCase);
             var from = mime.From.Mailboxes.FirstOrDefault()?.Address ?? string.Empty;
-            var to = rawMessage.EnvelopeRecipient ?? mime.To.Mailboxes.FirstOrDefault()?.Address ?? mime.Cc.Mailboxes.FirstOrDefault()?.Address ?? string.Empty;
+            var to = ResolveRecipientAddress(rawMessage.EnvelopeRecipient, mime, headers);
             if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
             {
                 return Task.FromResult(EmailProviderInboundParseResult.Failure("Не удалось определить отправителя или получателя входящего ответа."));
             }
 
-            var headers = mime.Headers
-                .GroupBy(x => x.Field, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(x => x.Key, x => string.Join("\n", x.Select(y => y.Value)), StringComparer.OrdinalIgnoreCase);
             var eventItem = new EmailProviderInboundEvent(
                 Provider: "PostfixSpool",
                 ProviderInboundEventId: BuildProviderInboundEventId(mime, rawMessage.SourceId, rawMessage.RawMime),
                 FromEmail: from.Trim().ToLowerInvariant(),
                 ToAddress: to.Trim().ToLowerInvariant(),
-                ReplyToken: null,
+                ReplyToken: ExtractReplyToken(to),
                 Subject: string.IsNullOrWhiteSpace(mime.Subject) ? "Ответ без темы" : mime.Subject.Trim(),
                 TextBody: string.IsNullOrWhiteSpace(mime.TextBody) ? null : mime.TextBody.Trim(),
                 HtmlBody: string.IsNullOrWhiteSpace(mime.HtmlBody) ? null : mime.HtmlBody.Trim(),
@@ -52,6 +54,70 @@ public sealed class PostfixRawMimeInboundReplyParser : IInboundReplyMimeParser
         {
             return Task.FromResult(EmailProviderInboundParseResult.Failure("Не удалось разобрать MIME входящего ответа."));
         }
+    }
+
+    private static string ResolveRecipientAddress(string? envelopeRecipient, MimeMessage message, IReadOnlyDictionary<string, string> headers)
+    {
+        var envelope = CleanAddress(envelopeRecipient);
+        if (!string.IsNullOrWhiteSpace(envelope))
+        {
+            return envelope;
+        }
+
+        var original = ReadHeaderAddress(headers, "X-Original-To");
+        if (!string.IsNullOrWhiteSpace(original))
+        {
+            return original;
+        }
+
+        var delivered = ReadHeaderAddress(headers, "Delivered-To");
+        if (!string.IsNullOrWhiteSpace(delivered))
+        {
+            return delivered;
+        }
+
+        return message.To.Mailboxes.FirstOrDefault()?.Address
+            ?? message.Cc.Mailboxes.FirstOrDefault()?.Address
+            ?? string.Empty;
+    }
+
+    private static string ReadHeaderAddress(IReadOnlyDictionary<string, string> headers, string headerName)
+    {
+        if (!headers.TryGetValue(headerName, out var value) || string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return MailboxAddress.TryParse(value, out var parsed) ? parsed.Address : CleanAddress(value);
+    }
+
+    private static string CleanAddress(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var clean = value.Trim().Trim('<', '>', ' ', '\t', '\r', '\n');
+        return clean.Contains(At, StringComparison.Ordinal) ? clean : string.Empty;
+    }
+
+    private static string? ExtractReplyToken(string address)
+    {
+        var clean = CleanAddress(address);
+        var at = clean.IndexOf(At);
+        if (at <= 0)
+        {
+            return null;
+        }
+
+        var localPart = clean[..at];
+        if (localPart.StartsWith("reply+", StringComparison.OrdinalIgnoreCase) && localPart.Length > "reply+".Length)
+        {
+            return localPart["reply+".Length..];
+        }
+
+        return localPart.Contains('+', StringComparison.Ordinal) ? null : localPart;
     }
 
     private static string BuildProviderInboundEventId(MimeMessage message, string sourceId, byte[] raw)
