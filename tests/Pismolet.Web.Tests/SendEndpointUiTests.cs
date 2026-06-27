@@ -61,6 +61,8 @@ public sealed class SendEndpointUiTests
         var html = await client.GetStringAsync($"/mailings/{mailingId}/send?recipientPage=2");
 
         Assert.Contains("<details class='detailed-report' open>", html);
+        Assert.Contains("<details id='recipient-list' open>", html);
+        Assert.Contains("recipientPage=1#recipient-list", html);
         Assert.Contains("Список получателей", html);
     }
 
@@ -158,12 +160,14 @@ public sealed class SendEndpointUiTests
         var mailing = repository.GetForOwner(result.Mailing.Id, OwnerEmail);
         Assert.NotNull(mailing);
 
-        var recipients = new[]
-        {
-            Recipient.Accepted("first@example.test", "first@example.test", rowNumber: 2),
-            Recipient.Accepted("second@example.test", "second@example.test", rowNumber: 3),
-            Recipient.Accepted("third@example.test", "third@example.test", rowNumber: 4)
-        };
+        var separator = Convert.ToChar(64);
+        var recipients = Enumerable.Range(1, 55)
+            .Select(index =>
+            {
+                var recipient = $"recipient{index:00}{separator}example.test";
+                return Recipient.Accepted(recipient, recipient, rowNumber: index + 1);
+            })
+            .ToArray();
         var declaration = new MailingDeclaration(
             mailing.Id,
             OwnerEmail,
@@ -181,7 +185,7 @@ public sealed class SendEndpointUiTests
             MessageType.Transactional,
             DateTimeOffset.UtcNow);
         var ready = mailing
-            .WithImportResult(new ImportStats(3, 3, 0, 0, 0), recipients)
+            .WithImportResult(new ImportStats(recipients.Length, recipients.Length, 0, 0, 0), recipients)
             .WithDeclaration(declaration)
             .WithMessageDraft(draft)
             .WithStatus(status);
