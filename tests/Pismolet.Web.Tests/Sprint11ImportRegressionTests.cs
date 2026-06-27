@@ -45,7 +45,7 @@ public sealed class Sprint11ImportRegressionTests
         Assert.NotNull(result.Mailing);
         Assert.Equal(0, result.Stats.Accepted);
         Assert.Equal(2, result.Stats.Invalid);
-        Assert.Empty(result.Mailing!.Recipients.Where(x => x.Status == RecipientStatus.Accepted));
+        Assert.DoesNotContain(result.Mailing!.Recipients, x => x.Status == RecipientStatus.Accepted);
         Assert.Equal(2, result.Mailing.Recipients.Count(x => x.Status == RecipientStatus.Invalid));
     }
 
@@ -64,7 +64,7 @@ public sealed class Sprint11ImportRegressionTests
         Assert.Equal(1, result.Stats.Accepted);
         Assert.Equal(1, result.Stats.GloballySuppressed);
         Assert.Equal(1, result.Stats.ClientSuppressed);
-        var accepted = Assert.Single(result.Mailing!.Recipients.Where(x => x.Status == RecipientStatus.Accepted));
+        var accepted = Assert.Single(result.Mailing!.Recipients, x => x.Status == RecipientStatus.Accepted);
         Assert.Equal("ok@example.test", accepted.Email);
         Assert.Contains(result.Mailing.Recipients, x => x.Email == "unsubscribed@example.test" && x.Status == RecipientStatus.GloballySuppressed);
         Assert.Contains(result.Mailing.Recipients, x => x.Email == "hard@example.test" && x.Status == RecipientStatus.ClientSuppressed);
