@@ -51,6 +51,20 @@ public sealed class SendEndpointUiTests
     }
 
     [Fact]
+    public async Task Send_page_keeps_detailed_report_open_when_recipient_page_changes()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedApprovedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+
+        var html = await client.GetStringAsync($"/mailings/{mailingId}/send?recipientPage=2");
+
+        Assert.Contains("<details class='detailed-report' open>", html);
+        Assert.Contains("Список получателей", html);
+    }
+
+    [Fact]
     public async Task Review_required_send_page_keeps_launch_button_disabled()
     {
         using var factory = CreateAuthorizedFactory();
