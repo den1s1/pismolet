@@ -61,8 +61,7 @@ public sealed class SendEndpointUiTests
         var html = await client.GetStringAsync($"/mailings/{mailingId}/send?recipientPage=2");
 
         Assert.Contains("<details class='detailed-report' open>", html);
-        Assert.Contains("<details id='recipient-list' open>", html);
-        Assert.Contains("Список получателей", html);
+        Assert.Contains("<section id='recipient-list'>", html);
     }
 
     [Fact]
