@@ -98,6 +98,7 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAdminMenuVisibility();
+app.UseAdminSettingsMenuLink();
 app.UseUnifiedAdminSidebar();
 app.UseDashboardHeroRemoval();
 app.UseRecipientManagementAjax();
