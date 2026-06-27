@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MailingSendService>();
         services.AddScoped<IMailingSendService, AdminGuardedMailingSendService>();
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
+        services.AddScoped<IAdminUserRemovalService, AdminUserRemovalService>();
         services.AddScoped<IAdminOperationService, AdminOperationService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
         services.AddScoped<IEmailWebhookProcessingService, EmailWebhookProcessingService>();
@@ -144,6 +145,7 @@ public static class ServiceCollectionExtensions
         db.Database.ExecuteSqlRaw("ALTER TABLE audit_records ADD COLUMN IF NOT EXISTS \"CreatedAt\" timestamp with time zone DEFAULT now();");
         db.Database.ExecuteSqlRaw("UPDATE audit_records SET \"CreatedAt\" = now() WHERE \"CreatedAt\" IS NULL;");
         db.Database.ExecuteSqlRaw("ALTER TABLE audit_records ALTER COLUMN \"CreatedAt\" SET DEFAULT now();");
+        db.Database.ExecuteSqlRaw("ALTER TABLE users ADD COLUMN IF NOT EXISTS \"Phone\" character varying(40) NOT NULL DEFAULT '';");
     }
 
     public static void SeedPismoletDevData(this IServiceProvider services)
