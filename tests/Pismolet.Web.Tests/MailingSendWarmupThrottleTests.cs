@@ -10,7 +10,7 @@ namespace Pismolet.Web.Tests;
 public sealed class MailingSendWarmupThrottleTests
 {
     [Fact]
-    public async Task Execute_batch_pauses_without_provider_send_when_warmup_blocks()
+    public async Task Execute_batch_delays_without_provider_send_when_warmup_blocks()
     {
         var mailingId = Guid.Parse("aaaaaaaa-1111-1111-1111-aaaaaaaaaaaa");
         var mailings = new InMemoryMailingRepository();
@@ -27,13 +27,13 @@ public sealed class MailingSendWarmupThrottleTests
         await service.ExecuteQueuedBatchAsync(mailingId, CancellationToken.None);
 
         Assert.Equal(0, provider.SendCalls);
-        Assert.Equal(0, queue.EnqueueCalls);
-        Assert.Equal(MailingStatus.Paused, mailings.Get(mailingId)!.Status);
+        Assert.Equal(1, queue.EnqueueCalls);
+        Assert.Equal(TimeSpan.FromSeconds(20), queue.LastDelay);
+        Assert.Equal(MailingStatus.Sending, mailings.Get(mailingId)!.Status);
         var events = sendEvents.ListByMailingId(mailingId).ToArray();
-        Assert.Contains(events, x => x.RecipientEmail == "first@example.test" && x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.WarmupLimit);
+        Assert.Contains(events, x => x.RecipientEmail == "first@example.test" && x.Status == SendEventStatus.Pending);
         Assert.Contains(events, x => x.RecipientEmail == "second@example.test" && x.Status == SendEventStatus.Pending);
-        Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_paused_by_warmup");
-        Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_paused_by_limit" && x.Context.Contains("source=warmup", StringComparison.Ordinal));
+        Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_delayed_by_warmup" && x.Context.Contains("reason=global_min_delay", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class MailingSendWarmupThrottleTests
     }
 
     [Fact]
-    public async Task Execute_batch_with_real_warmup_gate_pauses_second_recipient_after_first_acceptance()
+    public async Task Execute_batch_with_real_warmup_gate_delays_second_recipient_after_first_acceptance()
     {
         var mailingId = Guid.Parse("cccccccc-3333-3333-3333-cccccccccccc");
         var mailings = new InMemoryMailingRepository();
@@ -85,12 +85,13 @@ public sealed class MailingSendWarmupThrottleTests
         await service.ExecuteQueuedBatchAsync(mailingId, CancellationToken.None);
 
         Assert.Equal(1, provider.SendCalls);
-        Assert.Equal(0, queue.EnqueueCalls);
-        Assert.Equal(MailingStatus.Paused, mailings.Get(mailingId)!.Status);
+        Assert.Equal(1, queue.EnqueueCalls);
+        Assert.True(queue.LastDelay > TimeSpan.Zero);
+        Assert.Equal(MailingStatus.Sending, mailings.Get(mailingId)!.Status);
         var events = sendEvents.ListByMailingId(mailingId).ToArray();
         Assert.Contains(events, x => x.RecipientEmail == "first@example.test" && x.Status == SendEventStatus.Accepted && x.AcceptedAt is not null);
-        Assert.Contains(events, x => x.RecipientEmail == "second@example.test" && x.Status == SendEventStatus.Paused && x.Reason == SendSkipReason.WarmupLimit);
-        Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_paused_by_warmup" && x.Context.Contains("reason=global_minute_limit", StringComparison.Ordinal));
+        Assert.Contains(events, x => x.RecipientEmail == "second@example.test" && x.Status == SendEventStatus.Pending);
+        Assert.Contains(audit.GetRecords(), x => x.EventType == "mailing_send_delayed_by_warmup" && x.Context.Contains("reason=global_minute_limit", StringComparison.Ordinal));
     }
 
     private static MailingSendService CreateService(
@@ -133,7 +134,15 @@ public sealed class MailingSendWarmupThrottleTests
     {
         public int EnqueueCalls { get; private set; }
 
-        public void Enqueue(Guid mailingId) => EnqueueCalls++;
+        public TimeSpan LastDelay { get; private set; }
+
+        public void Enqueue(Guid mailingId) => Enqueue(mailingId, TimeSpan.Zero);
+
+        public void Enqueue(Guid mailingId, TimeSpan delay)
+        {
+            EnqueueCalls++;
+            LastDelay = delay;
+        }
     }
 
     private sealed class CountingEmailProviderAdapter : IEmailProviderAdapter
