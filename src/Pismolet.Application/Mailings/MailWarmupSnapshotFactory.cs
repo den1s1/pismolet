@@ -37,7 +37,11 @@ public static class MailWarmupSnapshotFactory
             DomainSentLastMinute: CountSince(domainEvents, nowUtc, TimeSpan.FromMinutes(1)),
             DomainSentLastHour: CountSince(domainEvents, nowUtc, TimeSpan.FromHours(1)),
             DomainSentToday: CountToday(domainEvents, nowUtc),
-            DomainLastSentAt: LastSentAt(domainEvents));
+            DomainLastSentAt: LastSentAt(domainEvents),
+            GlobalOldestSentLastMinuteAt: OldestSince(acceptedEvents, nowUtc, TimeSpan.FromMinutes(1)),
+            GlobalOldestSentLastHourAt: OldestSince(acceptedEvents, nowUtc, TimeSpan.FromHours(1)),
+            DomainOldestSentLastMinuteAt: OldestSince(domainEvents, nowUtc, TimeSpan.FromMinutes(1)),
+            DomainOldestSentLastHourAt: OldestSince(domainEvents, nowUtc, TimeSpan.FromHours(1)));
     }
 
     private static int CountSince(IReadOnlyCollection<MailWarmupAcceptedSend> sends, DateTimeOffset nowUtc, TimeSpan window)
@@ -56,6 +60,16 @@ public static class MailWarmupSnapshotFactory
         .OrderByDescending(x => x.SentAt)
         .Select(x => (DateTimeOffset?)x.SentAt)
         .FirstOrDefault();
+
+    private static DateTimeOffset? OldestSince(IReadOnlyCollection<MailWarmupAcceptedSend> sends, DateTimeOffset nowUtc, TimeSpan window)
+    {
+        var from = nowUtc - window;
+        return sends
+            .Where(x => x.SentAt > from && x.SentAt <= nowUtc)
+            .OrderBy(x => x.SentAt)
+            .Select(x => (DateTimeOffset?)x.SentAt)
+            .FirstOrDefault();
+    }
 
     private static string? GetEmailDomain(string? email)
     {
