@@ -107,10 +107,16 @@ public sealed class AdminUsersManagementTests
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var pass = string.Concat("Pass", "For", "Tests", "2026", "!");
-        var result = accounts.Register(new RegisterUserCommand(email, pass, displayName, "+79990000000"), Request());
+        var result = accounts.Register(new RegisterUserCommand(email, "PassForTests2026!", displayName, TestPhone(email)), Request());
         Assert.True(result.Ok, result.Error);
     }
+
+    private static string TestPhone(string email) => email.Trim().ToLowerInvariant() switch
+    {
+        RootAdminEmail => "+79990000100",
+        PromotedEmail => "+79990000101",
+        _ => "+79990000102"
+    };
 
     private static RequestMetadata Request() => new("127.0.0.1", "admin-users-management-tests");
 
