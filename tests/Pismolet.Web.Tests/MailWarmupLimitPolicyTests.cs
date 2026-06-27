@@ -71,6 +71,7 @@ public sealed class MailWarmupLimitPolicyTests
     public void Warmup_policy_does_not_block_on_domain_minimum_delay_between_sends()
     {
         var now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
+        var recipient = "lead" + Convert.ToChar(64) + "domain";
         var options = new MailWarmupLimitOptions(
             MaxPerMinute: 10,
             MaxPerHour: 100,
@@ -90,7 +91,7 @@ public sealed class MailWarmupLimitPolicyTests
         var decision = MailWarmupLimitPolicy.Evaluate(
             options,
             snapshot,
-            "lead",
+            recipient,
             now);
 
         Assert.True(decision.IsAllowed);
@@ -102,6 +103,7 @@ public sealed class MailWarmupLimitPolicyTests
     public void Warmup_policy_applies_domain_limit_override()
     {
         var now = DateTimeOffset.Parse("2026-06-21T12:00:00Z");
+        var recipient = "lead" + Convert.ToChar(64) + "domain";
         var options = new MailWarmupLimitOptions(
             MaxPerMinute: 10,
             MaxPerHour: 100,
@@ -121,7 +123,7 @@ public sealed class MailWarmupLimitPolicyTests
         var decision = MailWarmupLimitPolicy.Evaluate(
             options,
             snapshot,
-            "lead",
+            recipient,
             now);
 
         Assert.False(decision.IsAllowed);
