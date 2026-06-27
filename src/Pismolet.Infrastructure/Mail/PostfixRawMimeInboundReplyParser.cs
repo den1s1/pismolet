@@ -99,7 +99,7 @@ public sealed class PostfixRawMimeInboundReplyParser : IInboundReplyMimeParser
         }
 
         var clean = value.Trim().Trim('<', '>', ' ', '\t', '\r', '\n');
-        return clean.Contains(At, StringComparison.Ordinal) ? clean : string.Empty;
+        return clean.IndexOf(At) >= 0 ? clean : string.Empty;
     }
 
     private static string? ExtractReplyToken(string address)
@@ -117,7 +117,7 @@ public sealed class PostfixRawMimeInboundReplyParser : IInboundReplyMimeParser
             return localPart["reply+".Length..];
         }
 
-        return localPart.Contains('+', StringComparison.Ordinal) ? null : localPart;
+        return localPart.IndexOf('+') >= 0 ? null : localPart;
     }
 
     private static string BuildProviderInboundEventId(MimeMessage message, string sourceId, byte[] raw)
