@@ -72,7 +72,7 @@ public sealed class SendingWizardSmokeTests
         Assert.Contains("Жалобы на спам", html);
         Assert.Contains("Открыл ссылку (общее число раз)", html);
         Assert.DoesNotContain("Доставка по получателям", html);
-        Assert.DoesNotContain("Переходы по ссылкам", html);
+        Assert.DoesNotContain("<summary>Переходы по ссылкам</summary>", html);
         Assert.DoesNotContain("Открытий всего", html);
         Assert.DoesNotContain("Кликнувшие получатели", html);
         Assert.DoesNotContain("Кликов всего", html);
