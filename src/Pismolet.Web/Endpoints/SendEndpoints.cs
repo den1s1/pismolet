@@ -118,6 +118,9 @@ public static class SendEndpoints
             MailingStatus.Failed => "Есть ошибки отправки",
             _ => "Отправка рассылки"
         };
+        var statusBadge = mailing.Status == MailingStatus.Sent
+            ? "<span class='badge ok'>Отправка завершена</span>"
+            : $"<span class='badge warn'>{H(mailing.StatusRu)}</span>";
         var alert = string.IsNullOrWhiteSpace(message)
             ? string.Empty
             : result.Ok
@@ -133,7 +136,7 @@ public static class SendEndpoints
             MailingStatus.Rejected => "<div class='launch-action-row'><button class='button' disabled>Запустить отправку</button><span class='badge danger'>Рассылка отклонена</span></div>",
             MailingStatus.Paused => $"<form method='post' action='/mailings/{mailing.Id}/send/resume'><button class='button'>Продолжить отправку</button></form>{pausedNote}",
             MailingStatus.Sending => $"<p><span class='badge warn'>Отправка выполняется</span></p><p><a class='button' href='/mailings/{mailing.Id}/send'>Обновить статус</a></p>",
-            MailingStatus.Sent => "<p><span class='badge ok'>Отправка завершена</span></p>",
+            MailingStatus.Sent => string.Empty,
             MailingStatus.Failed => "<p><span class='badge danger'>Есть ошибки отправки</span></p><p class='muted'>Подробности ошибок доступны в подробном отчёте.</p>",
             _ => "<p class='muted'>Отправка будет доступна после оплаты и одобрения рассылки.</p>"
         };
@@ -144,9 +147,7 @@ public static class SendEndpoints
         var openNote = openedRecipients == 0
             ? "<p class='muted'>Открытия появятся после загрузки картинок в письме. Метрика показывает открытие HTML-письма, а не гарантированное прочтение.</p>"
             : string.Empty;
-        var clickNote = clickedRecipients == 0
-            ? "<p class='muted'>Переходы по ссылкам появятся после клика по отслеживаемой http/https ссылке в HTML-письме.</p>"
-            : string.Empty;
+        var clickNote = string.Empty;
         var replyStatus = replySummary.TotalReplies == 0
             ? "Ответов пока нет."
             : $"Получено ответов: {replySummary.TotalReplies}. Последний: {replySummary.LastReplyAt:yyyy-MM-dd HH:mm} UTC, статус: {H(replySummary.LastStatus?.ToRu() ?? "неизвестно")}";
@@ -158,17 +159,13 @@ public static class SendEndpoints
         var recipientRows = BuildRecipientRows(state, trackedLinks, suppressionPreview);
         var recipientPageCount = Math.Max(1, (int)Math.Ceiling(recipientRows.Count / (double)RecipientPageSize));
         var safeRecipientPage = Math.Clamp(recipientPage, 1, recipientPageCount);
-        var firstRecipientNumber = recipientRows.Count == 0 ? 0 : (safeRecipientPage - 1) * RecipientPageSize + 1;
-        var lastRecipientNumber = Math.Min(safeRecipientPage * RecipientPageSize, recipientRows.Count);
         var recipientRowsHtml = recipientRows.Count == 0
             ? "<tr><td colspan='4'>Получателей пока нет.</td></tr>"
             : string.Join(string.Empty, recipientRows
                 .Skip((safeRecipientPage - 1) * RecipientPageSize)
                 .Take(RecipientPageSize)
                 .Select(x => $"<tr><td>{H(x.Email)}</td><td>{H(x.Status)}</td><td>{x.ClickCount}</td><td>{H(x.SpamComplaint)}</td></tr>"));
-        var recipientListNote = recipientRows.Count == 0
-            ? "<p class='muted'>Список получателей пока пуст.</p>"
-            : $"<p class='muted'>Показаны {firstRecipientNumber}-{lastRecipientNumber} из {recipientRows.Count}. Статус «Отписался» относится к текущей рассылке.</p>";
+        var recipientListNote = string.Empty;
         var recipientPager = RecipientPager(mailing.Id, safeRecipientPage, recipientPageCount);
 
         var devRows = state.Events.Count == 0
@@ -192,11 +189,10 @@ public static class SendEndpoints
               <section class='panel'>
                 <div class='topline'>
                   <div>
-                    <p class='eyebrow'>Финальный запуск</p>
                     <h1>{H(title)}</h1>
                     <p class='muted'>{H(mailing.Subject)}</p>
                   </div>
-                  <span class='badge warn'>{H(mailing.StatusRu)}</span>
+                  {statusBadge}
                 </div>
                 {alert}
                 <div class='notice warn'>Отправка идёт постепенно. Письмолёт ставит письма в очередь, соблюдает дневные лимиты и исключает отписавшихся получателей перед отправкой. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</div>
@@ -223,10 +219,10 @@ public static class SendEndpoints
                       <table><thead><tr><th>Показатель</th><th>Значение</th></tr></thead><tbody><tr><td>Всего получателей</td><td>{summary.TotalAcceptedRecipients}</td></tr><tr><td>Отправлено</td><td>{summary.Sent}</td></tr><tr><td>Ошибки отправки</td><td>{sendErrors}</td></tr><tr><td>Отписались</td><td>{summary.Suppressed}</td></tr><tr><td>Доставлено</td><td>{deliveredRecipients}</td></tr><tr><td>Открыто</td><td>{openedRecipients}</td></tr><tr><td>Открыли ссылку</td><td>{clickedRecipients}</td></tr><tr><td>Жалобы на спам</td><td>{summary.Complaints}</td></tr></tbody></table>
                       <h3>Ответы получателей</h3>
                       <p>{replyStatus}</p>
-                      <p class='muted'>Ответы пересылаются клиенту на email отправителя. Личный кабинет показывает только счётчик и статус пересылки, без inbox и без raw provider payload. <a href='{replyRetentionHref}'>Правила хранения и удаления ответов</a>.</p>
+                      <p class='muted'>Ответы пересылаются на ваш email. Тут показаны только счётчик и статус пересылки. <a href='{replyRetentionHref}'>Правила хранения и удаления ответов</a>.</p>
                     </section>
                   </div>
-                  <details id='recipient-list' open><summary>Список получателей</summary>{recipientListNote}<div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th><th>Открыл ссылку (общее число раз)</th><th>Жалоба на спам</th></tr></thead><tbody>{recipientRowsHtml}</tbody></table></div>{recipientPager}</details>
+                  <section id='recipient-list'>{recipientListNote}<div class='table-wrap'><table><thead><tr><th>Email</th><th>Статус</th><th>Переход по ссылкам</th><th>Жалоба на спам</th></tr></thead><tbody>{recipientRowsHtml}</tbody></table></div>{recipientPager}</section>
                   {devReport}
                 </details>
                 <div class='actions'><a class='btn secondary' href='/dashboard'>Вернуться в историю</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Открыть карточку рассылки</a><a class='btn ghost' href='/mailings/{mailing.Id}/send/export.xlsx'>Скачать Excel-отчёт</a></div>
