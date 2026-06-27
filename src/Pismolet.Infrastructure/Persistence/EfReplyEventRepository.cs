@@ -161,15 +161,15 @@ public sealed class EfReplyEventRepository(PismoletDbContext db) : IReplyEventRe
 
     private static void UpdateEntity(ReplyEventEntity entity, ReplyEvent item)
     {
-        entity.Provider = item.Provider;
-        entity.ProviderInboundEventId = item.ProviderInboundEventId;
+        entity.Provider = item.Provider ?? string.Empty;
+        entity.ProviderInboundEventId = item.ProviderInboundEventId ?? string.Empty;
         entity.MailingId = item.MailingId;
         entity.ClientId = item.ClientId;
-        entity.RecipientEmailNormalized = item.RecipientEmailNormalized;
-        entity.FromEmailNormalized = item.FromEmailNormalized;
-        entity.ToAddress = item.ToAddress;
+        entity.RecipientEmailNormalized = item.RecipientEmailNormalized ?? string.Empty;
+        entity.FromEmailNormalized = item.FromEmailNormalized ?? string.Empty;
+        entity.ToAddress = item.ToAddress ?? string.Empty;
         entity.ReplyTokenHash = item.ReplyTokenHash;
-        entity.SubjectPreview = item.SubjectPreview;
+        entity.SubjectPreview = item.SubjectPreview ?? string.Empty;
         entity.ReceivedAt = item.ReceivedAt.ToUniversalTime();
         entity.ProcessedAt = item.ProcessedAt?.ToUniversalTime();
         entity.ForwardQueuedAt = item.ForwardQueuedAt?.ToUniversalTime();
@@ -180,7 +180,7 @@ public sealed class EfReplyEventRepository(PismoletDbContext db) : IReplyEventRe
         entity.BodyStorageStatus = item.BodyStorageStatus.ToString();
         entity.BodyExpiresAt = item.BodyExpiresAt?.ToUniversalTime();
         entity.BodyTextStored = item.BodyTextStored;
-        entity.RawPayloadHash = item.RawPayloadHash;
+        entity.RawPayloadHash = item.RawPayloadHash ?? string.Empty;
         entity.ErrorCode = item.ErrorCode;
         entity.ErrorMessage = item.ErrorMessage;
     }
