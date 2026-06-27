@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using Pismolet.Web.Application.Admin;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
@@ -29,6 +30,10 @@ public static class AdminUsersPageEndpoints
             .RequireAuthorization(AdminEndpoints.AdminPolicyName)
             .WithOrder(-100);
 
+        app.MapPost("/admin/users/{email}/remove", RemoveUser)
+            .RequireAuthorization(AdminEndpoints.AdminPolicyName)
+            .WithOrder(-100);
+
         app.MapGet("/admin/clients", () => Results.Redirect("/admin/users"))
             .RequireAuthorization(AdminEndpoints.AdminPolicyName)
             .WithOrder(-100);
@@ -41,6 +46,11 @@ public static class AdminUsersPageEndpoints
         var adminEmail = CurrentEmail(http) ?? "admin@example.test";
         var search = http.Request.Query["q"].ToString().Trim();
         var status = http.Request.Query["status"].ToString().Trim();
+        var action = http.Request.Query["action"].ToString().Trim();
+        var removed = http.Request.Query["removed"].ToString().Trim();
+        var alertHtml = action == "removed"
+            ? $"<p class='admin-alert'>Пользователь {H(removed)} и его рассылки удалены.</p>"
+            : string.Empty;
         var userList = users.ListAll()
             .OrderBy(user => user.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(user => user.Email, StringComparer.OrdinalIgnoreCase)
@@ -80,6 +90,7 @@ public static class AdminUsersPageEndpoints
                     </div>
                     <a class='admin-export compact-action' href='/admin/users?export=csv'>Экспорт CSV - скоро</a>
                 </div>
+                {alertHtml}
                 <form class='admin-filters compact-filters' method='get' action='/admin/users'>
                     <label>Поиск<input name='q' value='{H(search)}' placeholder='ФИО, email или телефон'></label>
                     <label>Статус
@@ -150,6 +161,40 @@ public static class AdminUsersPageEndpoints
         return Results.Redirect($"/admin/users/{Uri.EscapeDataString(user.Email)}");
     }
 
+    private static IResult RemoveUser(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins, IAdminUserRemovalService remover)
+    {
+        var adminEmail = CurrentEmail(http) ?? string.Empty;
+        var user = users.GetByEmail(Uri.UnescapeDataString(email));
+        if (user is null)
+        {
+            return AdminHtml("Админка - пользователь", adminEmail, HtmlRenderer.Error("Пользователь не найден."));
+        }
+
+        var userMailings = ListUserMailings(mailings, user.Email);
+        if (SameEmail(user.Email, adminEmail))
+        {
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, "Нельзя удалить собственный аккаунт администратора."));
+        }
+
+        if (admins.IsConfigAdminEmail(user.Email))
+        {
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, "Нельзя удалить администратора, заданного в конфигурации сервера."));
+        }
+
+        if (admins.IsManagedAdminEmail(user.Email))
+        {
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, "Сначала снимите админские права, затем удалите пользователя."));
+        }
+
+        var result = remover.RemoveUser(user.Email, adminEmail, ToRequestMetadata(http));
+        if (!result.Ok)
+        {
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, result.Error));
+        }
+
+        return Results.Redirect($"/admin/users?action=removed&removed={Uri.EscapeDataString(user.Email)}");
+    }
+
     private static string UserProfilePage(UserAccount user, IReadOnlyCollection<Mailing> userMailings, string currentAdminEmail, IAdminAccessService admins, string? error)
     {
         var displayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName;
@@ -160,6 +205,7 @@ public static class AdminUsersPageEndpoints
         var isAdmin = isConfigAdmin || isManagedAdmin;
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         var adminAction = AdminActionBlock(user.Email, isSelf, isConfigAdmin, isManagedAdmin, isAdmin);
+        var removeAction = RemoveUserBlock(user.Email, isSelf, isConfigAdmin, isManagedAdmin);
         var mailingRows = userMailings.Count == 0
             ? "<tr><td colspan='4'>Рассылок пока нет.</td></tr>"
             : string.Join(string.Empty, userMailings.Select(MailingRow));
@@ -204,6 +250,11 @@ public static class AdminUsersPageEndpoints
                         </table>
                     </div>
                 </section>
+                <section class='box'>
+                    <h2>Опасная зона</h2>
+                    <p class='notice warn'>Удаление уберёт аккаунт пользователя и его рассылки. Действие необратимо.</p>
+                    {removeAction}
+                </section>
             </section>
             """;
     }
@@ -235,6 +286,27 @@ public static class AdminUsersPageEndpoints
         }
 
         return $"<form method='post' action='/admin/users/{encoded}/admin/grant'><button class='admin-button' type='submit'>Сделать администратором</button></form>";
+    }
+
+    private static string RemoveUserBlock(string email, bool isSelf, bool isConfigAdmin, bool isManagedAdmin)
+    {
+        var encoded = Uri.EscapeDataString(email);
+        if (isSelf)
+        {
+            return "<p class='notice warn'>Собственный аккаунт удалить нельзя.</p>";
+        }
+
+        if (isConfigAdmin)
+        {
+            return "<p class='notice warn'>Пользователь задан администратором в конфигурации сервера. Удаление заблокировано.</p>";
+        }
+
+        if (isManagedAdmin)
+        {
+            return "<p class='notice warn'>Перед удалением снимите админские права.</p>";
+        }
+
+        return $"<form method='post' action='/admin/users/{encoded}/remove' onsubmit=\"return confirm('Удалить пользователя и его данные? Это действие необратимо.');\"><button class='admin-button danger' type='submit'>Удалить пользователя и данные</button></form>";
     }
 
     private static string AdminSourceNote(bool isConfigAdmin, bool isManagedAdmin)
@@ -302,6 +374,13 @@ public static class AdminUsersPageEndpoints
 
     private static string Option(string value, string text, string selected) =>
         $"<option value='{H(value)}'{(value == selected ? " selected" : string.Empty)}>{H(text)}</option>";
+
+    private static RequestMetadata ToRequestMetadata(HttpContext http)
+    {
+        var ip = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var userAgent = http.Request.Headers.UserAgent.ToString();
+        return new RequestMetadata(ip, string.IsNullOrWhiteSpace(userAgent) ? "unknown" : userAgent);
+    }
 
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
 
