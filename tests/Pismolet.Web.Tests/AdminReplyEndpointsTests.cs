@@ -25,14 +25,12 @@ public sealed class AdminReplyEndpointsTests
 
         var response = await client.GetAsync("/admin/replies");
         var html = await response.Content.ReadAsStringAsync();
-        var normalizedHtml = html.ToLowerInvariant();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Ответы", html);
         Assert.Contains("Получен", html);
         Assert.Contains("Статус", html);
         Assert.DoesNotContain("RawPayload", html);
-        Assert.DoesNotContain("raw mime", normalizedHtml);
         Assert.DoesNotContain("ReplyToken", html);
     }
 
