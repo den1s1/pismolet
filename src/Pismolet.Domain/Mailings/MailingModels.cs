@@ -155,21 +155,80 @@ public static class MessageTypeLabels
     public static string ToRu(this MessageType type) => type == MessageType.Advertising ? "Рекламное" : "Информационное";
 }
 
-public sealed record MailingMessageDraft(
-    string SenderName,
-    string Subject,
-    string Body,
-    MessageType MessageType,
-    DateTimeOffset UpdatedAt)
+public sealed record MailingAttachment(string FileName, string ContentType, byte[] Content, long Size)
+{
+    public static MailingAttachment Create(string fileName, string? contentType, byte[] content)
+    {
+        var safeFileName = Path.GetFileName(fileName ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(safeFileName))
+        {
+            throw new ArgumentException("Укажите имя файла.", nameof(fileName));
+        }
+
+        if (safeFileName.Length > 180)
+        {
+            throw new ArgumentException("Имя файла должно быть не длиннее 180 символов.", nameof(fileName));
+        }
+
+        if (content.Length == 0)
+        {
+            throw new ArgumentException("Пустые вложения не поддерживаются.", nameof(content));
+        }
+
+        var safeContentType = string.IsNullOrWhiteSpace(contentType)
+            ? "application/octet-stream"
+            : contentType.Trim();
+
+        return new MailingAttachment(safeFileName, safeContentType, content, content.LongLength);
+    }
+}
+
+public sealed record MailingMessageDraft
 {
     public const int MaxSenderNameLength = 80;
     public const int MaxSubjectLength = 160;
+    public const long MaxAttachmentsTotalBytes = 10 * 1024 * 1024;
 
-    public static MailingMessageDraft Create(string senderName, string subject, string body, MessageType messageType, DateTimeOffset updatedAt)
+    private MailingMessageDraft(
+        string senderName,
+        string subject,
+        string body,
+        MessageType messageType,
+        DateTimeOffset updatedAt,
+        IReadOnlyCollection<MailingAttachment> attachments)
+    {
+        SenderName = senderName;
+        Subject = subject;
+        Body = body;
+        MessageType = messageType;
+        UpdatedAt = updatedAt;
+        Attachments = attachments;
+    }
+
+    public string SenderName { get; init; }
+
+    public string Subject { get; init; }
+
+    public string Body { get; init; }
+
+    public MessageType MessageType { get; init; }
+
+    public DateTimeOffset UpdatedAt { get; init; }
+
+    public IReadOnlyCollection<MailingAttachment> Attachments { get; init; }
+
+    public static MailingMessageDraft Create(
+        string senderName,
+        string subject,
+        string body,
+        MessageType messageType,
+        DateTimeOffset updatedAt,
+        IReadOnlyCollection<MailingAttachment>? attachments = null)
     {
         senderName = senderName.Trim();
         subject = subject.Trim();
         body = body.Trim();
+        var normalizedAttachments = attachments?.ToArray() ?? Array.Empty<MailingAttachment>();
 
         if (string.IsNullOrWhiteSpace(senderName))
         {
@@ -196,7 +255,13 @@ public sealed record MailingMessageDraft(
             throw new ArgumentException("Напишите текст письма.", nameof(body));
         }
 
-        return new MailingMessageDraft(senderName, subject, body, messageType, updatedAt);
+        var totalAttachmentBytes = normalizedAttachments.Sum(x => x.Size);
+        if (totalAttachmentBytes > MaxAttachmentsTotalBytes)
+        {
+            throw new ArgumentException("Общий размер вложений не должен превышать 10 МБ.", nameof(attachments));
+        }
+
+        return new MailingMessageDraft(senderName, subject, body, messageType, updatedAt, normalizedAttachments);
     }
 }
 
