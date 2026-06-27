@@ -261,6 +261,27 @@ public sealed class InMemoryReplyEventRepository : IReplyEventRepository
         _byProviderEvent[Key(replyEvent.Provider, replyEvent.ProviderInboundEventId)] = replyEvent;
     }
 
+    public ReplyEvent? TryClaimForward(Guid replyEventId)
+    {
+        while (_byId.TryGetValue(replyEventId, out var current))
+        {
+            if (current.ProcessingStatus != ReplyProcessingStatus.QueuedForForward &&
+                (current.ProcessingStatus != ReplyProcessingStatus.Failed || current.ForwardRetryCount >= 3))
+            {
+                return null;
+            }
+
+            var claimed = current.MarkForwarding();
+            if (_byId.TryUpdate(replyEventId, claimed, current))
+            {
+                _byProviderEvent[Key(claimed.Provider, claimed.ProviderInboundEventId)] = claimed;
+                return claimed;
+            }
+        }
+
+        return null;
+    }
+
     public void MarkForwardQueued(Guid replyEventId)
     {
         if (Get(replyEventId) is { } item) Save(item.MarkQueuedForForward());

@@ -5,6 +5,7 @@ public enum ReplyProcessingStatus
     Received,
     Matched,
     QueuedForForward,
+    Forwarding,
     Forwarded,
     Unmatched,
     IgnoredAutoReply,
@@ -27,6 +28,7 @@ public static class ReplyProcessingStatusLabels
         ReplyProcessingStatus.Received => "Получен",
         ReplyProcessingStatus.Matched => "Сопоставлен",
         ReplyProcessingStatus.QueuedForForward => "Ожидает пересылки клиенту",
+        ReplyProcessingStatus.Forwarding => "Пересылается клиенту",
         ReplyProcessingStatus.Forwarded => "Переслан клиенту",
         ReplyProcessingStatus.Unmatched => "Не сопоставлен",
         ReplyProcessingStatus.IgnoredAutoReply => "Автоответ не пересылался",
@@ -114,6 +116,26 @@ public sealed record ReplyEvent(
         ForwardQueuedAt = ForwardQueuedAt ?? DateTimeOffset.UtcNow,
         ProcessedAt = ProcessedAt ?? DateTimeOffset.UtcNow
     };
+
+    public ReplyEvent MarkForwarding() => ProcessingStatus is ReplyProcessingStatus.QueuedForForward or ReplyProcessingStatus.Failed && ForwardRetryCount < 3
+        ? this with
+        {
+            ProcessingStatus = ReplyProcessingStatus.Forwarding,
+            ForwardQueuedAt = ForwardQueuedAt ?? DateTimeOffset.UtcNow,
+            ProcessedAt = ProcessedAt ?? DateTimeOffset.UtcNow,
+            ErrorCode = null,
+            ErrorMessage = null
+        }
+        : this;
+
+    public ReplyEvent ReleaseForwardingClaim() => ProcessingStatus == ReplyProcessingStatus.Forwarding
+        ? this with
+        {
+            ProcessingStatus = ReplyProcessingStatus.QueuedForForward,
+            ForwardQueuedAt = ForwardQueuedAt ?? DateTimeOffset.UtcNow,
+            ProcessedAt = ProcessedAt ?? DateTimeOffset.UtcNow
+        }
+        : this;
 
     public ReplyEvent MarkUnmatched(string errorCode, string errorMessage) => this with
     {

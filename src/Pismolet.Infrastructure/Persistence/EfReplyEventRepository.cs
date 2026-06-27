@@ -106,6 +106,24 @@ public sealed class EfReplyEventRepository(PismoletDbContext db) : IReplyEventRe
         db.SaveChanges();
     }
 
+    public ReplyEvent? TryClaimForward(Guid replyEventId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var updated = db.ReplyEvents
+            .Where(x =>
+                x.Id == replyEventId &&
+                (x.ProcessingStatus == ReplyProcessingStatus.QueuedForForward.ToString() ||
+                 (x.ProcessingStatus == ReplyProcessingStatus.Failed.ToString() && x.ForwardRetryCount < 3)))
+            .ExecuteUpdate(setters => setters
+                .SetProperty(x => x.ProcessingStatus, ReplyProcessingStatus.Forwarding.ToString())
+                .SetProperty(x => x.ForwardQueuedAt, x => x.ForwardQueuedAt ?? now)
+                .SetProperty(x => x.ProcessedAt, x => x.ProcessedAt ?? now)
+                .SetProperty(x => x.ErrorCode, (string?)null)
+                .SetProperty(x => x.ErrorMessage, (string?)null));
+
+        return updated == 0 ? null : Get(replyEventId);
+    }
+
     public void MarkForwardQueued(Guid replyEventId)
     {
         if (db.ReplyEvents.FirstOrDefault(x => x.Id == replyEventId) is { } entity)

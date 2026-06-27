@@ -1,6 +1,6 @@
 # Статусы спринтов этапа 3: пересылка ответов получателей
 
-Дата обновления: 2026-06-27
+Дата обновления: 2026-06-28
 
 Источник плана: `docs/production_readiness_plan.md`, раздел `3.14. Спринты и подэтапы реализации`.
 
@@ -12,7 +12,7 @@
 | 3.1. Конфигурация inbound reply и безопасный skeleton | Завершён | Добавлены `InboundReplySpoolOptions`, выключенный по умолчанию hosted service skeleton и регистрация вне Testing. |
 | 3.2. MIME parser и token extraction | Завершён для MVP | Parser извлекает token из envelope, X-Original-To, Delivered-To, To и Cc fallback; добавлены unit-тесты parser. |
 | 3.3. Auto-reply, bounce и дедупликация | Завершён для MVP | Подключён `InboundReplyAutoReplyDetector`; добавлены unit-тесты detector-а; дедупликация по provider event уже есть в processing service. |
-| 3.4. Подключение processing service и очереди пересылки | Завершён для MVP | Existing `InboundReplyProcessingService` связывает inbound event с matching/queue/forward; добавлен integration-тест processing path до `ReplyEvent`. |
+| 3.4. Подключение processing service и очереди пересылки | Завершён | `InboundReplyProcessingService` связывает inbound event с matching/queue/forward; добавлены тесты matched queue/forward, auto-reply без queue, retry failed-forward и защита от дублей через `Forwarding` claim. |
 | 3.5. Spool reader и файловая обработка | Завершён для MVP-каркаса | Reader обрабатывает eml из incoming, двигает файлы в processing, вызывает parser/processor, переносит в processed или failed, пишет error-файл, чистит retention. |
 | 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Используется существующий `/admin/replies`; страница улучшена: маскирует email, показывает статус, рассылку, тему, body status и ошибку без body/raw/token. |
 | 3.7. Инфраструктурный runbook и server dry-run | Завершён для документации | Созданы `docs/inbound_reply_runbook.md` и `docs/inbound_reply_server_dry_run.md`; server dry-run выполнять после deploy. |
@@ -24,6 +24,7 @@
 1. Передать фактический envelope recipient в `InboundReplyRawMessage`, когда будет выбран Postfix pipe/sidecar-контракт.
 2. Выполнить server dry-run по `docs/inbound_reply_server_dry_run.md`.
 3. После dry-run обновить фактический статус спринта 3.8.
+4. Проверить фактическую доставку forward-письма на доменной почте после deploy; MIME smoke покрыт unit-тестом, но real SMTP path всё ещё требует server dry-run.
 
 ## Последние commit SHA по этапу
 

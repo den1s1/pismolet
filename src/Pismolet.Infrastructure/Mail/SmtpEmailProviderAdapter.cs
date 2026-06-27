@@ -112,21 +112,7 @@ public sealed class SmtpEmailProviderAdapter(
 
         try
         {
-            var mime = new MimeMessage();
-            mime.From.Add(new MailboxAddress(options.FromName, options.FromEmail));
-            mime.To.Add(MailboxAddress.Parse(replyEvent.ForwardToEmailNormalized));
-            mime.Subject = $"Ответ на рассылку: {replyEvent.SubjectPreview}";
-            mime.MessageId = MimeUtils.GenerateMessageId(GetMessageIdDomain());
-            mime.Body = new TextPart("plain")
-            {
-                Text = string.Join("\n\n",
-                    "Это пересланный ответ получателя через сервис Письмолёт.",
-                    $"От: {replyEvent.FromEmailNormalized}",
-                    $"Получен: {replyEvent.ReceivedAt:yyyy-MM-dd HH:mm} UTC",
-                    "Текст ответа:",
-                    string.IsNullOrWhiteSpace(replyEvent.BodyTextStored) ? "[Тело ответа уже удалено или не сохранялось]" : replyEvent.BodyTextStored)
-            };
-
+            var mime = BuildForwardReplyMimeMessage(replyEvent);
             var smtpResponse = await SendMimeMessageAsync(mime, cancellationToken);
             var providerMessageId = PostfixQueueIdExtractor.TryExtract(smtpResponse) ?? mime.MessageId ?? $"smtp-forward-{replyEvent.Id:N}";
 
@@ -157,6 +143,30 @@ public sealed class SmtpEmailProviderAdapter(
             return EmailProviderSendResult.Failure(EnvelopeProviderPayload("smtp_forward_failed"), ex.Message);
         }
     }
+
+    private MimeMessage BuildForwardReplyMimeMessage(ReplyEvent replyEvent)
+    {
+        var forwardTo = string.IsNullOrWhiteSpace(replyEvent.ForwardToEmailNormalized)
+            ? throw new InvalidOperationException("Forward recipient is required.")
+            : replyEvent.ForwardToEmailNormalized;
+        var mime = new MimeMessage();
+        mime.From.Add(new MailboxAddress(options.FromName, options.FromEmail));
+        mime.To.Add(MailboxAddress.Parse(forwardTo));
+        mime.Subject = $"Ответ на рассылку: {replyEvent.SubjectPreview}";
+        mime.MessageId = MimeUtils.GenerateMessageId(GetMessageIdDomain());
+        mime.Body = new TextPart("plain")
+        {
+            Text = BuildForwardReplyBody(replyEvent)
+        };
+        return mime;
+    }
+
+    private static string BuildForwardReplyBody(ReplyEvent replyEvent) => string.Join("\n\n",
+        "Это пересланный ответ получателя через сервис Письмолёт.",
+        $"От: {replyEvent.FromEmailNormalized}",
+        $"Получен: {replyEvent.ReceivedAt:yyyy-MM-dd HH:mm} UTC",
+        "Текст ответа:",
+        string.IsNullOrWhiteSpace(replyEvent.BodyTextStored) ? "[Тело ответа уже удалено или не сохранялось]" : replyEvent.BodyTextStored);
 
     private EmailMessage NormalizeMessage(EmailMessage message)
     {

@@ -139,6 +139,37 @@ public sealed class SmtpTransportLoggingTests
         Assert.Contains("<h1>Hello</h1>", html.Text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Smtp_forward_reply_mime_contains_client_address_sender_subject_and_body()
+    {
+        var adapter = CreateAdapter("127.0.0.1");
+        var reply = ReplyEvent
+            .Received(
+                "PostfixSpool",
+                "reply-event-1",
+                "reader@example.test",
+                "reply+token@reply.pismolet.test",
+                "token-hash",
+                "Re: Вопрос по письму",
+                "Спасибо, хочу уточнить детали.",
+                DateTimeOffset.Parse("2026-06-27T19:30:00Z"),
+                DateTimeOffset.Parse("2026-07-11T19:30:00Z"),
+                "raw-hash")
+            .MarkMatched(Guid.Parse("33333333-4444-5555-6666-777777777777"), "owner@example.test", "reader@example.test", "owner@example.test")
+            .MarkQueuedForForward();
+
+        var mime = InvokeForwardReplyMimeMessage(adapter, reply);
+
+        Assert.Equal("Ответ на рассылку: Re: Вопрос по письму", mime.Subject);
+        var to = Assert.Single(mime.To.Mailboxes);
+        Assert.Equal("owner@example.test", to.Address);
+        var text = Assert.IsType<TextPart>(mime.Body);
+        Assert.Contains("Это пересланный ответ получателя через сервис Письмолёт.", text.Text);
+        Assert.Contains("От: reader@example.test", text.Text);
+        Assert.Contains("Получен: 2026-06-27 19:30 UTC", text.Text);
+        Assert.Contains("Спасибо, хочу уточнить детали.", text.Text);
+    }
+
     private static SmtpEmailProviderAdapter CreateAdapter(string host) => CreateAdapter(host, new SilentLogger<SmtpEmailProviderAdapter>());
 
     private static SmtpEmailProviderAdapter CreateAdapter(string host, ILogger<SmtpEmailProviderAdapter> logger, int port = 25)
@@ -179,6 +210,12 @@ public sealed class SmtpTransportLoggingTests
     {
         var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildMimeMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
         return (MimeMessage)method.Invoke(adapter, new object[] { message })!;
+    }
+
+    private static MimeMessage InvokeForwardReplyMimeMessage(SmtpEmailProviderAdapter adapter, ReplyEvent replyEvent)
+    {
+        var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildForwardReplyMimeMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        return (MimeMessage)method.Invoke(adapter, new object[] { replyEvent })!;
     }
 
     private static EmailMessage TestEmailMessage(string body, MessageBodyFormat bodyFormat) => new(

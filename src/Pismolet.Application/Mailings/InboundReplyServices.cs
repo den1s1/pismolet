@@ -327,8 +327,8 @@ public sealed class InboundReplyProcessingService(
 
     public async Task ExecuteForwardAsync(Guid replyEventId, CancellationToken cancellationToken)
     {
-        var reply = replies.Get(replyEventId);
-        if (reply is null || reply.ProcessingStatus is ReplyProcessingStatus.Forwarded or ReplyProcessingStatus.Unmatched or ReplyProcessingStatus.IgnoredAutoReply)
+        var reply = replies.TryClaimForward(replyEventId);
+        if (reply is null)
         {
             return;
         }
@@ -339,7 +339,22 @@ public sealed class InboundReplyProcessingService(
             return;
         }
 
-        var result = await provider.ForwardReplyToClientAsync(reply, cancellationToken);
+        EmailProviderSendResult result;
+        try
+        {
+            result = await provider.ForwardReplyToClientAsync(reply, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            replies.MarkForwardQueued(replyEventId);
+            return;
+        }
+        catch (Exception ex)
+        {
+            replies.MarkForwardFailed(replyEventId, "forward_exception", ex.Message);
+            return;
+        }
+
         if (result.Accepted)
         {
             replies.MarkForwarded(replyEventId);

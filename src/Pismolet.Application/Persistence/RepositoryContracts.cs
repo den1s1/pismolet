@@ -245,6 +245,21 @@ public interface IReplyEventRepository
 
     void Save(ReplyEvent replyEvent);
 
+    ReplyEvent? TryClaimForward(Guid replyEventId)
+    {
+        var reply = Get(replyEventId);
+        if (reply is null ||
+            (reply.ProcessingStatus != ReplyProcessingStatus.QueuedForForward &&
+             (reply.ProcessingStatus != ReplyProcessingStatus.Failed || reply.ForwardRetryCount >= 3)))
+        {
+            return null;
+        }
+
+        var claimed = reply.MarkForwarding();
+        Save(claimed);
+        return claimed;
+    }
+
     void MarkForwardQueued(Guid replyEventId);
 
     void MarkForwarded(Guid replyEventId);

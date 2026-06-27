@@ -48,7 +48,7 @@ Needed tests:
 
 ### P1. Reply forwarding needs a real SMTP/MIME smoke before production claim
 
-Status: planned.
+Status: fixed in Sprint 4.
 
 Inbound parsing and processing are covered, but practical forwarding is still not verified with a real SMTP path. The current code forwards stored body text only and intentionally avoids raw payload. That is safe, but needs a smoke test with real-like MIME and delivery response.
 
@@ -144,13 +144,22 @@ Result:
 
 ### Sprint 4. Reply forwarding practical coverage
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
 - Add SMTP adapter tests for reply forward MIME shape.
 - Add retry/no-duplicate tests around `ExecuteForwardAsync`.
 - Update `docs/inbound_reply_sprint_status.md`.
+
+Result:
+
+- Added reply-forward claim status `Forwarding` and repository `TryClaimForward(...)`.
+- EF claim uses conditional SQL update; InMemory claim uses `TryUpdate`.
+- `ExecuteForwardAsync` now claims before provider send, releases on cancellation and marks provider exceptions as failed.
+- Added tests for matched reply queue/forward, auto-reply ignore, concurrent forward no-duplicate and failed-forward retry.
+- Extracted SMTP reply-forward MIME builder and added MIME smoke test for recipient, subject, sender, timestamp and body text.
+- Gate passed: build, full tests Integration 4/4 and Web 319/319.
 
 ### Sprint 5. Admin warmup settings consistency
 
