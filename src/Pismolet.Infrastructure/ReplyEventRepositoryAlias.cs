@@ -1,0 +1,1 @@
+global using EfReplyEventRepository = Pismolet.Web.Infrastructure.Persistence.EfReplyEventDiagnosticRepository;
