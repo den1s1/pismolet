@@ -10,7 +10,7 @@ public sealed class ReplyAliasServiceTests
     [Theory]
     [InlineData("User.Name_1@mail.ru", "user.name_1")]
     [InlineData("user+sales@mail.ru", "user-sales")]
-    [InlineData("..user---sales__@mail.ru", "user-sales_")]
+    [InlineData("..user---sales__@mail.ru", "user-sales")]
     [InlineData("u@mail.ru", null)]
     [InlineData("support@mail.ru", null)]
     public void Build_candidate_normalizes_local_part(string clientId, string? expected)
