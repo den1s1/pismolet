@@ -29,7 +29,7 @@ public sealed class MailingFlowRoutingTests
     }
 
     [Fact]
-    public void Mailing_flow_does_not_register_rework_fallback_routes_for_later_steps()
+    public void Mailing_flow_does_not_register_legacy_fallback_routes_for_later_steps()
     {
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
         using var scope = factory.Services.CreateScope();
@@ -39,12 +39,12 @@ public sealed class MailingFlowRoutingTests
             .OfType<RouteEndpoint>()
             .ToArray();
 
-        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/message", "GET");
-        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/message", "POST");
-        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/recipients", "GET");
-        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/recipients", "POST");
-        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/confirmation", "GET");
-        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/confirmation", "POST");
+        AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/message", "GET");
+        AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/message", "POST");
+        AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/recipients", "GET");
+        AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/recipients", "POST");
+        AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/confirmation", "GET");
+        AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/confirmation", "POST");
     }
 
     private static void AssertPreferredRouteOrder(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method, int expectedOrder)
@@ -56,10 +56,10 @@ public sealed class MailingFlowRoutingTests
         Assert.All(matches, endpoint => Assert.True(endpoint.Order >= expectedOrder, $"Route {method} {pattern} has unexpected higher priority order {endpoint.Order}."));
     }
 
-    private static void AssertNoFallbackRoute(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method)
+    private static void AssertNoLegacyFallbackRoute(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method)
     {
         var matches = MatchingRoutes(endpoints, pattern, method);
-        Assert.DoesNotContain(matches, endpoint => endpoint.Order == -1000);
+        Assert.DoesNotContain(matches, endpoint => endpoint.Order is -1000 or -200);
     }
 
     private static RouteEndpoint[] MatchingRoutes(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method) => endpoints
