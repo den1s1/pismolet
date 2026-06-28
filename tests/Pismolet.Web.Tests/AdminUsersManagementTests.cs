@@ -11,6 +11,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Application.Persistence;
 
 namespace Pismolet.Web.Tests;
 
@@ -74,6 +76,29 @@ public sealed class AdminUsersManagementTests
         Assert.DoesNotContain("Снять админские права", profile);
     }
 
+    [Fact]
+    public async Task Admin_can_remove_non_admin_user_from_profile()
+    {
+        const string targetEmail = "removable-user@example.test";
+        var adminStore = Path.Combine(Path.GetTempPath(), $"pismolet-admins-{Guid.NewGuid():N}.txt");
+        using var factory = CreateAuthorizedFactory(adminStore);
+        SeedUser(factory, RootAdminEmail, "Root Admin");
+        SeedUser(factory, targetEmail, "Removable User");
+        SeedMailing(factory, targetEmail, "Campaign to remove");
+        using var client = CreateAuthenticatedClient(factory, RootAdminEmail, allowAutoRedirect: false);
+        var encoded = Uri.EscapeDataString(targetEmail);
+
+        var response = await client.PostAsync($"/admin/users/{encoded}/remove", new FormUrlEncodedContent(new Dictionary<string, string>()));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/admin/users?action=removed&removed={encoded}", response.Headers.Location?.OriginalString);
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingRepository>();
+        Assert.Null(users.GetByEmail(targetEmail));
+        Assert.Empty(mailings.ListForOwner(targetEmail));
+    }
+
     private static WebApplicationFactory<Program> CreateAuthorizedFactory(string adminStorePath) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -111,10 +136,19 @@ public sealed class AdminUsersManagementTests
         Assert.True(result.Ok, result.Error);
     }
 
+    private static void SeedMailing(WebApplicationFactory<Program> factory, string ownerEmail, string subject)
+    {
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var result = mailings.CreateDraft(new CreateMailingCommand(ownerEmail, subject), Request());
+        Assert.True(result.Ok, result.Error);
+    }
+
     private static string TestPhone(string email) => email.Trim().ToLowerInvariant() switch
     {
         RootAdminEmail => "+79990000100",
         PromotedEmail => "+79990000101",
+        "removable-user@example.test" => "+79990000103",
         _ => "+79990000102"
     };
 

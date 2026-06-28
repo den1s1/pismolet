@@ -10,6 +10,7 @@ namespace Pismolet.Web.Infrastructure.Persistence;
 public sealed class AdminUserRemovalService(
     IUserRepository users,
     IMailingRepository mailings,
+    IAdminAccessService admins,
     IAuditLogger auditLogger) : IAdminUserRemovalService
 {
     public AdminUserRemovalResult RemoveUser(string targetEmail, string adminEmail, RequestMetadata request)
@@ -24,6 +25,21 @@ public sealed class AdminUserRemovalService(
         if (users.GetByEmail(normalizedTarget) is null)
         {
             return AdminUserRemovalResult.Failure("Пользователь не найден.");
+        }
+
+        if (string.Equals(normalizedTarget, normalizedAdmin, StringComparison.OrdinalIgnoreCase))
+        {
+            return AdminUserRemovalResult.Failure("Нельзя удалить собственный аккаунт администратора.");
+        }
+
+        if (admins.IsConfigAdminEmail(normalizedTarget))
+        {
+            return AdminUserRemovalResult.Failure("Нельзя удалить администратора, заданного в конфигурации сервера.");
+        }
+
+        if (admins.IsManagedAdminEmail(normalizedTarget))
+        {
+            return AdminUserRemovalResult.Failure("Сначала снимите админские права, затем удалите пользователя.");
         }
 
         var removedMailings = mailings.RemoveForOwner(normalizedTarget);

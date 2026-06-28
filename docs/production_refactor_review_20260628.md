@@ -71,7 +71,7 @@ Needed tests:
 
 ### P2. User deletion needs broader cascade/privacy tests
 
-Status: planned.
+Status: fixed in Sprint 6.
 
 User removal code exists and has endpoint tests, but production-risk entities include mailings, payments, audit, replies, suppressions and auth artifacts. Need document what is deleted vs retained/anonymized and cover repository behavior.
 
@@ -182,10 +182,18 @@ Result:
 
 ### Sprint 6. User deletion retention policy
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
 - Review deletion service coverage across user-owned data.
 - Add repository/service tests for intended deletion/anonymization.
 - Document residual retained data.
+
+Result:
+
+- Added service-level defense against removing self, config-admin and managed-admin users.
+- Added service tests for deleting login credentials, owned mailings and writing `admin_user_removed` audit.
+- Added endpoint coverage for `/admin/users/{email}/remove` through the real admin profile flow.
+- Documented deletion and retained-data boundaries in `docs/user_deletion_retention_policy.md`.
+- Gate passed: targeted admin removal tests 7/7, build, full tests Integration 4/4 and Web 326/326.
