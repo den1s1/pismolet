@@ -189,5 +189,5 @@ public sealed record ReplyEvent(
 
 public sealed record ReplySummary(Guid MailingId, int TotalReplies, DateTimeOffset? LastReplyAt, ReplyProcessingStatus? LastStatus)
 {
-    public static ReplySummary Empty(Guid mailingId) => new(mailingId, 0, null);
+    public static ReplySummary Empty(Guid mailingId) => new(mailingId, 0, null, null);
 }
