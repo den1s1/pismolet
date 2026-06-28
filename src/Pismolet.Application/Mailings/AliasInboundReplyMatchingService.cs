@@ -145,7 +145,7 @@ public sealed class AliasInboundReplyMatchingService(
         foreach (var item in value.Split(new[] { ' ', '\t', '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries))
         {
             var candidate = item.Trim().Trim(';', ',', '"', '\'');
-            if (candidate.StartsWith('<') && candidate.EndsWith('>') && candidate.Contains(Convert.ToChar(64), StringComparison.Ordinal))
+            if (candidate.StartsWith('<') && candidate.EndsWith('>') && candidate.Contains(Convert.ToChar(64)))
             {
                 result.Add(candidate);
             }
@@ -183,7 +183,7 @@ public sealed class AliasInboundReplyMatchingService(
         if (string.IsNullOrWhiteSpace(localPart) ||
             localPart.StartsWith("reply+", StringComparison.OrdinalIgnoreCase) ||
             localPart.StartsWith("v1.", StringComparison.OrdinalIgnoreCase) ||
-            localPart.Contains('+', StringComparison.Ordinal))
+            localPart.Contains('+'))
         {
             return null;
         }
