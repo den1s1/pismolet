@@ -14,22 +14,22 @@
 | 3.3. Auto-reply, bounce и дедупликация | Завершён для MVP | Подключён `InboundReplyAutoReplyDetector`; добавлены unit-тесты detector-а; дедупликация по provider event уже есть в processing service. |
 | 3.4. Подключение processing service и очереди пересылки | Завершён | `InboundReplyProcessingService` связывает inbound event с matching/queue/forward; добавлены тесты matched queue/forward, auto-reply без queue, retry failed-forward и защита от дублей через `Forwarding` claim. |
 | 3.5. Spool reader и файловая обработка | Завершён для MVP-каркаса | Reader обрабатывает eml из incoming, двигает файлы в processing, вызывает parser/processor, переносит в processed или failed, пишет error-файл, чистит retention. |
-| 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Используется существующий `/admin/replies`; страница улучшена: маскирует email, показывает статус, рассылку, тему, body status и ошибку без body/raw/token. |
-| 3.7. Инфраструктурный runbook и server dry-run | Завершён для документации | Созданы `docs/inbound_reply_runbook.md` и `docs/inbound_reply_server_dry_run.md`; server dry-run выполнять после deploy. |
-| 3.8. Production smoke и включение reply-домена | Готов к server dry-run | Кодовая часть готова; следующий шаг — выполнить dry-run на сервере без публичного MX по `docs/inbound_reply_server_dry_run.md`. |
+| 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Используется существующий `/admin/replies`; страница улучшена: маскирует email, показывает статус, рассылку, тему, body status и ошибку без чувствительных технических данных. |
+| 3.7. Инфраструктурный runbook и server dry-run | Завершён для документации | Созданы `docs/inbound_reply_runbook.md` и `docs/inbound_reply_server_dry_run.md`; dry-run выполнен на сервере. |
+| 3.8. Production smoke и включение reply-домена | Server dry-run пройден | На сервере commit `8e0f5929402ed58b73beacc0787b322a792f6599`: build/test зелёные, worker включён, обычное тестовое письмо обработано, auto-reply обработан как автоответ, failed-каталог пустой, `/admin/replies` показывает оба события. Следующий шаг — маршрут входящей почты и фактический inbound smoke. |
 | 3.9. Юридическая и retention-синхронизация | Не начат | Выполнять после финального фактического поведения retention. |
 
 ## Открытые технические подпункты
 
 1. Передать фактический envelope recipient в `InboundReplyRawMessage`, когда будет выбран Postfix pipe/sidecar-контракт.
-2. Выполнить server dry-run по `docs/inbound_reply_server_dry_run.md`.
-3. После dry-run обновить фактический статус спринта 3.8.
-4. Проверить фактическую доставку forward-письма на доменной почте после deploy; MIME smoke покрыт unit-тестом, но real SMTP path всё ещё требует server dry-run.
+2. Настроить маршрут входящей почты для `reply.pismolet.ru` и выполнить фактический inbound smoke.
+3. Проверить фактическую доставку пересланного ответа на доменной почте после deploy.
+4. После production smoke обновить фактический статус спринта 3.8.
 
 ## Последние commit SHA по этапу
 
 - `8fd0130087e71c6f0cfd7c8ffc8a09c588d3df50` — инвентаризация reply-контура.
-- `6b3def1fe0e6dae5cc344c6c1cc9c49c180f0c26` — настройки spool.
+- `6b3def1fe0e6dae5cc344c6c1cc9c180f0c26` — настройки spool.
 - `6fb88a2bb3025215863e3dc7dcd34b66226d0c80` — skeleton spool reader.
 - `768350357bca27d3968e0011e5fdc39115a35904` — чтение настроек inbound spool.
 - `208d03fd2ec0aa8f5c781b40acc15a6c0780cf89` — контракт MIME parser.
