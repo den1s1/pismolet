@@ -86,7 +86,8 @@ public sealed class SmtpAccountConfirmationMailer : IFakeMailer
         string? replyToAddress = null,
         string? replyToken = null,
         string? providerMessageId = null,
-        string? textBody = null) => _outbox.Enqueue(new FakeMail(
+        string? textBody = null,
+        string? messageId = null) => _outbox.Enqueue(new FakeMail(
             To: to,
             Subject: subject,
             Link: link,
@@ -94,7 +95,8 @@ public sealed class SmtpAccountConfirmationMailer : IFakeMailer
             ReplyToAddress: replyToAddress,
             ReplyToken: replyToken,
             ProviderMessageId: providerMessageId,
-            TextBody: textBody));
+            TextBody: textBody,
+            MessageId: messageId));
 
     public void AddForwardedReply(string to, string subject, string fromEmail, string textBody, string providerMessageId) => _outbox.Enqueue(new FakeMail(
         To: to,
@@ -222,21 +224,6 @@ public sealed class SmtpAccountConfirmationMailer : IFakeMailer
     private static string GetEmailDomain(string email)
     {
         var at = email.LastIndexOf('@');
-        return at >= 0 && at < email.Length - 1 ? email[(at + 1)..].Trim().ToLowerInvariant() : "unknown";
-    }
-}
-
-internal static class SmtpEmailProviderAdapterSafeOptions
-{
-    public static MailKit.Security.SecureSocketOptions Parse(string value, int port)
-    {
-        if (Enum.TryParse<MailKit.Security.SecureSocketOptions>(value, ignoreCase: true, out var parsed))
-        {
-            return parsed;
-        }
-
-        return port == 465
-            ? MailKit.Security.SecureSocketOptions.SslOnConnect
-            : MailKit.Security.SecureSocketOptions.StartTlsWhenAvailable;
+        return at >= 0 && at < email.Length - 1 ? email[(at + 1)..].ToLowerInvariant() : "unknown";
     }
 }
