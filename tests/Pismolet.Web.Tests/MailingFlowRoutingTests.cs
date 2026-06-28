@@ -41,6 +41,7 @@ public sealed class MailingFlowRoutingTests
 
         AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/message", "GET");
         AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/message", "POST");
+        AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/message/preview", "GET");
         AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/recipients", "GET");
         AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/recipients", "POST");
         AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/confirmation", "GET");
@@ -59,7 +60,7 @@ public sealed class MailingFlowRoutingTests
     private static void AssertNoLegacyFallbackRoute(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method)
     {
         var matches = MatchingRoutes(endpoints, pattern, method);
-        Assert.DoesNotContain(matches, endpoint => endpoint.Order is -1000 or -200);
+        Assert.DoesNotContain(matches, endpoint => endpoint.Order is -1000 or -200 or -100);
     }
 
     private static RouteEndpoint[] MatchingRoutes(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method) => endpoints
