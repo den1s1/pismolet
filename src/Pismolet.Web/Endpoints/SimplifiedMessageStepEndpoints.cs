@@ -78,6 +78,8 @@ public static class SimplifiedMessageStepEndpoints
 
         var existing = mailings.GetForOwner(id, email);
         var form = await http.Request.ReadFormAsync();
+        var senderName = form["senderName"].ToString();
+        var subject = form["subject"].ToString();
         var bodyFormat = NormalizeBodyFormat(form["bodyFormat"].ToString());
         var bodyTab = NormalizeBodyTab(form["bodyTab"].ToString());
         var visualBody = form["visualBody"].ToString();
@@ -99,20 +101,33 @@ public static class SimplifiedMessageStepEndpoints
 
         string body;
         MessageBodyFormat messageBodyFormat;
-        var shouldUseRawHtmlBody = bodyTab == BodyTabHtml
-            || (bodyTab == BodyTabVisual && string.IsNullOrWhiteSpace(visualBody) && !string.IsNullOrWhiteSpace(htmlBody));
-        if (bodyTab == BodyTabVisual && !shouldUseRawHtmlBody)
-        {
-            body = visualBody;
-            messageBodyFormat = MessageBodyFormat.Html;
-            bodyFormat = BodyFormatHtml;
-        }
-        else if (shouldUseRawHtmlBody)
+        var hasVisualBody = !string.IsNullOrWhiteSpace(visualBody);
+        var hasRawHtmlBody = !string.IsNullOrWhiteSpace(htmlBody);
+        var hasPlainBody = !string.IsNullOrWhiteSpace(plainBody);
+        var shouldUseRawHtmlBody = hasRawHtmlBody
+            && (bodyTab == BodyTabHtml
+                || (bodyTab == BodyTabVisual && !hasVisualBody)
+                || (string.IsNullOrWhiteSpace(bodyTab) && bodyFormat == BodyFormatHtml)
+                || (string.IsNullOrWhiteSpace(bodyTab) && !hasVisualBody && !hasPlainBody));
+        if (shouldUseRawHtmlBody)
         {
             body = htmlBody;
             messageBodyFormat = MessageBodyFormat.Html;
             bodyFormat = BodyFormatHtml;
             bodyTab = BodyTabHtml;
+        }
+        else if (hasVisualBody || bodyTab == BodyTabVisual)
+        {
+            body = visualBody;
+            messageBodyFormat = MessageBodyFormat.Html;
+            bodyFormat = BodyFormatHtml;
+            bodyTab = BodyTabVisual;
+        }
+        else if (bodyTab == BodyTabHtml)
+        {
+            body = htmlBody;
+            messageBodyFormat = MessageBodyFormat.Html;
+            bodyFormat = BodyFormatHtml;
         }
         else
         {
@@ -123,14 +138,14 @@ public static class SimplifiedMessageStepEndpoints
         var attachments = await ReadAttachmentsAsync(form);
         if (!attachments.Ok)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(existing, attachments.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody), authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(existing, attachments.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody, senderName, subject), authenticated: true));
         }
 
         var result = messages.Save(new SaveMailingMessageCommand(
             email,
             id,
-            form["senderName"].ToString(),
-            form["subject"].ToString(),
+            senderName,
+            subject,
             body,
             ResolveMessageType(existing),
             ToRequestMetadata(http),
@@ -140,7 +155,7 @@ public static class SimplifiedMessageStepEndpoints
         var mailing = result.Mailing ?? existing;
         if (!result.Ok || mailing is null)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(mailing, result.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody), authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(mailing, result.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody, senderName, subject), authenticated: true));
         }
 
         var action = form["action"].ToString();
@@ -168,7 +183,9 @@ public static class SimplifiedMessageStepEndpoints
         string? plainBodyOverride = null,
         string? htmlBodyOverride = null,
         string? activeTabOverride = null,
-        string? visualBodyOverride = null)
+        string? visualBodyOverride = null,
+        string? senderNameOverride = null,
+        string? subjectOverride = null)
     {
         if (mailing is null)
         {
@@ -178,8 +195,8 @@ public static class SimplifiedMessageStepEndpoints
         var draft = mailing.MessageDraft;
         var format = NormalizeBodyFormat(activeFormat ?? ToBodyFormatCode(draft?.BodyFormat ?? MessageBodyFormat.Text));
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
-        var senderName = H(draft?.SenderName ?? string.Empty);
-        var messageSubject = H(draft?.Subject ?? string.Empty);
+        var senderName = H(senderNameOverride ?? draft?.SenderName ?? string.Empty);
+        var messageSubject = H(subjectOverride ?? draft?.Subject ?? string.Empty);
         var savedBody = draft?.Body ?? string.Empty;
         var savedBodyFormat = draft?.BodyFormat ?? MessageBodyFormat.Text;
         var activeTab = NormalizeBodyTab(activeTabOverride);
@@ -440,8 +457,6 @@ public static class SimplifiedMessageStepEndpoints
   var buttons = root.querySelectorAll('[data-body-tab]');
   var panels = root.querySelectorAll('[data-body-panel]');
   var richEditor = root.querySelector('[data-rich-text-editor]');
-  var visualSource = root.querySelector('textarea[name="visualBody"]');
-  var htmlSource = root.querySelector('textarea[name="htmlBody"]');
 
   function select(tab) {
     if (tab !== 'html') tab = 'visual';
@@ -457,8 +472,6 @@ public static class SimplifiedMessageStepEndpoints
       var active = panel.getAttribute('data-body-panel') === tab;
       panel.style.display = active ? '' : 'none';
     });
-    if (visualSource) visualSource.disabled = tab !== 'visual';
-    if (htmlSource) htmlSource.disabled = tab !== 'html';
   }
 
   function syncRichEditor() {

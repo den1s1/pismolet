@@ -148,6 +148,7 @@ public sealed class MessagePreviewUiTests
         Assert.Contains("data-rich-link-input", html);
         Assert.Contains("name='visualBody'", html);
         Assert.Contains("name='htmlBody'", html);
+        Assert.DoesNotContain("disabled = tab", html);
         var htmlPanelEnd = html.IndexOf("</section>", htmlPanelStart, StringComparison.Ordinal);
         Assert.True(htmlPanelEnd > htmlPanelStart, "HTML message panel closing section was not found.");
         var htmlPanel = html[htmlPanelStart..htmlPanelEnd];
@@ -238,6 +239,40 @@ public sealed class MessagePreviewUiTests
         var mailing = GetMailing(factory, mailingId);
         Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
         Assert.Equal("<h1>Готовый HTML</h1><p>Текст письма</p>", mailing.MessageDraft?.Body);
+    }
+
+    [Fact]
+    public async Task Message_save_error_keeps_submitted_sender_subject_and_html_body()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+
+        using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Отправитель после ошибки",
+            ["subject"] = "Тема после ошибки",
+            ["bodyTab"] = "html",
+            ["bodyFormat"] = "html",
+            ["visualBody"] = string.Empty,
+            ["htmlBody"] = string.Empty
+        });
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Напишите текст письма.", html);
+        Assert.Contains("value='Отправитель после ошибки'", html);
+        Assert.Contains("value='Тема после ошибки'", html);
+        var htmlPanelStart = html.IndexOf("data-body-panel='html'", StringComparison.Ordinal);
+        Assert.True(htmlPanelStart >= 0, "HTML panel was not found.");
+        var htmlPanelEnd = html.IndexOf("</section>", htmlPanelStart, StringComparison.Ordinal);
+        Assert.True(htmlPanelEnd > htmlPanelStart, "HTML panel closing section was not found.");
+        Assert.DoesNotContain("data-body-panel='html' style='display:none'", html[htmlPanelStart..htmlPanelEnd]);
     }
 
     [Fact]
