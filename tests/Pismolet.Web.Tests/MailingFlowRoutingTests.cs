@@ -25,7 +25,7 @@ public sealed class MailingFlowRoutingTests
         AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/recipients", "GET", -3000);
         AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/recipients", "POST", -3000);
         AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/confirmation", "GET", -3000);
-        AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/confirmation", "POST", -1000);
+        AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/confirmation", "POST", -3000);
     }
 
     private static void AssertPreferredRouteOrder(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method, int expectedOrder)
