@@ -55,6 +55,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IProviderWebhookEventRepository, InMemoryProviderWebhookEventRepository>();
         services.AddSingleton<IClientSuppressionRepository, InMemoryClientSuppressionRepository>();
         services.AddSingleton<IReplyEventRepository, InMemoryReplyEventRepository>();
+        services.AddSingleton<IClientReplyAliasRepository, InMemoryClientReplyAliasRepository>();
+        services.AddSingleton<IOutboundReplyMessageRepository, InMemoryOutboundReplyMessageRepository>();
         services.AddSingleton<ILegalEvidenceRepository, InMemoryLegalEvidenceRepository>();
         services.AddSingleton<IBackgroundMailingSendQueue, InlineMailingSendQueue>();
         services.AddSingleton<IBackgroundReplyQueue, InlineMailingSendQueue>();
@@ -120,6 +122,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProviderWebhookEventRepository, EfProviderWebhookEventRepository>();
         services.AddScoped<IClientSuppressionRepository, EfClientSuppressionRepository>();
         services.AddScoped<IReplyEventRepository, EfReplyEventRepository>();
+        services.AddScoped<IClientReplyAliasRepository, EfClientReplyAliasRepository>();
+        services.AddScoped<IOutboundReplyMessageRepository, EfOutboundReplyMessageRepository>();
         services.AddScoped<IAuditLogger, EfAuditLogger>();
         return services;
     }
