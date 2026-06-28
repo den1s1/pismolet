@@ -332,80 +332,96 @@
 
 .rich-editor {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .rich-toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 38px 38px 118px auto minmax(220px, 1fr);
   gap: 8px;
   align-items: center;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 14px 14px 0 0;
   background: #f8fafc;
   padding: 8px;
 }
 
 .rich-tool {
+  min-height: 34px;
   width: 38px;
   min-width: 38px;
   padding-inline: 0;
 }
 
-.rich-select,
-.rich-link-input {
+.rich-toolbar .rich-select,
+.rich-toolbar .rich-link-input {
   min-height: 36px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
-  padding: 7px 10px;
+  padding: 6px 10px;
   font: inherit;
 }
 
-.rich-select {
-  width: auto;
-  max-width: 110px;
-  flex: 0 0 auto;
+.rich-toolbar .rich-select {
+  width: 118px;
+  max-width: 118px;
 }
 
-.rich-link-input {
+.rich-toolbar .rich-link-input {
   width: auto;
-  flex: 1 1 220px;
+  min-width: 0;
+  flex: 1 1 170px;
 }
 
-.rich-color {
+.rich-color-control {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-height: 36px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   color: var(--muted);
   padding: 5px 9px;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.rich-color input {
+.rich-color-control input[type="color"] {
   width: 28px;
   height: 28px;
   min-height: 28px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   padding: 0;
 }
 
+.rich-link-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rich-link-button {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
 .rich-editable {
-  min-height: 300px;
+  display: block;
+  min-height: 260px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 0 0 16px 16px;
   background: #fff;
   padding: 16px;
   line-height: 1.55;
   outline: none;
   overflow-wrap: anywhere;
+  cursor: text;
 }
 
 .rich-editable:focus {
@@ -775,13 +791,24 @@
   }
 
   .rich-toolbar {
+    grid-template-columns: 38px 38px 1fr;
     align-items: stretch;
   }
 
   .rich-select,
-  .rich-link-input,
-  .rich-link-button {
-    flex: 1 1 100%;
+  .rich-color-control,
+  .rich-link-control {
+    grid-column: 1 / -1;
+    width: 100%;
     max-width: none;
+  }
+
+  .rich-toolbar .rich-select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .rich-link-button {
+    flex: 0 0 auto;
   }
 }

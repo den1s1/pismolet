@@ -33,6 +33,19 @@ public sealed class ButtonCssTests
     }
 
     [Fact]
+    public void Cabinet_css_keeps_rich_editor_toolbar_compact_and_text_area_visible()
+    {
+        var css = ReadWebAsset("src/Pismolet.Web/wwwroot/cabinet.css");
+
+        Assert.Contains(".rich-toolbar {\n  display: grid;", css);
+        Assert.Contains("grid-template-columns: 38px 38px 118px auto minmax(220px, 1fr);", css);
+        Assert.Contains(".rich-color-control {", css);
+        Assert.Contains(".rich-link-control {", css);
+        Assert.Contains(".rich-editable {\n  display: block;", css);
+        Assert.Contains("min-height: 260px", css);
+    }
+
+    [Fact]
     public void Payment_css_does_not_stretch_primary_payment_button_on_desktop()
     {
         var css = ReadWebAsset("src/Pismolet.Web/wwwroot/payment.css");

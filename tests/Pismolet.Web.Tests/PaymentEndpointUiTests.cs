@@ -33,7 +33,7 @@ public sealed class PaymentEndpointUiTests
 
         var html = await client.GetStringAsync($"/mailings/{mailingId}/payment");
 
-        Assert.Contains("href='/checkbox.css'", html);
+        Assert.Contains("href='/checkbox.css?v=", html);
         Assert.Contains("payment-legal-summary", html);
         Assert.Contains("Подтверждения базы", html);
         Assert.Contains("Источник базы", html);

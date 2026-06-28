@@ -243,14 +243,16 @@ public static class SimplifiedMessageStepEndpoints
                 <option value='22px'>22</option>
                 <option value='28px'>28</option>
               </select>
-              <label class='rich-color' title='Цвет текста'>
+              <span class='rich-color-control' title='Цвет текста'>
                 <span>Цвет</span>
                 <input type='color' value='#1f2937' data-rich-color>
-              </label>
-              <input class='rich-link-input' type='url' placeholder='https://example.ru' data-rich-link-input>
-              <button type='button' class='btn secondary compact rich-link-button' data-rich-link>Ссылка</button>
+              </span>
+              <span class='rich-link-control'>
+                <input class='rich-link-input' type='url' placeholder='https://example.ru' data-rich-link-input>
+                <button type='button' class='btn secondary compact rich-link-button' data-rich-link>Ссылка</button>
+              </span>
             </div>
-            <div class='rich-editable' contenteditable='true' data-rich-editable aria-label='Текст обычного письма' data-placeholder='Здравствуйте! Расскажите, почему вы пишете и что нужно сделать получателю.'></div>
+            <div class='rich-editable' contenteditable='true' data-rich-editable aria-label='Текст обычного письма' data-placeholder='Здравствуйте! Расскажите, почему вы пишете и что нужно сделать получателю.' style='display:block;min-height:260px;border:1px solid #dbe4ef;border-radius:0 0 16px 16px;background:#fff;padding:16px;line-height:1.55;outline:none;overflow-wrap:anywhere'></div>
             <textarea name='visualBody' data-rich-html-source hidden>{H(visualBody)}</textarea>
           </div>
           <span class='field-hint'>Письмолёт сохранит оформление безопасным HTML и перед отправкой удалит скрипты, опасные ссылки и небезопасные стили.</span>

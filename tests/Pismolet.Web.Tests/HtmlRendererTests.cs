@@ -24,9 +24,10 @@ public sealed class HtmlRendererTests
     {
         var html = HtmlRenderer.Page("Проверка", "<p>body</p>");
 
-        var checkboxIndex = html.IndexOf("href='/checkbox.css'", StringComparison.Ordinal);
-        var paymentIndex = html.IndexOf("href='/payment.css'", StringComparison.Ordinal);
+        var checkboxIndex = html.IndexOf("href='/checkbox.css?v=", StringComparison.Ordinal);
+        var paymentIndex = html.IndexOf("href='/payment.css?v=", StringComparison.Ordinal);
         Assert.True(checkboxIndex > 0, "checkbox.css must be linked globally.");
         Assert.True(paymentIndex > checkboxIndex, "payment.css must not be the source of common checkbox styles.");
+        Assert.Contains("href='/cabinet.css?v=", html);
     }
 }

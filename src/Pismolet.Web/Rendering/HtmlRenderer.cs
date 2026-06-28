@@ -8,6 +8,8 @@ namespace Pismolet.Web.Rendering;
 
 public static class HtmlRenderer
 {
+    private const string AssetVersion = "20260628-rich-editor-2";
+
     public static IResult Html(string html) => Results.Content(html, "text/html; charset=utf-8");
 
     public static string Page(string title, string body, bool authenticated = false, bool showDevTools = false)
@@ -21,11 +23,11 @@ public static class HtmlRenderer
                 <meta name='viewport' content='width=device-width, initial-scale=1'>
                 <title>{H(title)} - Письмолёт</title>
                 <link rel='icon' href='/assets/brand/favicon.svg' type='image/svg+xml'>
-                <link rel='stylesheet' href='/app.css'>
-                <link rel='stylesheet' href='/checkbox.css'>
-                <link rel='stylesheet' href='/cabinet.css'>
-                <link rel='stylesheet' href='/cabinet-shell.css'>
-                <link rel='stylesheet' href='/payment.css'>
+                <link rel='stylesheet' href='/app.css?v={AssetVersion}'>
+                <link rel='stylesheet' href='/checkbox.css?v={AssetVersion}'>
+                <link rel='stylesheet' href='/cabinet.css?v={AssetVersion}'>
+                <link rel='stylesheet' href='/cabinet-shell.css?v={AssetVersion}'>
+                <link rel='stylesheet' href='/payment.css?v={AssetVersion}'>
             </head>
             <body>
                 <header class='app-header'>
