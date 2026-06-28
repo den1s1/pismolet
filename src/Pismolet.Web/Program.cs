@@ -122,7 +122,6 @@ app.MapAccountEndpoints();
 app.MapMailingCreationFlowReworkEndpoints();
 app.MapMailingRichMessageFlowEndpoints();
 app.MapMailingRecipientReviewOverlayEndpoints();
-app.MapMailingRecipientFlowCompatibilityEndpoints();
 app.MapSimplifiedRecipientStepEndpoints();
 app.MapDashboardEndpoints();
 app.MapSimplifiedMessageStepEndpoints();
