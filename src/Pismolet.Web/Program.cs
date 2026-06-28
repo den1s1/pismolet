@@ -121,7 +121,7 @@ app.MapLegalBaseLawfulnessEndpoints();
 app.MapAccountEndpoints();
 app.MapMailingCreationStartEndpoints();
 app.MapMailingRichMessageFlowEndpoints();
-app.MapMailingRecipientReviewOverlayEndpoints();
+app.MapMailingRecipientStepEndpoints();
 app.MapMailingConfirmationSubmitEndpoints();
 app.MapMailingRecipientManagementEndpoints();
 app.MapDashboardEndpoints();
