@@ -85,7 +85,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailWebhookProcessingService, EmailWebhookProcessingService>();
         services.AddScoped<IClientReplyAliasService, ClientReplyAliasService>();
         services.AddScoped<IInboundReplyMatchingService, AliasInboundReplyMatchingService>();
-        services.AddScoped<IInboundReplyProcessingService, InboundReplyProcessingService>();
+        services.AddScoped<IInboundReplyProcessingService, AliasInboundReplyProcessingService>();
         services.AddScoped<ILegalEvidenceService, LegalEvidenceService>();
         services.AddScoped<PostfixDeliveryLogIngestionService>();
         services.AddScoped<PostfixDeliveryLogReaderService>();
