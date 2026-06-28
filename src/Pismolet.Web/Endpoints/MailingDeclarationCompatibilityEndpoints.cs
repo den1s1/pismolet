@@ -16,7 +16,7 @@ public static class MailingDeclarationCompatibilityEndpoints
         return app;
     }
 
-    private static async Task<IResult> ConfirmDeclaration(Guid id, HttpContext http, IMailingDeclarationService declarations, IMailingService mailings)
+    private static async Task<IResult> ConfirmDeclaration(Guid id, HttpContext http, IMailingDeclarationService declarations)
     {
         var email = http.User.FindFirstValue(ClaimTypes.Email);
         if (email is null)
@@ -36,11 +36,7 @@ public static class MailingDeclarationCompatibilityEndpoints
 
         if (!result.Ok || result.Mailing is null)
         {
-            var mailing = result.Mailing ?? mailings.GetForOwner(id, email);
-            var body = mailing is null
-                ? HtmlRenderer.Error(result.Error)
-                : $"<section class='panel'><h1>4. Финальное подтверждение</h1><p class='error-message'>{HtmlRenderer.Encode(result.Error)}</p><p><a href='/mailings/{id}/confirmation'>Перейти к финальному подтверждению</a></p></section>";
-            return HtmlRenderer.Html(HtmlRenderer.Page("Финальное подтверждение", body, authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Финальное подтверждение", HtmlRenderer.Error(result.Error), authenticated: true));
         }
 
         return Results.Redirect($"/mailings/{id}/message");
