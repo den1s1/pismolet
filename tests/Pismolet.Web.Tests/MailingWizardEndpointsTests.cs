@@ -165,6 +165,51 @@ public sealed class MailingWizardEndpointsTests
     }
 
     [Fact]
+    public async Task Final_confirmation_saves_advertising_message_type_and_redirects_to_payment()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Wizard Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Advertising confirmation campaign");
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
+        await ImportAcceptedAddress(client, mailingId);
+        using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Книжный клуб",
+            ["subject"] = "Скидка на встречу клуба",
+            ["body"] = "Приходите на рекламную встречу клуба."
+        });
+        var saveResponse = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
+        Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/confirmation", saveResponse.Headers.Location?.OriginalString);
+        using var confirmationForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["baseSource"] = "Customers",
+            ["baseLegality"] = "on",
+            ["messageType"] = "Advertising",
+            ["advertisingConsent"] = "on",
+            ["campaignLaunchConfirmation"] = "on"
+        });
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/confirmation", confirmationForm);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/payment", response.Headers.Location?.OriginalString);
+        using var scope = factory.Services.CreateScope();
+        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        Assert.NotNull(mailing?.MessageDraft);
+        Assert.Equal(MessageType.Advertising, mailing.MessageDraft.MessageType);
+        Assert.NotNull(mailing.Declaration);
+        Assert.Equal(BaseSource.Customers, mailing.Declaration.BaseSource);
+        Assert.True(mailing.Declaration.IsBaseLegalityConfirmed);
+        Assert.True(mailing.Declaration.IsAdvertisingConsentConfirmed);
+    }
+
+    [Fact]
     public async Task Address_management_edit_keeps_bad_rows_and_import_stats()
     {
         using var factory = CreateAuthorizedFactory();
