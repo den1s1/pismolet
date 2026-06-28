@@ -28,7 +28,8 @@ public sealed record EmailMessage(
     string ReplyToken,
     IReadOnlyDictionary<string, string> Metadata,
     IReadOnlyCollection<EmailAttachment>? Attachments = null,
-    MessageBodyFormat BodyFormat = MessageBodyFormat.Text);
+    MessageBodyFormat BodyFormat = MessageBodyFormat.Text,
+    string MessageId = "");
 
 public sealed record EmailProviderSendResult(bool Accepted, string? ProviderMessageId, string? ErrorCode, string? ErrorMessage)
 {
@@ -151,7 +152,7 @@ public sealed class FakeEmailProviderAdapter(IFakeMailer fakeMailer) : IEmailPro
         }
 
         var providerMessageId = BuildProviderMessageId(message.MailingId, email);
-        fakeMailer.AddMailingMessage(email, message.Subject, message.UnsubscribeUrl, message.ReplyToAddress, message.ReplyToken, providerMessageId, message.PlainTextBody);
+        fakeMailer.AddMailingMessage(email, message.Subject, message.UnsubscribeUrl, message.ReplyToAddress, message.ReplyToken, providerMessageId, message.PlainTextBody, message.MessageId);
         return Task.FromResult(EmailProviderSendResult.Success(providerMessageId));
     }
 
@@ -324,6 +325,8 @@ public sealed class MailingSendService(
     IEmailNormalizer emailNormalizer,
     IUnsubscribeTokenService tokens,
     IInboundReplyTokenService replyTokens,
+    IClientReplyAliasService replyAliases,
+    IOutboundReplyMessageRepository outboundReplyMessages,
     IBackgroundMailingSendQueue queue,
     IAuditLogger auditLogger,
     MailingSendOptions options,
@@ -552,10 +555,11 @@ public sealed class MailingSendService(
                 return;
             }
 
-            var message = BuildEmailMessage(mailing, draft, claimed.RecipientEmail);
+            var message = BuildEmailMessage(mailing, draft, claimed);
             EmailProviderSendResult result;
             try
             {
+                SaveOutboundReplyMapping(mailing, claimed, message);
                 result = await provider.SendAsync(message, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -648,12 +652,14 @@ public sealed class MailingSendService(
         return string.Empty;
     }
 
-    private EmailMessage BuildEmailMessage(Mailing mailing, MailingMessageDraft draft, string recipientEmail)
+    private EmailMessage BuildEmailMessage(Mailing mailing, MailingMessageDraft draft, SendEvent sendEvent)
     {
+        var recipientEmail = sendEvent.RecipientEmail;
         var token = tokens.Generate(mailing.Id, recipientEmail);
-        var replyToken = replyTokens.Generate(mailing.Id, mailing.OwnerEmail, recipientEmail);
         var unsubscribeUrl = $"/unsubscribe/{token}";
-        var replyToAddress = replyTokens.BuildReplyToAddress(replyToken);
+        var replyAlias = replyAliases.GetOrCreate(mailing.OwnerEmail);
+        var replyToAddress = BuildReplyToAddress(replyAlias.Alias);
+        var messageId = BuildOutboundMessageId(mailing, sendEvent);
         var serviceId = MailingServiceEmailFooter.ServiceIdentifier(mailing.PublicId);
         var plain = MailingServiceEmailFooter.PlainText(draft.Body, draft.SenderName, unsubscribeUrl, serviceId);
         var attachments = draft.Attachments
@@ -669,15 +675,52 @@ public sealed class MailingSendService(
             unsubscribeUrl,
             serviceId,
             replyToAddress,
-            replyToken,
+            string.Empty,
             new Dictionary<string, string>
             {
                 ["mailingId"] = mailing.Id.ToString("N"),
                 ["recipientKey"] = replyTokens.BuildRecipientKey(mailing.Id, recipientEmail),
-                ["replyPurpose"] = "inbound_reply"
+                ["replyPurpose"] = "inbound_reply",
+                ["replyAlias"] = replyAlias.Alias,
+                ["outboundMessageId"] = messageId
             },
             attachments,
-            draft.BodyFormat);
+            draft.BodyFormat,
+            messageId);
+    }
+
+    private void SaveOutboundReplyMapping(Mailing mailing, SendEvent sendEvent, EmailMessage message)
+    {
+        var replyAlias = message.Metadata.TryGetValue("replyAlias", out var alias)
+            ? alias
+            : ExtractReplyAlias(message.ReplyToAddress);
+        outboundReplyMessages.Save(OutboundReplyMessageMapping.Create(
+            message.MessageId,
+            mailing.Id,
+            sendEvent.Id,
+            mailing.OwnerEmail,
+            sendEvent.RecipientEmail,
+            replyAlias));
+    }
+
+    private string BuildReplyToAddress(string replyAlias) => $"{replyAlias.Trim().ToLowerInvariant()}{Convert.ToChar(64)}{GetReplyDomain()}";
+
+    private string BuildOutboundMessageId(Mailing mailing, SendEvent sendEvent) =>
+        $"pismolet-{Hash($"{mailing.Id:N}:{sendEvent.Id:N}")[..24]}{Convert.ToChar(64)}{GetReplyDomain()}";
+
+    private string GetReplyDomain()
+    {
+        var sample = replyTokens.BuildReplyToAddress("sample");
+        var at = sample.LastIndexOf(Convert.ToChar(64));
+        return at >= 0 && at < sample.Length - 1
+            ? sample[(at + 1)..].Trim().ToLowerInvariant()
+            : InboundReplyTokenOptions.DevelopmentDefault.InboundDomain;
+    }
+
+    private static string ExtractReplyAlias(string replyToAddress)
+    {
+        var at = replyToAddress.IndexOf(Convert.ToChar(64));
+        return at > 0 ? replyToAddress[..at].Trim().ToLowerInvariant() : string.Empty;
     }
 
     private void AuditSuppressedSend(Mailing mailing, SendEvent sendEvent, string eventType, string ip, string userAgent) => auditLogger.Write(new AuditRecord(
