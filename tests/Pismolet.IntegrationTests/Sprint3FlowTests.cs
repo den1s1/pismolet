@@ -79,7 +79,7 @@ public sealed class Sprint3FlowTests
     }
 
     [Fact]
-    public async Task Message_without_declaration_redirects_to_recipients_step()
+    public async Task Message_without_declaration_is_available_before_recipients_step()
     {
         using var factory = CreateFactory();
         var client = CreateClient(factory);
@@ -88,9 +88,11 @@ public sealed class Sprint3FlowTests
         var mailingId = await CreateMailingAndImportCsvAsync(client);
 
         var response = await client.GetAsync($"/mailings/{mailingId}/message");
+        var body = await response.Content.ReadAsStringAsync();
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/mailings/{mailingId}/recipients", response.Headers.Location?.ToString());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Напишите письмо", body);
+        Assert.DoesNotContain("Подтвердите базу", body);
     }
 
     private static WebApplicationFactory<Program> CreateFactory() => new WebApplicationFactory<Program>()
@@ -155,7 +157,7 @@ public sealed class Sprint3FlowTests
 
         Assert.Equal(HttpStatusCode.Redirect, create.StatusCode);
         var location = create.Headers.Location?.ToString() ?? string.Empty;
-        var match = Regex.Match(location, @"/mailings/(?<id>[0-9a-fA-F-]+)/recipients");
+        var match = Regex.Match(location, @"/mailings/(?<id>[0-9a-fA-F-]+)/(?:message|recipients)");
         Assert.True(match.Success, $"Не удалось получить id рассылки из redirect: {location}");
         var mailingId = Guid.Parse(match.Groups["id"].Value);
 
