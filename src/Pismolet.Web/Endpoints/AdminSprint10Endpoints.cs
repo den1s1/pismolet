@@ -133,7 +133,7 @@ public static class AdminSprint10Endpoints
         <form class='admin-form' method='post' action='/admin/settings/mvp'>
         <label>Премодерация новых клиентов <select name='premoderation'><option value='true' {(settings.PremoderationForNewClients ? "selected" : "")}>Включена</option><option value='false' {(!settings.PremoderationForNewClients ? "selected" : "")}>Выключена</option></select></label>
         <label>Дневной лимит нового клиента <input name='dailyLimit' type='number' min='0' value='{settings.DefaultDailySendLimit}'></label>
-        <label>Общий лимит нового клиента <input name='totalLimit' type='number' min='0' value='{settings.DefaultTotalSendLimit}'></label>
+        <label>Общий лимит нового клиента <input name='totalLimit' type='number' min='0' value='{settings.DefaultTotalLimit}'></label>
         <label>Retention тела ответа, дней <input name='replyRetentionDays' type='number' min='1' max='60' value='{settings.ReplyBodyRetentionDays}'></label>
         <button class='admin-button' type='submit'>Сохранить настройки</button></form></section>
         """;
@@ -231,16 +231,7 @@ public static class AdminSprint10Endpoints
         return at <= 0 ? string.Empty : value[..at].Trim().ToLowerInvariant();
     }
 
-    private static string MaskEmail(string? email)
-    {
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return string.Empty;
-        }
-
-        var at = email.IndexOf(Convert.ToChar(64));
-        return at <= 1 ? email : $"{email[..1]}***{email[at..]}";
-    }
+    private static string MaskEmail(string? email) => email ?? string.Empty;
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
