@@ -63,6 +63,11 @@ public sealed record ReplyEvent(
     string? ErrorCode,
     string? ErrorMessage)
 {
+    private bool ShouldPreserveDiagnosticError =>
+        MailingId is null &&
+        !string.IsNullOrWhiteSpace(ClientId) &&
+        !string.IsNullOrWhiteSpace(ForwardToEmailNormalized);
+
     public static ReplyEvent Received(
         string provider,
         string providerInboundEventId,
@@ -133,8 +138,8 @@ public sealed record ReplyEvent(
             ProcessingStatus = ReplyProcessingStatus.Forwarding,
             ForwardQueuedAt = ForwardQueuedAt ?? DateTimeOffset.UtcNow,
             ProcessedAt = ProcessedAt ?? DateTimeOffset.UtcNow,
-            ErrorCode = null,
-            ErrorMessage = null
+            ErrorCode = ShouldPreserveDiagnosticError ? ErrorCode : null,
+            ErrorMessage = ShouldPreserveDiagnosticError ? ErrorMessage : null
         }
         : this;
 
@@ -167,8 +172,8 @@ public sealed record ReplyEvent(
     {
         ProcessingStatus = ReplyProcessingStatus.Forwarded,
         ForwardedAt = DateTimeOffset.UtcNow,
-        ErrorCode = null,
-        ErrorMessage = null
+        ErrorCode = ShouldPreserveDiagnosticError ? ErrorCode : null,
+        ErrorMessage = ShouldPreserveDiagnosticError ? ErrorMessage : null
     };
 
     public ReplyEvent MarkForwardFailed(string errorCode, string errorMessage) => this with
