@@ -229,7 +229,7 @@ public sealed class PaymentWizardSmokeTests
         await client.PostAsync($"/mailings/{mailingId}/recipients", new MultipartFormDataContent { { new StringContent("first@example.test\nwrong\nFIRST@example.test"), "manualAddresses" } });
         var declarationFields = new Dictionary<string, string> { ["baseSource"] = "Customers", ["baseLegality"] = "on", ["messageType"] = messageType.ToString() };
         if (messageType == MessageType.Advertising) declarationFields["advertisingConsent"] = "on";
-        await client.PostAsync($"/mailings/{mailingId}/declaration", new FormUrlEncodedContent(declarationFields));
+        await client.PostAsync($"/mailings/{mailingId}/confirmation", new FormUrlEncodedContent(declarationFields));
         var message = await client.PostAsync($"/mailings/{mailingId}/message", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["senderName"] = "Sender",
