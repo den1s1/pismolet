@@ -86,7 +86,8 @@ public sealed class SendingServicesTests
             string? replyToAddress = null,
             string? replyToken = null,
             string? providerMessageId = null,
-            string? textBody = null) => _items.Add(new FakeMail(to, subject, link, DateTimeOffset.UtcNow));
+            string? textBody = null,
+            string? messageId = null) => _items.Add(new FakeMail(to, subject, link, DateTimeOffset.UtcNow, MessageId: messageId));
 
         public void AddForwardedReply(string to, string subject, string fromEmail, string textBody, string providerMessageId) { }
 
