@@ -114,7 +114,8 @@ public sealed class WebhookProcessingTests
             string? replyToAddress = null,
             string? replyToken = null,
             string? providerMessageId = null,
-            string? textBody = null) { }
+            string? textBody = null,
+            string? messageId = null) { }
 
         public void AddForwardedReply(string to, string subject, string fromEmail, string textBody, string providerMessageId) { }
 
