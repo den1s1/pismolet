@@ -120,6 +120,8 @@ app.MapLegalDocumentEndpoints();
 app.MapLegalBaseLawfulnessEndpoints();
 app.MapAccountEndpoints();
 app.MapMailingCreationFlowReworkEndpoints();
+app.MapMailingRichMessageFlowEndpoints();
+app.MapMailingRecipientReviewOverlayEndpoints();
 app.MapSimplifiedRecipientStepEndpoints();
 app.MapDashboardEndpoints();
 app.MapSimplifiedMessageStepEndpoints();
