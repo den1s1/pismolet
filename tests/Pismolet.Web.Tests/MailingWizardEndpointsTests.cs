@@ -131,7 +131,7 @@ public sealed class MailingWizardEndpointsTests
     }
 
     [Fact]
-    public async Task Manual_address_import_with_base_confirmation_redirects_to_message_and_saves_declaration()
+    public async Task Recipient_import_does_not_save_legacy_base_confirmation_fields_and_final_confirmation_saves_declaration()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Wizard Owner");
@@ -149,14 +149,33 @@ public sealed class MailingWizardEndpointsTests
             { new StringContent("Transactional"), "messageType" }
         };
 
-        var response = await client.PostAsync($"/mailings/{mailingId}/recipients", content);
+        var importResponse = await client.PostAsync($"/mailings/{mailingId}/recipients", content);
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/mailings/{mailingId}/message", response.Headers.Location?.OriginalString);
+        Assert.Equal(HttpStatusCode.OK, importResponse.StatusCode);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
+            var importedMailing = mailings.GetForOwner(mailingId, OwnerEmail);
+            Assert.NotNull(importedMailing);
+            Assert.Null(importedMailing.Declaration);
+        }
 
-        using var scope = factory.Services.CreateScope();
-        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
-        var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
+        using var confirmationForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["baseSource"] = "Customers",
+            ["baseLegality"] = "on",
+            ["messageType"] = "Transactional",
+            ["campaignLaunchConfirmation"] = "on"
+        });
+
+        var confirmationResponse = await client.PostAsync($"/mailings/{mailingId}/confirmation", confirmationForm);
+
+        Assert.Equal(HttpStatusCode.Redirect, confirmationResponse.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/payment", confirmationResponse.Headers.Location?.OriginalString);
+
+        using var finalScope = factory.Services.CreateScope();
+        var finalMailings = finalScope.ServiceProvider.GetRequiredService<IMailingService>();
+        var mailing = finalMailings.GetForOwner(mailingId, OwnerEmail);
         Assert.NotNull(mailing);
         Assert.NotNull(mailing.Declaration);
         Assert.Equal(BaseSource.Customers, mailing.Declaration.BaseSource);
