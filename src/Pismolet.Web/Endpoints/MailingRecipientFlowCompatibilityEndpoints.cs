@@ -91,8 +91,8 @@ public static class MailingRecipientFlowCompatibilityEndpoints
 
     private static string Warnings(Mailing m)
     {
-        var hasWarnings = (m.LastImportBatch?.Issues ?? Array.Empty<RecipientImportIssue>()).Any(x => x.Message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase));
-        return hasWarnings ? "<h2>Предупреждения</h2>" : string.Empty;
+        var warnings = (m.LastImportBatch?.Issues ?? Array.Empty<RecipientImportIssue>()).Where(x => x.Message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase)).ToArray();
+        return warnings.Length == 0 ? string.Empty : "<section class='address-warning-block'><h2>Предупреждения</h2><ul>" + string.Join("", warnings.Select(x => $"<li>{H(x.Message)}</li>")) + "</ul></section>";
     }
 
     private static string Rows(Mailing m) => "<table>" + string.Join("", m.Recipients.Select(r => $"<tr><td>{H(r.Status == RecipientStatus.Accepted ? r.Email : r.SourceEmail ?? r.Email)}</td><td>{H(r.Status == RecipientStatus.Accepted ? "Принят к отправке" : r.ExclusionReason ?? r.Status.ToString())}</td></tr>")) + "</table>";
