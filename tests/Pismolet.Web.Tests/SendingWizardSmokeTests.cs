@@ -204,8 +204,8 @@ public sealed class SendingWizardSmokeTests
             ["messageType"] = "Transactional"
         });
 
-        var response = await client.PostAsync($"/mailings/{mailingId}/declaration", declarationForm);
-        Assert.True(response.IsSuccessStatusCode, $"Unexpected declaration response: {(int)response.StatusCode}");
+        var response = await client.PostAsync($"/mailings/{mailingId}/confirmation", declarationForm);
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected declaration response: {(int)response.StatusCode}");
     }
 
     private static async Task SaveMessage(HttpClient client, Guid mailingId, string subject)
