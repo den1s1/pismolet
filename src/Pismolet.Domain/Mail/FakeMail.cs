@@ -10,4 +10,5 @@ public sealed record FakeMail(
     string? ProviderMessageId = null,
     string? TextBody = null,
     string? FromEmail = null,
-    bool IsForwardedReply = false);
+    bool IsForwardedReply = false,
+    string? MessageId = null);
