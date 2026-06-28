@@ -161,21 +161,24 @@ public static class AdminSprint10Endpoints
     }
 
     private static IResult Complaints(HttpContext http, IUserRepository users, IMailingRepository mailings, ISendEventRepository sends) => DeliveryList(http, users, mailings, sends, "Жалобы", e => e.DeliveryStatus == DeliveryStatus.Complaint);
-    private static IResult DeliveryErrors(HttpContext http, IUserRepository users, IMailingRepository mailings, ISendEventRepository sends) => DeliveryList(http, users, mailings, sends, "Ошибки доставки", e => e.DeliveryStatus is DeliveryStatus.SoftBounce or DeliveryStatus.HardBounce or DeliveryStatus.Rejected or DeliveryStatus.Unknown);
+    private static IResult DeliveryErrors(HttpContext http, IUserRepository users, IMailingRepository mailings, ISendEventRepository sends) => DeliveryList(http, users, mailings, sends, "Ошибки доставки", e => e.DeliveryStatus is DeliveryStatus.HardBounce or DeliveryStatus.SoftBounce or DeliveryStatus.Rejected);
+
     private static IResult Replies(HttpContext http, IReplyEventRepository replies)
     {
         var rows = string.Join("", replies.ListRecent(200).Select(r =>
         {
             var mailing = r.MailingId is null ? string.Empty : $"<a class='admin-link' href='/admin/campaigns/{r.MailingId}'>{r.MailingId}</a>";
             var error = string.IsNullOrWhiteSpace(r.ErrorCode) ? string.Empty : $"{H(r.ErrorCode)}<br><span class='admin-muted'>{H(Trim(r.ErrorMessage, 120))}</span>";
-            return $"<tr><td>{r.ReceivedAt:yyyy-MM-dd HH:mm}</td><td>{H(r.ProcessingStatus.ToRu())}</td><td>{mailing}</td><td>{H(MaskEmail(r.ClientId))}</td><td>{H(MaskEmail(r.FromEmailNormalized))}</td><td>{H(Trim(r.SubjectPreview, 80))}</td><td>{H(r.BodyStorageStatus.ToString())}</td><td>{error}</td></tr>";
+            var flow = ReplyFlow(r);
+            var alias = ExtractReplyAlias(r.ToAddress);
+            return $"<tr><td>{r.ReceivedAt:yyyy-MM-dd HH:mm}</td><td>{H(r.ProcessingStatus.ToRu())}<br><span class='admin-muted'>{H(flow)}</span></td><td>{H(alias)}</td><td>{mailing}</td><td>{H(MaskEmail(r.ClientId))}</td><td>{H(MaskEmail(r.ForwardToEmailNormalized))}</td><td>{H(MaskEmail(r.FromEmailNormalized))}</td><td>{H(MaskEmail(r.RecipientEmailNormalized))}</td><td>{H(Trim(r.SubjectPreview, 80))}</td><td>{H(r.BodyStorageStatus.ToString())}</td><td>{error}</td></tr>";
         }));
         if (string.IsNullOrWhiteSpace(rows))
         {
-            rows = "<tr><td colspan='8' class='admin-muted'>Reply events не найдены.</td></tr>";
+            rows = "<tr><td colspan='11' class='admin-muted'>Reply events не найдены.</td></tr>";
         }
 
-        return AdminHtml("Ответы", CurrentEmail(http), "replies", $"<section class='admin-panel'><h1>Ответы получателей</h1><p class='admin-muted'>Диагностика inbound replies без тела письма, raw MIME и reply token.</p><table class='admin-table'><thead><tr><th>Получен</th><th>Статус</th><th>Рассылка</th><th>Клиент</th><th>Отправитель</th><th>Тема</th><th>Body</th><th>Ошибка</th></tr></thead><tbody>{rows}</tbody></table></section>");
+        return AdminHtml("Ответы", CurrentEmail(http), "replies", $"<section class='admin-panel'><h1>Ответы получателей</h1><p class='admin-muted'>Диагностика inbound replies: alias, статус сопоставления и причина fallback. Тело письма, raw MIME и reply token не отображаются.</p><table class='admin-table'><thead><tr><th>Получен</th><th>Статус</th><th>Alias</th><th>Рассылка</th><th>Клиент</th><th>Forward to</th><th>Отправитель</th><th>Получатель</th><th>Тема</th><th>Body</th><th>Диагностика</th></tr></thead><tbody>{rows}</tbody></table></section>");
     }
 
     private static IResult DeliveryList(HttpContext http, IUserRepository users, IMailingRepository mailings, ISendEventRepository sends, string title, Func<SendEvent, bool> predicate)
@@ -193,6 +196,41 @@ public static class AdminSprint10Endpoints
     private static string Card(string title, string text, string href) => $"<section class='admin-settings-card'><h2>{H(title)}</h2><p>{H(text)}</p><a class='admin-link' href='{H(href)}'>Открыть</a></section>";
     private static string Trim(string? value, int max) => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Length <= max ? value : value[..max] + "…";
     private static string Url(string value) => Uri.EscapeDataString(value);
+    private static string ReplyFlow(ReplyEvent reply)
+    {
+        if (reply.MailingId is not null)
+        {
+            return "matched";
+        }
+
+        if (!string.IsNullOrWhiteSpace(reply.ClientId) && !string.IsNullOrWhiteSpace(reply.ForwardToEmailNormalized))
+        {
+            return "known-alias fallback";
+        }
+
+        return reply.ProcessingStatus == ReplyProcessingStatus.Unmatched ? "unmatched" : "diagnostic";
+    }
+
+    private static string ExtractReplyAlias(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return string.Empty;
+        }
+
+        var value = address.Trim();
+        var left = value.LastIndexOf('<');
+        var right = value.LastIndexOf('>');
+        if (left >= 0 && right > left)
+        {
+            value = value[(left + 1)..right];
+        }
+
+        value = value.Trim().Trim('<', '>', ' ', '\t', '\r', '\n');
+        var at = value.IndexOf(Convert.ToChar(64));
+        return at <= 0 ? string.Empty : value[..at].Trim().ToLowerInvariant();
+    }
+
     private static string MaskEmail(string? email)
     {
         if (string.IsNullOrWhiteSpace(email))
