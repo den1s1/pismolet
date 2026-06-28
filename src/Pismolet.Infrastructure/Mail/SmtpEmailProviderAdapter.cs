@@ -203,7 +203,7 @@ public sealed class SmtpEmailProviderAdapter(
         mime.From.Add(new MailboxAddress(displayName, options.FromEmail));
         mime.To.Add(MailboxAddress.Parse(message.Recipient.Email));
         mime.Subject = message.Subject;
-        mime.MessageId = MimeUtils.GenerateMessageId(GetMessageIdDomain());
+        mime.MessageId = NormalizeMimeMessageId(message.MessageId) ?? MimeUtils.GenerateMessageId(GetMessageIdDomain());
 
         if (!string.IsNullOrWhiteSpace(message.ReplyToAddress) && MailboxAddress.TryParse(message.ReplyToAddress, out var replyTo))
         {
@@ -303,6 +303,19 @@ public sealed class SmtpEmailProviderAdapter(
         }
 
         return "pismolet.local";
+    }
+
+    private static string? NormalizeMimeMessageId(string? messageId)
+    {
+        if (string.IsNullOrWhiteSpace(messageId))
+        {
+            return null;
+        }
+
+        var value = messageId.Trim().Trim('<', '>');
+        return value.Contains('@', StringComparison.Ordinal) && !value.Any(char.IsWhiteSpace)
+            ? value
+            : null;
     }
 
     private string GetTransportName()
