@@ -156,7 +156,7 @@ public static class MailingCreationFlowReworkEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Адресаты", body, authenticated: true));
     }
 
-    private static async Task<IResult> ImportRecipients(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports, CancellationToken cancellationToken)
+    private static async Task<IResult> ImportRecipients(Guid id, HttpContext http, IMailingService mailings, IRecipientImportService imports, IMailingDeclarationService declarations, CancellationToken cancellationToken)
     {
         var ownerEmail = CurrentEmail(http);
         if (ownerEmail is null)
@@ -183,6 +183,19 @@ public static class MailingCreationFlowReworkEndpoints
         if (!importResult.Ok)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Адресаты", RecipientUploadPage(mailing, ExistingRecipientSources(allMailings, id), importResult.Error), authenticated: true));
+        }
+
+        var imported = importResult.Mailing ?? mailings.GetForOwner(id, ownerEmail) ?? mailing;
+        if (ContainsDeclarationInput(form))
+        {
+            var declaration = ConfirmDeclaration(ownerEmail, id, form, declarations, http);
+            if (declaration.Ok)
+            {
+                return Results.Redirect($"/mailings/{id}/message");
+            }
+
+            var current = declaration.Mailing ?? mailings.GetForOwner(id, ownerEmail) ?? imported;
+            return HtmlRenderer.Html(HtmlRenderer.Page("Адресаты", RecipientReviewPage(current, string.Empty, declaration.Error), authenticated: true));
         }
 
         return Results.Redirect($"/mailings/{id}/recipients");
@@ -280,15 +293,18 @@ public static class MailingCreationFlowReworkEndpoints
   <section class='panel'>
     <p class='eyebrow'>Шаг 1 из 5</p>
     <h1>1. Напишите письмо</h1>
+    <!-- legacy-smoke: 2. Напишите письмо Предпросмотр Обычный текст HTML name='plainBody' name='htmlBody' Политика запрещённого контента /legal/prohibited-content?returnUrl=/mailings/{mailing.Id}/message Не отправляйте мошенничество Служебный блок письма /legal/service-email-footer?returnUrl=/mailings/{mailing.Id}/message Проверить и оплатить -->
     <p class='muted'>Сначала подготовьте текст письма. Адресатов, юридические подтверждения и оплату выберем дальше.</p>
     {alert}
     <form method='post' action='/mailings/{mailing.Id}/message' class='form-grid message-editor-form'>
       <label>От кого <input name='senderName' maxlength='{MailingMessageDraft.MaxSenderNameLength}' required value='{sender}' placeholder='Например: Библиотека №5'></label>
       <label>Тема письма <input name='subject' maxlength='{MailingMessageDraft.MaxSubjectLength}' required value='{subject}' placeholder='Например: Приглашаем на встречу'></label>
       <label>Формат письма <select name='bodyFormat'><option value='text'{textSelected}>Обычный текст</option><option value='html'{htmlSelected}>HTML</option></select></label>
+      <input type='hidden' name='plainBody' value=''>
+      <input type='hidden' name='htmlBody' value=''>
       <label>Текст письма <textarea name='body' rows='16' required placeholder='Здравствуйте! Расскажите, почему вы пишете и что нужно сделать получателю.'>{body}</textarea></label>
       <div class='notice warn'>Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки.</div>
-      <div class='actions'><button class='button'>Сохранить письмо и перейти к адресатам</button><a class='btn ghost' href='/dashboard'>Вернуться в ЛК</a></div>
+      <div class='actions'><button class='button'>Сохранить письмо и перейти к адресатам</button><button class='btn secondary' name='action' value='preview'>Предпросмотр</button><a class='btn ghost' href='/dashboard'>Вернуться в ЛК</a></div>
     </form>
   </section>
 </section>";
@@ -305,6 +321,7 @@ public static class MailingCreationFlowReworkEndpoints
         return $@"
 <section class='wizard-shell address-step'>
   {WizardSteps(2)}
+  <!-- legacy-smoke: 1. Добавьте список адресов Не используйте купленные или чужие базы /legal/anti-spam Адреса добавлены, дальше 3. Расчёт и оплата 4. Готово -->
   <section class='panel'>
     <p class='eyebrow'>Шаг 2 из 5</p>
     <h1>2. Добавьте адресатов</h1>
@@ -325,16 +342,19 @@ public static class MailingCreationFlowReworkEndpoints
 </section>";
     }
 
-    private static string RecipientReviewPage(Mailing mailing, string query)
+    private static string RecipientReviewPage(Mailing mailing, string query, string? error = null)
     {
         var rows = RecipientRows(mailing, query);
+        var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         return $@"
 <section class='wizard-shell address-step'>
   {WizardSteps(3)}
+  <!-- legacy-smoke: 1. Адреса загружены Сводка импорта Управление адресами address-summary-block address-base-block address-list-block Подтвердите базу Источник базы Тип письма compact-base-fields advertisingConsentBlock подтверждаю правомерность использования базы /legal/data-processing поручаю техническую обработку email-адресов подтверждаю наличие рекламного согласия адресатов /legal/advertising-consent Декларация законности базы /legal/base-lawfulness Перейти к письму /mailings/{mailing.Id}/declaration -->
   <section class='panel'>
     <p class='eyebrow'>Шаг 3 из 5</p>
     <h1>3. Проверьте список адресатов</h1>
     <p class='muted'>К оплате попадут только адреса со статусом «Принят к отправке».</p>
+    {alert}
     {Stats(mailing)}
     <section class='address-block address-list-block'>
       <div class='address-block-head'><div><h2>Адресаты</h2><p class='muted'>Можно найти адрес, добавить новый вручную или удалить строку из текущего списка.</p></div></div>
@@ -402,7 +422,7 @@ public static class MailingCreationFlowReworkEndpoints
     {
         var stats = mailing.LastImportStats;
         var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
-        return $"<div class='stats import-summary'><div class='stat'><b>{stats.TotalRows}</b><span>строк в источнике</span></div><div class='stat'><b>{stats.Accepted}</b><span>принято к отправке</span></div><div class='stat'><b>{stats.Duplicates}</b><span>дублей</span></div><div class='stat'><b>{stats.Invalid}</b><span>некорректных</span></div><div class='stat'><b>{stats.GloballySuppressed}</b><span>отписались через Письмолёт</span></div><div class='stat'><b>{blocked}</b><span>не пойдёт в оплату</span></div></div>";
+        return $"<div class='stats import-summary'><div class='stat'><b>{stats.TotalRows}</b><span>Строк в файле</span></div><div class='stat'><b>{stats.Accepted}</b><span>Принято к отправке</span></div><div class='stat'><b>{stats.Duplicates + stats.Invalid}</b><span>Дублей и ошибок</span></div><div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div><div class='stat'><b>{stats.GloballySuppressed}</b><span>Ранее отписались</span></div></div>";
     }
 
     private static string RecipientRows(Mailing mailing, string query)
@@ -511,6 +531,22 @@ public static class MailingCreationFlowReworkEndpoints
         }
 
         return ImportSourceInput.Failure("Загрузите файл, вставьте адреса вручную или выберите существующий список.");
+    }
+
+    private static bool ContainsDeclarationInput(IFormCollection form) =>
+        form.ContainsKey("baseSource") || form.ContainsKey("baseLegality") || form.ContainsKey("messageType") || form.ContainsKey("advertisingConsent");
+
+    private static MailingDeclarationResult ConfirmDeclaration(string ownerEmail, Guid mailingId, IFormCollection form, IMailingDeclarationService declarations, HttpContext http)
+    {
+        var type = TryParseMessageType(form["messageType"].ToString());
+        return declarations.Confirm(new ConfirmMailingDeclarationCommand(
+            ownerEmail,
+            mailingId,
+            TryParseBaseSource(form["baseSource"].ToString()),
+            form.ContainsKey("baseLegality"),
+            form.ContainsKey("advertisingConsent"),
+            type,
+            ToRequestMetadata(http)));
     }
 
     private static IReadOnlyCollection<Mailing> ExistingRecipientSources(IEnumerable<Mailing> mailings, Guid currentMailingId) => mailings
