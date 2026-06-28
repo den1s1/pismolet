@@ -110,6 +110,16 @@ public sealed record ReplyEvent(
         ErrorMessage = null
     };
 
+    public ReplyEvent MarkKnownAliasFallback(string clientId, string forwardToEmail, string errorCode, string errorMessage) => this with
+    {
+        ClientId = clientId.Trim().ToLowerInvariant(),
+        ForwardToEmailNormalized = forwardToEmail.Trim().ToLowerInvariant(),
+        ProcessingStatus = ReplyProcessingStatus.Matched,
+        ProcessedAt = DateTimeOffset.UtcNow,
+        ErrorCode = errorCode,
+        ErrorMessage = errorMessage
+    };
+
     public ReplyEvent MarkQueuedForForward() => this with
     {
         ProcessingStatus = ReplyProcessingStatus.QueuedForForward,
@@ -179,5 +189,5 @@ public sealed record ReplyEvent(
 
 public sealed record ReplySummary(Guid MailingId, int TotalReplies, DateTimeOffset? LastReplyAt, ReplyProcessingStatus? LastStatus)
 {
-    public static ReplySummary Empty(Guid mailingId) => new(mailingId, 0, null, null);
+    public static ReplySummary Empty(Guid mailingId) => new(mailingId, 0, null);
 }
