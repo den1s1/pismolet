@@ -20,7 +20,7 @@ public sealed class MailingWizardEndpointsTests
     private const string OwnerEmail = "wizard-owner@example.test";
 
     [Fact]
-    public async Task Authenticated_user_can_start_new_mailing_from_addresses_step()
+    public async Task Authenticated_user_can_start_new_mailing_from_message_step()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Wizard Owner");
@@ -35,11 +35,11 @@ public sealed class MailingWizardEndpointsTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location?.OriginalString ?? string.Empty;
         Assert.StartsWith("/mailings/", location, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith("/recipients", location, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("/message", location, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task Authenticated_user_can_open_address_wizard_step()
+    public async Task Authenticated_user_can_open_address_wizard_step_without_legal_declaration_fields()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Wizard Owner");
@@ -48,20 +48,23 @@ public sealed class MailingWizardEndpointsTests
 
         var html = await client.GetStringAsync($"/mailings/{mailingId}/recipients");
 
-        Assert.Contains("1. Добавьте список адресов", html);
-        Assert.Contains("Не используйте купленные или чужие базы", html);
-        Assert.Contains("/legal/anti-spam", html);
+        Assert.Contains("2. Добавьте адресатов", html);
+        Assert.Contains("Загрузить CSV/XLSX", html);
         Assert.Contains("name='manualAddresses'", html);
         Assert.Contains("dropzone", html);
         Assert.Contains("address-upload-block", html);
-        Assert.Contains("Адреса добавлены, дальше", html);
-        Assert.Contains("3. Расчёт и оплата", html);
-        Assert.Contains("4. Готово", html);
+        Assert.Contains("уже существующий список", html);
+        Assert.Contains("name='sourceMailingId'", html);
+        Assert.Contains("Загрузить и посмотреть список", html);
+        Assert.DoesNotContain("name='baseSource'", html);
+        Assert.DoesNotContain("name='baseLegality'", html);
+        Assert.DoesNotContain("name='messageType'", html);
+        Assert.DoesNotContain("name='advertisingConsent'", html);
         Assert.DoesNotContain(">Черновик<", html);
     }
 
     [Fact]
-    public async Task Manual_address_import_preserves_accepted_recipients_and_shows_integrated_base_confirmation()
+    public async Task Manual_address_import_preserves_accepted_recipients_and_moves_legal_confirmation_to_final_step()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Wizard Owner");
@@ -76,38 +79,34 @@ public sealed class MailingWizardEndpointsTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("1. Адреса загружены", html);
-        Assert.Contains("Сводка импорта", html);
-        Assert.Contains("Управление адресами", html);
-        Assert.Contains("address-summary-block", html);
-        Assert.Contains("address-base-block", html);
-        Assert.Contains("address-list-block", html);
-        Assert.DoesNotContain("Адреса проверены", html);
+        Assert.Contains("3. Проверьте список адресатов", html);
         Assert.Contains("Принято к отправке", html);
         Assert.Contains("<b>1</b><span>Принято к отправке</span>", html);
         Assert.Contains("<b>2</b><span>Дублей и ошибок</span>", html);
         Assert.Contains("Ранее отписались", html);
-        Assert.DoesNotContain("Что исключено", html);
-        Assert.DoesNotContain("Исключённых адресов нет", html);
-        Assert.Contains("Подтвердите базу", html);
-        Assert.DoesNotContain("Источник и подтверждения фиксируются", html);
-        Assert.Contains("Источник базы", html);
-        Assert.Contains("Тип письма", html);
-        Assert.Contains("compact-base-fields", html);
-        Assert.Contains("advertisingConsentBlock", html);
-        Assert.Contains("подтверждаю правомерность использования базы", html);
-        Assert.Contains("/legal/data-processing", html);
-        Assert.Contains("поручаю техническую обработку email-адресов", html);
-        Assert.Contains("подтверждаю наличие рекламного согласия адресатов", html);
-        Assert.Contains("/legal/advertising-consent", html);
-        Assert.Contains("Декларация законности базы", html);
-        Assert.Contains("/legal/base-lawfulness", html);
-        Assert.Contains("Перейти к письму", html);
-        Assert.Contains($"/mailings/{mailingId}/declaration", html);
+        Assert.Contains("address-list-block", html);
+        Assert.Contains("Перейти к финальному подтверждению", html);
+        Assert.DoesNotContain("name='baseSource'", html);
+        Assert.DoesNotContain("name='baseLegality'", html);
+        Assert.DoesNotContain("name='messageType'", html);
+        Assert.DoesNotContain("name='advertisingConsent'", html);
         Assert.DoesNotContain("Текст декларации", html);
         Assert.DoesNotContain("Полный текст вынесен", html);
         Assert.DoesNotContain("Открыть декларацию", html);
         Assert.DoesNotContain("style=", html);
+
+        var confirmationHtml = await client.GetStringAsync($"/mailings/{mailingId}/confirmation");
+        Assert.Contains("4. Финальное подтверждение", confirmationHtml);
+        Assert.Contains("Источник базы", confirmationHtml);
+        Assert.Contains("Тип письма", confirmationHtml);
+        Assert.Contains("name='baseSource'", confirmationHtml);
+        Assert.Contains("name='baseLegality'", confirmationHtml);
+        Assert.Contains("name='messageType'", confirmationHtml);
+        Assert.Contains("name='advertisingConsent'", confirmationHtml);
+        Assert.Contains("name='campaignLaunchConfirmation'", confirmationHtml);
+        Assert.Contains("/legal/data-processing", confirmationHtml);
+        Assert.Contains("/legal/advertising-consent", confirmationHtml);
+        Assert.Contains("будет запущена автоматически после успешной модерации", confirmationHtml);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
@@ -303,20 +302,15 @@ public sealed class MailingWizardEndpointsTests
 
         var html = await client.GetStringAsync($"/mailings/{mailingId}/message");
 
-        Assert.Contains("2. Напишите письмо", html);
+        Assert.Contains("1. Напишите письмо", html);
         Assert.Contains("Предпросмотр", html);
         Assert.Contains("Обычный текст", html);
         Assert.Contains("HTML", html);
         Assert.Contains("name='senderName'", html);
         Assert.Contains("name='plainBody'", html);
         Assert.Contains("name='htmlBody'", html);
-        Assert.Contains("Политика запрещённого контента", html);
-        Assert.Contains($"/legal/prohibited-content?returnUrl=/mailings/{mailingId}/message", html);
-        Assert.Contains("Не отправляйте мошенничество", html);
         Assert.Contains("Письмолёт автоматически добавит", html);
-        Assert.Contains("Служебный блок письма", html);
-        Assert.Contains($"/legal/service-email-footer?returnUrl=/mailings/{mailingId}/message", html);
-        Assert.Contains("Проверить и оплатить", html);
+        Assert.Contains("Сохранить письмо и перейти к адресатам", html);
         Assert.DoesNotContain("<div class='mail-preview-body'>", html);
         Assert.DoesNotContain("name='messageType'", html);
         Assert.DoesNotContain("Тип письма", html);
@@ -375,11 +369,12 @@ public sealed class MailingWizardEndpointsTests
         {
             ["baseSource"] = "Customers",
             ["baseLegality"] = "on",
-            ["messageType"] = "Transactional"
+            ["messageType"] = "Transactional",
+            ["campaignLaunchConfirmation"] = "on"
         });
 
-        var response = await client.PostAsync($"/mailings/{mailingId}/declaration", declarationForm);
-        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected declaration response: {(int)response.StatusCode}");
+        var response = await client.PostAsync($"/mailings/{mailingId}/confirmation", declarationForm);
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected confirmation response: {(int)response.StatusCode}");
     }
 
     private static WebApplicationFactory<Program> CreateFactory() =>
