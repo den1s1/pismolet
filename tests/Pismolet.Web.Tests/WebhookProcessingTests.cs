@@ -105,6 +105,8 @@ public sealed class WebhookProcessingTests
     {
         public void SendConfirmation(string to, string subject, string link) { }
 
+        public void SendAdminNotification(string to, string subject, string body, string? link = null) { }
+
         public void AddMailingMessage(
             string to,
             string subject,

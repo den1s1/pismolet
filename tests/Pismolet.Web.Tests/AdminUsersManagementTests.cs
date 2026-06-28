@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Pismolet.Web.Application.Admin;
 using Pismolet.Web.Application.Auth;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
@@ -74,6 +75,46 @@ public sealed class AdminUsersManagementTests
         Assert.Contains("Администратор · конфиг", profile);
         Assert.Contains("С себя снять админские права нельзя", profile);
         Assert.DoesNotContain("Снять админские права", profile);
+    }
+
+    [Fact]
+    public async Task Admin_profile_allows_updating_individual_notification_settings()
+    {
+        var adminStore = Path.Combine(Path.GetTempPath(), $"pismolet-admins-{Guid.NewGuid():N}.txt");
+        using var factory = CreateAuthorizedFactory(adminStore);
+        SeedUser(factory, RootAdminEmail, "Root Admin");
+        SeedUser(factory, PromotedEmail, "Promoted User");
+        using var client = CreateAuthenticatedClient(factory, RootAdminEmail, allowAutoRedirect: false);
+        var encoded = Uri.EscapeDataString(PromotedEmail);
+        await client.PostAsync($"/admin/users/{encoded}/admin/grant", new FormUrlEncodedContent(new Dictionary<string, string>()));
+
+        var profileBefore = await client.GetStringAsync($"/admin/users/{encoded}");
+        Assert.Contains("Уведомления на email", profileBefore);
+        Assert.Contains("name='notifyUserRegistered'", profileBefore);
+        Assert.Contains("name='notifyMailingCreated'", profileBefore);
+        Assert.DoesNotContain("name='notifyUserRegistered' value='on' checked", profileBefore);
+        Assert.DoesNotContain("name='notifyMailingPaid' value='on' checked", profileBefore);
+
+        var response = await client.PostAsync($"/admin/users/{encoded}/notifications", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["notifyUserRegistered"] = "on",
+            ["notifyMailingPaid"] = "on"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/admin/users/{encoded}", response.Headers.Location?.OriginalString);
+        using var scope = factory.Services.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IAdminNotificationSettingsRepository>();
+        var settings = repository.Get(PromotedEmail);
+        Assert.True(settings.UserRegistered);
+        Assert.False(settings.MailingCreated);
+        Assert.False(settings.MailingSubmittedToModeration);
+        Assert.True(settings.MailingPaid);
+
+        var profileAfter = await client.GetStringAsync($"/admin/users/{encoded}");
+        Assert.Contains("name='notifyUserRegistered' value='on' checked", profileAfter);
+        Assert.Contains("name='notifyMailingPaid' value='on' checked", profileAfter);
+        Assert.DoesNotContain("name='notifyMailingCreated' value='on' checked", profileAfter);
     }
 
     [Fact]

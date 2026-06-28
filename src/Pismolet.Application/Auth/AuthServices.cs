@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Pismolet.Web.Application.Admin;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Legal;
@@ -42,7 +43,8 @@ public sealed class UserAccountService(
     IFakeMailer fakeMailer,
     IAuditLogger auditLogger,
     IAdminMvpSettingsRepository settingsRepository,
-    ILegalEvidenceService legalEvidence) : IUserAccountService
+    ILegalEvidenceService legalEvidence,
+    IAdminNotificationService? adminNotifications = null) : IUserAccountService
 {
     private const string EmailConfirmationSnapshot = "Клиент подтвердил владение email-адресом переходом по ссылке подтверждения.";
 
@@ -100,6 +102,7 @@ public sealed class UserAccountService(
 
         var link = "/account/confirm-email?token=" + token;
         fakeMailer.SendConfirmation(email, "Подтверждение email", link);
+        adminNotifications?.NotifyUserRegistered(user);
 
         return RegisterUserResult.Success(link);
     }

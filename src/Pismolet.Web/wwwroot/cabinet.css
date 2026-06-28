@@ -692,6 +692,38 @@
   font-size: 13px;
 }
 
+.admin-notification-settings {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.admin-notification-settings h3,
+.admin-notification-settings p {
+  margin: 0;
+}
+
+.admin-checkbox-row {
+  display: grid !important;
+  grid-template-columns: auto 1fr;
+  gap: 10px !important;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f8fafc;
+  color: var(--text) !important;
+  padding: 10px 12px;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+
+.admin-checkbox-row input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin-top: 1px;
+}
+
 @media (max-width: 1120px) {
   .admin-shell {
     width: 100%;

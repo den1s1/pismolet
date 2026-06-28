@@ -1,3 +1,4 @@
+using Pismolet.Web.Application.Admin;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
@@ -77,7 +78,16 @@ public sealed class FakeRobokassaPaymentProvider : IPaymentProvider
     }
 }
 
-public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentRepository payments, IPriceSettingsRepository prices, IMailingPricingService pricing, IPaymentProvider provider, IUserRepository users, IEmailNormalizer emailNormalizer, IAuditLogger auditLogger) : IMailingPaymentService
+public sealed class MailingPaymentService(
+    IMailingRepository mailings,
+    IPaymentRepository payments,
+    IPriceSettingsRepository prices,
+    IMailingPricingService pricing,
+    IPaymentProvider provider,
+    IUserRepository users,
+    IEmailNormalizer emailNormalizer,
+    IAuditLogger auditLogger,
+    IAdminNotificationService? adminNotifications = null) : IMailingPaymentService
 {
     public MailingPaymentResult GetPaymentReview(string userEmail, Guid mailingId, RequestMetadata request)
     {
@@ -141,6 +151,7 @@ public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentR
             mailing = mailing.WithStatus(MailingStatus.Paid);
             mailings.Update(mailing);
             auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "robokassa_payment_succeeded", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
+            adminNotifications?.NotifyMailingPaid(mailing, payment);
         }
 
         return BuildReview(mailing.WithStatus(MailingStatus.Paid), payment);
@@ -163,6 +174,7 @@ public sealed class MailingPaymentService(IMailingRepository mailings, IPaymentR
             mailing = mailing.WithStatus(MailingStatus.Paid);
             mailings.Update(mailing);
             auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "robokassa_result_paid", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
+            adminNotifications?.NotifyMailingPaid(mailing, payment);
         }
 
         return BuildReview(mailing.WithStatus(MailingStatus.Paid), payment);

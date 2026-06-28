@@ -77,6 +77,8 @@ public sealed class SendingServicesTests
 
         public void SendConfirmation(string to, string subject, string link) => _items.Add(new FakeMail(to, subject, link, DateTimeOffset.UtcNow));
 
+        public void SendAdminNotification(string to, string subject, string body, string? link = null) => _items.Add(new FakeMail(to, subject, link ?? string.Empty, DateTimeOffset.UtcNow, TextBody: body));
+
         public void AddMailingMessage(
             string to,
             string subject,

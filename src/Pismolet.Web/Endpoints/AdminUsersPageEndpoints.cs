@@ -30,6 +30,10 @@ public static class AdminUsersPageEndpoints
             .RequireAuthorization(AdminEndpoints.AdminPolicyName)
             .WithOrder(-100);
 
+        app.MapPost("/admin/users/{email}/notifications", SaveNotificationSettings)
+            .RequireAuthorization(AdminEndpoints.AdminPolicyName)
+            .WithOrder(-100);
+
         app.MapPost("/admin/users/{email}/remove", RemoveUser)
             .RequireAuthorization(AdminEndpoints.AdminPolicyName)
             .WithOrder(-100);
@@ -116,7 +120,7 @@ public static class AdminUsersPageEndpoints
         return AdminHtml("Админка - пользователи", adminEmail, body);
     }
 
-    private static IResult ShowUserProfile(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins)
+    private static IResult ShowUserProfile(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins, IAdminNotificationSettingsRepository notificationSettings)
     {
         var adminEmail = CurrentEmail(http) ?? "admin@example.test";
         var targetEmail = Uri.UnescapeDataString(email);
@@ -127,7 +131,7 @@ public static class AdminUsersPageEndpoints
         }
 
         var userMailings = ListUserMailings(mailings, user.Email);
-        return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, null));
+        return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, notificationSettings.Get(user.Email), null));
     }
 
     private static IResult GrantAdmin(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins)
@@ -143,7 +147,7 @@ public static class AdminUsersPageEndpoints
         return Results.Redirect($"/admin/users/{Uri.EscapeDataString(user.Email)}");
     }
 
-    private static IResult RevokeAdmin(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins)
+    private static IResult RevokeAdmin(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins, IAdminNotificationSettingsRepository notificationSettings)
     {
         var adminEmail = CurrentEmail(http) ?? string.Empty;
         var user = users.GetByEmail(Uri.UnescapeDataString(email));
@@ -155,13 +159,38 @@ public static class AdminUsersPageEndpoints
         if (!admins.TryRevokeAdmin(user.Email, adminEmail, out var error))
         {
             var userMailings = ListUserMailings(mailings, user.Email);
-            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, error));
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, notificationSettings.Get(user.Email), error));
         }
 
         return Results.Redirect($"/admin/users/{Uri.EscapeDataString(user.Email)}");
     }
 
-    private static IResult RemoveUser(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins, IAdminUserRemovalService remover)
+    private static async Task<IResult> SaveNotificationSettings(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins, IAdminNotificationSettingsRepository notificationSettings)
+    {
+        var adminEmail = CurrentEmail(http) ?? string.Empty;
+        var user = users.GetByEmail(Uri.UnescapeDataString(email));
+        if (user is null)
+        {
+            return AdminHtml("Админка - пользователь", adminEmail, HtmlRenderer.Error("Пользователь не найден."));
+        }
+
+        var userMailings = ListUserMailings(mailings, user.Email);
+        if (!admins.IsAdminEmail(user.Email))
+        {
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, notificationSettings.Get(user.Email), "Настройки уведомлений доступны только администраторам."));
+        }
+
+        var form = await http.Request.ReadFormAsync();
+        notificationSettings.Save(user.Email, new AdminNotificationSettings(
+            UserRegistered: IsChecked(form, "notifyUserRegistered"),
+            MailingCreated: IsChecked(form, "notifyMailingCreated"),
+            MailingSubmittedToModeration: IsChecked(form, "notifyMailingSubmittedToModeration"),
+            MailingPaid: IsChecked(form, "notifyMailingPaid")));
+
+        return Results.Redirect($"/admin/users/{Uri.EscapeDataString(user.Email)}");
+    }
+
+    private static IResult RemoveUser(string email, HttpContext http, IUserRepository users, IMailingRepository mailings, IAdminAccessService admins, IAdminNotificationSettingsRepository notificationSettings, IAdminUserRemovalService remover)
     {
         var adminEmail = CurrentEmail(http) ?? string.Empty;
         var user = users.GetByEmail(Uri.UnescapeDataString(email));
@@ -173,29 +202,29 @@ public static class AdminUsersPageEndpoints
         var userMailings = ListUserMailings(mailings, user.Email);
         if (SameEmail(user.Email, adminEmail))
         {
-            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, "Нельзя удалить собственный аккаунт администратора."));
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, notificationSettings.Get(user.Email), "Нельзя удалить собственный аккаунт администратора."));
         }
 
         if (admins.IsConfigAdminEmail(user.Email))
         {
-            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, "Нельзя удалить администратора, заданного в конфигурации сервера."));
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, notificationSettings.Get(user.Email), "Нельзя удалить администратора, заданного в конфигурации сервера."));
         }
 
         if (admins.IsManagedAdminEmail(user.Email))
         {
-            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, "Сначала снимите админские права, затем удалите пользователя."));
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, notificationSettings.Get(user.Email), "Сначала снимите админские права, затем удалите пользователя."));
         }
 
         var result = remover.RemoveUser(user.Email, adminEmail, ToRequestMetadata(http));
         if (!result.Ok)
         {
-            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, result.Error));
+            return AdminHtml("Админка - пользователь", adminEmail, UserProfilePage(user, userMailings, adminEmail, admins, notificationSettings.Get(user.Email), result.Error));
         }
 
         return Results.Redirect($"/admin/users?action=removed&removed={Uri.EscapeDataString(user.Email)}");
     }
 
-    private static string UserProfilePage(UserAccount user, IReadOnlyCollection<Mailing> userMailings, string currentAdminEmail, IAdminAccessService admins, string? error)
+    private static string UserProfilePage(UserAccount user, IReadOnlyCollection<Mailing> userMailings, string currentAdminEmail, IAdminAccessService admins, AdminNotificationSettings notificationSettings, string? error)
     {
         var displayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Email : user.DisplayName;
         var phone = string.IsNullOrWhiteSpace(user.Phone) ? "-" : user.Phone;
@@ -205,6 +234,7 @@ public static class AdminUsersPageEndpoints
         var isAdmin = isConfigAdmin || isManagedAdmin;
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         var adminAction = AdminActionBlock(user.Email, isSelf, isConfigAdmin, isManagedAdmin, isAdmin);
+        var notificationBlock = AdminNotificationSettingsBlock(user.Email, isAdmin, notificationSettings);
         var removeAction = RemoveUserBlock(user.Email, isSelf, isConfigAdmin, isManagedAdmin);
         var mailingRows = userMailings.Count == 0
             ? "<tr><td colspan='4'>Рассылок пока нет.</td></tr>"
@@ -239,6 +269,7 @@ public static class AdminUsersPageEndpoints
                         <p class='muted'>Администраторы могут открывать админку и отправлять свои рассылки без оплаты.</p>
                         {AdminSourceNote(isConfigAdmin, isManagedAdmin)}
                         {adminAction}
+                        {notificationBlock}
                     </section>
                 </div>
                 <section class='box admin-user-mailings'>
@@ -287,6 +318,34 @@ public static class AdminUsersPageEndpoints
 
         return $"<form method='post' action='/admin/users/{encoded}/admin/grant'><button class='admin-button' type='submit'>Сделать администратором</button></form>";
     }
+
+    private static string AdminNotificationSettingsBlock(string email, bool isAdmin, AdminNotificationSettings settings)
+    {
+        if (!isAdmin)
+        {
+            return string.Empty;
+        }
+
+        var encoded = Uri.EscapeDataString(email);
+        return $"""
+            <form method='post' action='/admin/users/{encoded}/notifications' class='admin-notification-settings'>
+                <h3>Уведомления на email</h3>
+                <p class='muted'>Настройка индивидуальна для этого администратора. По умолчанию все уведомления выключены.</p>
+                {NotificationCheckbox("notifyUserRegistered", "Новый пользователь зарегистрирован", settings.UserRegistered)}
+                {NotificationCheckbox("notifyMailingCreated", "Пользователь создал новую рассылку", settings.MailingCreated)}
+                {NotificationCheckbox("notifyMailingSubmittedToModeration", "Пользователь отправил рассылку на модерацию", settings.MailingSubmittedToModeration)}
+                {NotificationCheckbox("notifyMailingPaid", "Пользователь оплатил рассылку", settings.MailingPaid)}
+                <button class='admin-button compact-action' type='submit'>Сохранить уведомления</button>
+            </form>
+            """;
+    }
+
+    private static string NotificationCheckbox(string name, string text, bool isChecked) => $"""
+        <label class='admin-checkbox-row'>
+            <input type='checkbox' name='{H(name)}' value='on'{(isChecked ? " checked" : string.Empty)}>
+            <span>{H(text)}</span>
+        </label>
+        """;
 
     private static string RemoveUserBlock(string email, bool isSelf, bool isConfigAdmin, bool isManagedAdmin)
     {
@@ -383,6 +442,8 @@ public static class AdminUsersPageEndpoints
     }
 
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
+
+    private static bool IsChecked(IFormCollection form, string name) => string.Equals(form[name].ToString(), "on", StringComparison.OrdinalIgnoreCase);
 
     private static bool SameEmail(string left, string right) => string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
 

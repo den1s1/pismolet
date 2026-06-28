@@ -14,6 +14,13 @@ public sealed class InMemoryFakeMailer : IFakeMailer
         Link: link,
         CreatedAt: DateTimeOffset.UtcNow));
 
+    public void SendAdminNotification(string to, string subject, string body, string? link = null) => _outbox.Enqueue(new FakeMail(
+        To: to,
+        Subject: subject,
+        Link: link ?? string.Empty,
+        CreatedAt: DateTimeOffset.UtcNow,
+        TextBody: body));
+
     public void AddMailingMessage(
         string to,
         string subject,

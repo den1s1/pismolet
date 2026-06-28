@@ -53,6 +53,32 @@ public sealed class SmtpAccountConfirmationMailer : IFakeMailer
         }
     }
 
+    public void SendAdminNotification(string to, string subject, string body, string? link = null)
+    {
+        var absoluteLink = string.IsNullOrWhiteSpace(link) ? string.Empty : ToAbsoluteUrl(link);
+        _outbox.Enqueue(new FakeMail(to, subject, absoluteLink, DateTimeOffset.UtcNow, TextBody: body));
+
+        try
+        {
+            var message = BuildAdminNotificationMessage(to, subject, body, absoluteLink);
+            Send(message);
+            _logger.LogInformation(
+                "Admin notification email sent. host={Host} port={Port} recipientDomain={RecipientDomain}",
+                _options.Host,
+                _options.Port,
+                GetEmailDomain(to));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Admin notification email failed. host={Host} port={Port} recipientDomain={RecipientDomain}",
+                _options.Host,
+                _options.Port,
+                GetEmailDomain(to));
+        }
+    }
+
     public void AddMailingMessage(
         string to,
         string subject,
@@ -106,6 +132,29 @@ public sealed class SmtpAccountConfirmationMailer : IFakeMailer
                 """
         };
         message.Body = body.ToMessageBody();
+        return message;
+    }
+
+    private MimeMessage BuildAdminNotificationMessage(string to, string subject, string textBody, string link)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(_options.FromName, _options.FromEmail));
+        message.To.Add(MailboxAddress.Parse(to));
+        message.Subject = subject;
+        message.MessageId = MimeUtils.GenerateMessageId(GetMessageIdDomain());
+
+        var safeBody = WebUtility.HtmlEncode(textBody).Replace("\n", "<br>", StringComparison.Ordinal);
+        var safeLink = string.IsNullOrWhiteSpace(link) ? string.Empty : WebUtility.HtmlEncode(link);
+        var linkText = string.IsNullOrWhiteSpace(link) ? string.Empty : $"\n\nОткрыть: {link}";
+        var linkHtml = string.IsNullOrWhiteSpace(link) ? string.Empty : $"""<p><a href="{safeLink}">Открыть в админке</a></p>""";
+        message.Body = new BodyBuilder
+        {
+            TextBody = textBody + linkText,
+            HtmlBody = $"""
+                <p>{safeBody}</p>
+                {linkHtml}
+                """
+        }.ToMessageBody();
         return message;
     }
 

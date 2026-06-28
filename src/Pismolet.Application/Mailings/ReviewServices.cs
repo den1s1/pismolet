@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Pismolet.Web.Application.Admin;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Persistence;
@@ -164,7 +165,8 @@ public sealed class MailingReviewService(
     IUserRepository users,
     IRiskCheckService riskCheckService,
     IEmailNormalizer emailNormalizer,
-    IAuditLogger auditLogger) : IMailingReviewService
+    IAuditLogger auditLogger,
+    IAdminNotificationService? adminNotifications = null) : IMailingReviewService
 {
     public MailingReviewResult GetState(string userEmail, Guid mailingId)
     {
@@ -221,6 +223,7 @@ public sealed class MailingReviewService(
                 reviews.Save(review);
                 mailing = mailing.WithStatus(MailingStatus.ReviewRequired);
                 auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "moderation_review_created", request.Ip, request.UserAgent, $"mailingId={mailing.Id};reviewId={review.Id};score={riskResult.Score}"));
+                adminNotifications?.NotifyMailingSubmittedToModeration(mailing, review);
                 break;
         }
 

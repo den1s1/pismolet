@@ -6,6 +6,8 @@ public interface IFakeMailer
 {
     void SendConfirmation(string to, string subject, string link);
 
+    void SendAdminNotification(string to, string subject, string body, string? link = null);
+
     void AddMailingMessage(
         string to,
         string subject,

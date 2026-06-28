@@ -1,3 +1,4 @@
+using Pismolet.Web.Application.Admin;
 using Pismolet.Web.Application.Audit;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
@@ -28,7 +29,8 @@ public interface IMailingService
 public sealed class MailingService(
     IMailingRepository mailings,
     IAuditLogger auditLogger,
-    IEmailNormalizer emailNormalizer) : IMailingService
+    IEmailNormalizer emailNormalizer,
+    IAdminNotificationService? adminNotifications = null) : IMailingService
 {
     private const int MaxSubjectLength = 160;
 
@@ -59,6 +61,7 @@ public sealed class MailingService(
         }
 
         Audit(userEmail, "mailing_created", request, $"{{\"mailingId\":\"{mailing.Id}\"}}");
+        adminNotifications?.NotifyMailingCreated(mailing);
         return CreateMailingResult.Success(mailing);
     }
 

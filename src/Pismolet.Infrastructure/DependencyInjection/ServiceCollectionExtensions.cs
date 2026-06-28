@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFakeMailer, InMemoryFakeMailer>();
         services.AddSingleton<IEmailNormalizer, EmailNormalizer>();
         services.AddSingleton<IAdminAccessService, ConfigurationAdminAccessService>();
+        services.AddSingleton<IAdminNotificationSettingsRepository>(_ => new FileAdminNotificationSettingsRepository(configuration));
         services.AddSingleton<IEmailSyntaxValidator, EmailSyntaxValidator>();
         services.AddSingleton<IAdminMvpSettingsRepository, RuntimeAdminMvpSettingsRepository>();
         services.AddSingleton<IMailWarmupRuntimeSettingsRepository>(_ => new FileMailWarmupRuntimeSettingsRepository(configuration));
@@ -76,6 +77,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMailingSendService, AdminGuardedMailingSendService>();
         services.AddScoped<IClientSendLimitAdminService, ClientSendLimitAdminService>();
         services.AddScoped<IAdminUserRemovalService, AdminUserRemovalService>();
+        services.AddScoped<IAdminNotificationService, AdminNotificationService>();
         services.AddScoped<IAdminOperationService, AdminOperationService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
         services.AddScoped<IEmailWebhookProcessingService, EmailWebhookProcessingService>();
@@ -93,6 +95,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IMailingRepository, InMemoryMailingRepository>();
             services.AddSingleton<IGlobalSuppressionRepository, InMemoryGlobalSuppressionRepository>();
             services.AddSingleton<IAdminRecipientRepository, InMemoryAdminRecipientRepository>();
+            services.AddSingleton<IAdminNotificationSettingsRepository, InMemoryAdminNotificationSettingsRepository>();
             services.AddSingleton<InMemoryAdminMailingSummaryRepository>();
             services.AddSingleton<IAdminCampaignRepository>(sp => sp.GetRequiredService<InMemoryAdminMailingSummaryRepository>());
             services.AddSingleton<IAdminPaymentRepository>(sp => sp.GetRequiredService<InMemoryAdminMailingSummaryRepository>());
