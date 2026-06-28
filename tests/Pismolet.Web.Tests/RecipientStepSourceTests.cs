@@ -42,14 +42,20 @@ public sealed class RecipientStepSourceTests
     }
 
     [Fact]
-    public void Dashboard_endpoints_do_not_register_legacy_recipient_routes()
+    public void Dashboard_endpoints_do_not_register_legacy_wizard_routes()
     {
         var endpoint = ReadRepositoryFile("src/Pismolet.Web/Endpoints/DashboardEndpoints.cs");
 
+        Assert.DoesNotContain("MapGet(\"/mailings/new\"", endpoint);
+        Assert.DoesNotContain("MapPost(\"/mailings\"", endpoint);
         Assert.DoesNotContain("MapGet(\"/mailings/{id:guid}/recipients\"", endpoint);
         Assert.DoesNotContain("MapPost(\"/mailings/{id:guid}/recipients\"", endpoint);
+        Assert.DoesNotContain("MapGet(\"/mailings/{id:guid}/declaration\"", endpoint);
+        Assert.DoesNotContain("MapPost(\"/mailings/{id:guid}/declaration\"", endpoint);
         Assert.DoesNotContain("ShowUploadForm", endpoint);
         Assert.DoesNotContain("ImportResultWizard", endpoint);
+        Assert.DoesNotContain("ShowDeclaration", endpoint);
+        Assert.DoesNotContain("ConfirmDeclaration", endpoint);
     }
 
     private static string ReadRepositoryFile(string relativePath) => File.ReadAllText(RepositoryPath(relativePath));
