@@ -330,6 +330,86 @@
   margin-top: 18px;
 }
 
+.rich-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.rich-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #f8fafc;
+  padding: 8px;
+}
+
+.rich-tool {
+  width: 38px;
+  min-width: 38px;
+  padding-inline: 0;
+}
+
+.rich-select,
+.rich-link-input {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 7px 10px;
+  font: inherit;
+}
+
+.rich-select {
+  max-width: 110px;
+}
+
+.rich-link-input {
+  flex: 1 1 220px;
+}
+
+.rich-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--muted);
+  padding: 5px 9px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.rich-color input {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0;
+}
+
+.rich-editable {
+  min-height: 300px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  padding: 16px;
+  line-height: 1.55;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+
+.rich-editable:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
 .admin-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
@@ -652,5 +732,16 @@
 
   .compact-base-submit {
     width: 100% !important;
+  }
+
+  .rich-toolbar {
+    align-items: stretch;
+  }
+
+  .rich-select,
+  .rich-link-input,
+  .rich-link-button {
+    flex: 1 1 100%;
+    max-width: none;
   }
 }

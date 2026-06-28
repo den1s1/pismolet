@@ -123,6 +123,85 @@ public sealed class MessagePreviewUiTests
         Assert.Equal(MessageBodyFormat.Text, mailing.MessageDraft?.BodyFormat);
     }
 
+    [Fact]
+    public async Task Message_editor_exposes_minimal_rich_text_toolbar_for_html_body()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+
+        var html = await client.GetStringAsync($"/mailings/{mailingId}/message");
+
+        Assert.Contains("data-rich-text-editor", html);
+        Assert.Contains("data-rich-command='bold'", html);
+        Assert.Contains("data-rich-command='italic'", html);
+        Assert.Contains("data-rich-font-size", html);
+        Assert.Contains("data-rich-color", html);
+        Assert.Contains("data-rich-link-input", html);
+        Assert.Contains("name='htmlBody'", html);
+    }
+
+    [Fact]
+    public async Task Html_message_save_keeps_simple_rich_formatting()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+
+        await SaveMessage(
+            client,
+            mailingId,
+            "html",
+            "Plain body should not be saved",
+            "<p><strong>Важное</strong> <em>сообщение</em> <span style=\"color:#3366ff;font-size:18px\">синим</span> <a href=\"https://example.ru/news\">читать</a></p>");
+
+        var mailing = GetMailing(factory, mailingId);
+        Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
+        Assert.Equal("<p><strong>Важное</strong> <em>сообщение</em> <span style=\"color:#3366ff;font-size:18px\">синим</span> <a href=\"https://example.ru/news\">читать</a></p>", mailing.MessageDraft?.Body);
+    }
+
+    [Fact]
+    public async Task Html_message_save_sanitizes_dangerous_markup_before_persisting()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+
+        await SaveMessage(
+            client,
+            mailingId,
+            "html",
+            string.Empty,
+            """
+<p onclick="alert(1)">Здравствуйте<script>alert('x')</script></p>
+<a href="javascript:alert(1)">плохая ссылка</a>
+<a href="https://example.ru">хорошая ссылка</a>
+<span style="color:#00ff00;font-size:18px;background-image:url(javascript:evil)">опасный стиль</span>
+<style>body{display:none}</style>
+""");
+
+        var savedBody = GetMailing(factory, mailingId).MessageDraft?.Body;
+        Assert.NotNull(savedBody);
+        Assert.Contains("<p>Здравствуйте</p>", savedBody);
+        Assert.Contains("<a>плохая ссылка</a>", savedBody);
+        Assert.Contains("<a href=\"https://example.ru/\">хорошая ссылка</a>", savedBody);
+        Assert.Contains("<span>опасный стиль</span>", savedBody);
+        Assert.DoesNotContain("script", savedBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onclick", savedBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("javascript", savedBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("background-image", savedBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<style", savedBody, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task ImportAcceptedAddress(HttpClient client, Guid mailingId)
     {
         using var content = new MultipartFormDataContent

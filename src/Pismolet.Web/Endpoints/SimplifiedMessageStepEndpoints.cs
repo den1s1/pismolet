@@ -151,6 +151,7 @@ public static class SimplifiedMessageStepEndpoints
         var savedBody = draft?.Body ?? string.Empty;
         var plainBody = plainBodyOverride ?? (format == BodyFormatText ? savedBody : string.Empty);
         var htmlBody = htmlBodyOverride ?? (format == BodyFormatHtml ? savedBody : string.Empty);
+        var editorHtmlBody = format == BodyFormatHtml ? HtmlMessageSanitizer.Sanitize(htmlBody) : string.Empty;
         var textTabClass = format == BodyFormatText ? "button compact" : "btn secondary compact";
         var htmlTabClass = format == BodyFormatHtml ? "button compact" : "btn secondary compact";
         var textPanelStyle = format == BodyFormatText ? string.Empty : " style='display:none'";
@@ -197,10 +198,29 @@ public static class SimplifiedMessageStepEndpoints
           </label>
         </div>
         <div data-body-panel='html'{htmlPanelStyle}>
-          <label>HTML письма
-            <textarea name='htmlBody' rows='18' spellcheck='false' placeholder='&lt;h1&gt;Здравствуйте!&lt;/h1&gt;&#10;&lt;p&gt;Текст письма с вашей HTML-вёрсткой.&lt;/p&gt;'>{H(htmlBody)}</textarea>
-          </label>
-          <span class='field-hint'>Пишите только HTML тела письма. Скрипты, iframe и внешние интерактивные элементы могут не работать в почтовых клиентах.</span>
+          <div class='rich-editor' data-rich-text-editor>
+            <div class='rich-toolbar' aria-label='Форматирование письма'>
+              <button type='button' class='btn secondary compact rich-tool' data-rich-command='bold' title='Жирный'><b>B</b></button>
+              <button type='button' class='btn secondary compact rich-tool' data-rich-command='italic' title='Курсив'><i>I</i></button>
+              <select class='rich-select' data-rich-font-size title='Размер текста'>
+                <option value=''>Размер</option>
+                <option value='14px'>14</option>
+                <option value='16px'>16</option>
+                <option value='18px'>18</option>
+                <option value='22px'>22</option>
+                <option value='28px'>28</option>
+              </select>
+              <label class='rich-color' title='Цвет текста'>
+                <span>Цвет</span>
+                <input type='color' value='#1f2937' data-rich-color>
+              </label>
+              <input class='rich-link-input' type='url' placeholder='https://example.ru' data-rich-link-input>
+              <button type='button' class='btn secondary compact rich-link-button' data-rich-link>Ссылка</button>
+            </div>
+            <div class='rich-editable' contenteditable='true' data-rich-editable aria-label='Текст HTML письма'></div>
+            <textarea name='htmlBody' data-rich-html-source hidden>{H(editorHtmlBody)}</textarea>
+          </div>
+          <span class='field-hint'>Скрипты, обработчики событий, опасные ссылки и небезопасные стили будут удалены перед сохранением.</span>
         </div>
       </section>
       <label>Вложения
@@ -374,8 +394,10 @@ public static class SimplifiedMessageStepEndpoints
   var input = root.querySelector('input[name="bodyFormat"]');
   var buttons = root.querySelectorAll('[data-body-format]');
   var panels = root.querySelectorAll('[data-body-panel]');
+  var richEditor = root.querySelector('[data-rich-text-editor]');
 
   function select(format) {
+    syncRichEditor();
     input.value = format;
     buttons.forEach(function (button) {
       var active = button.getAttribute('data-body-format') === format;
@@ -388,12 +410,186 @@ public static class SimplifiedMessageStepEndpoints
     });
   }
 
+  function syncRichEditor() {
+    if (!richEditor) return;
+    var editable = richEditor.querySelector('[data-rich-editable]');
+    var source = richEditor.querySelector('[data-rich-html-source]');
+    if (!editable || !source) return;
+    normalizeLegacyRichMarkup(editable);
+    source.value = editable.innerHTML.trim();
+  }
+
+  function initRichEditor() {
+    if (!richEditor) return;
+    var editable = richEditor.querySelector('[data-rich-editable]');
+    var source = richEditor.querySelector('[data-rich-html-source]');
+    var fontSize = richEditor.querySelector('[data-rich-font-size]');
+    var color = richEditor.querySelector('[data-rich-color]');
+    var linkInput = richEditor.querySelector('[data-rich-link-input]');
+    var linkButton = richEditor.querySelector('[data-rich-link]');
+    var form = root.closest('form');
+    var savedRange = null;
+    if (!editable || !source) return;
+
+    editable.innerHTML = source.value || '';
+
+    function saveSelection() {
+      var selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      var anchor = selection.anchorNode;
+      if (anchor && editable.contains(anchor)) {
+        savedRange = selection.getRangeAt(0);
+      }
+    }
+
+    function restoreSelection() {
+      editable.focus();
+      if (!savedRange) return;
+      var selection = window.getSelection();
+      if (!selection) return;
+      selection.removeAllRanges();
+      selection.addRange(savedRange);
+    }
+
+    function runCommand(command, value) {
+      restoreSelection();
+      document.execCommand(command, false, value || null);
+      normalizeLegacyRichMarkup(editable);
+      syncRichEditor();
+      saveSelection();
+    }
+
+    richEditor.querySelectorAll('[data-rich-command]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        runCommand(button.getAttribute('data-rich-command'));
+      });
+    });
+
+    if (fontSize) {
+      fontSize.addEventListener('change', function () {
+        if (!fontSize.value) return;
+        restoreSelection();
+        document.execCommand('fontSize', false, '7');
+        editable.querySelectorAll('font[size="7"]').forEach(function (font) {
+          replaceFontWithSpan(font, 'font-size:' + fontSize.value);
+        });
+        normalizeLegacyRichMarkup(editable);
+        syncRichEditor();
+        fontSize.value = '';
+        saveSelection();
+      });
+    }
+
+    if (color) {
+      color.addEventListener('input', function () {
+        restoreSelection();
+        document.execCommand('foreColor', false, color.value);
+        normalizeLegacyRichMarkup(editable);
+        syncRichEditor();
+        saveSelection();
+      });
+    }
+
+    if (linkButton && linkInput) {
+      linkButton.addEventListener('click', function () {
+        var href = linkInput.value.trim();
+        if (!/^(https?:\/\/|mailto:)/i.test(href)) return;
+        restoreSelection();
+        var selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+          document.execCommand('insertHTML', false, '<a href="' + escapeHtml(href) + '">' + escapeHtml(href) + '</a>');
+        } else {
+          document.execCommand('createLink', false, href);
+        }
+
+        normalizeLegacyRichMarkup(editable);
+        syncRichEditor();
+        linkInput.value = '';
+        saveSelection();
+      });
+    }
+
+    editable.addEventListener('input', function () {
+      normalizeLegacyRichMarkup(editable);
+      syncRichEditor();
+      saveSelection();
+    });
+    editable.addEventListener('keyup', saveSelection);
+    editable.addEventListener('mouseup', saveSelection);
+    editable.addEventListener('paste', function (event) {
+      event.preventDefault();
+      var text = (event.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+
+    if (form) {
+      form.addEventListener('submit', syncRichEditor);
+    }
+
+    syncRichEditor();
+  }
+
+  function normalizeLegacyRichMarkup(rootElement) {
+    rootElement.querySelectorAll('b').forEach(function (node) {
+      renameNode(node, 'strong');
+    });
+    rootElement.querySelectorAll('i').forEach(function (node) {
+      renameNode(node, 'em');
+    });
+    rootElement.querySelectorAll('font').forEach(function (font) {
+      var styles = [];
+      var color = font.getAttribute('color');
+      var size = font.getAttribute('size');
+      if (color) styles.push('color:' + color);
+      if (size) styles.push('font-size:' + legacyFontSize(size));
+      replaceFontWithSpan(font, styles.filter(Boolean).join(';'));
+    });
+  }
+
+  function renameNode(node, tagName) {
+    var replacement = document.createElement(tagName);
+    while (node.firstChild) replacement.appendChild(node.firstChild);
+    node.replaceWith(replacement);
+  }
+
+  function replaceFontWithSpan(font, style) {
+    var span = document.createElement('span');
+    if (style) span.setAttribute('style', style);
+    while (font.firstChild) span.appendChild(font.firstChild);
+    font.replaceWith(span);
+  }
+
+  function legacyFontSize(size) {
+    return {
+      '1': '10px',
+      '2': '13px',
+      '3': '16px',
+      '4': '18px',
+      '5': '22px',
+      '6': '28px',
+      '7': '36px'
+    }[String(size)] || '';
+  }
+
+  function escapeHtml(value) {
+    return value.replace(/[&<>"']/g, function (char) {
+      return {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char];
+    });
+  }
+
   buttons.forEach(function (button) {
     button.addEventListener('click', function () {
       select(button.getAttribute('data-body-format'));
     });
   });
 
+  initRichEditor();
   select(input.value || 'text');
 })();
 </script>

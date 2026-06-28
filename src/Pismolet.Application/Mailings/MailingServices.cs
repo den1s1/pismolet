@@ -225,7 +225,10 @@ public sealed class MailingMessageService(
         try
         {
             var attachments = command.Attachments ?? mailing.MessageDraft?.Attachments ?? Array.Empty<MailingAttachment>();
-            draft = MailingMessageDraft.Create(command.SenderName, command.Subject, command.Body, command.MessageType, DateTimeOffset.UtcNow, attachments, command.BodyFormat);
+            var body = command.BodyFormat == MessageBodyFormat.Html
+                ? HtmlMessageSanitizer.Sanitize(command.Body)
+                : command.Body;
+            draft = MailingMessageDraft.Create(command.SenderName, command.Subject, body, command.MessageType, DateTimeOffset.UtcNow, attachments, command.BodyFormat);
         }
         catch (ArgumentException ex)
         {
