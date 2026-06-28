@@ -105,7 +105,7 @@ public sealed class PaymentEndpointUiTests
             ["messageType"] = "Transactional"
         });
 
-        var response = await client.PostAsync($"/mailings/{mailingId}/declaration", declarationForm);
+        var response = await client.PostAsync($"/mailings/{mailingId}/confirmation", declarationForm);
         Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected declaration response: {(int)response.StatusCode}");
     }
 
