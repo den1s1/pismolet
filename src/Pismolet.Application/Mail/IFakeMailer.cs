@@ -15,7 +15,8 @@ public interface IFakeMailer
         string? replyToAddress = null,
         string? replyToken = null,
         string? providerMessageId = null,
-        string? textBody = null);
+        string? textBody = null,
+        string? messageId = null);
 
     void AddForwardedReply(string to, string subject, string fromEmail, string textBody, string providerMessageId);
 
