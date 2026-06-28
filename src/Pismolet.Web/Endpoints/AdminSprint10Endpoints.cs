@@ -231,16 +231,7 @@ public static class AdminSprint10Endpoints
         return at <= 0 ? string.Empty : value[..at].Trim().ToLowerInvariant();
     }
 
-    private static string MaskEmail(string? email)
-    {
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return string.Empty;
-        }
-
-        var at = email.IndexOf(Convert.ToChar(64));
-        return at <= 1 ? email : $"{email[..1]}***{email[at..]}";
-    }
+    private static string MaskEmail(string? email) => email ?? string.Empty;
 
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
