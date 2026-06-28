@@ -165,6 +165,8 @@ public sealed class MailingSendWarmupThrottleTests
             new EmailNormalizer(),
             new TestUnsubscribeTokenService(),
             new TestInboundReplyTokenService(),
+            new ClientReplyAliasService(new InMemoryClientReplyAliasRepository(), new EmailNormalizer()),
+            new InMemoryOutboundReplyMessageRepository(),
             queue,
             audit,
             new MailingSendOptions(batchSize),
@@ -188,6 +190,8 @@ public sealed class MailingSendWarmupThrottleTests
             new EmailNormalizer(),
             new TestUnsubscribeTokenService(),
             new TestInboundReplyTokenService(),
+            new ClientReplyAliasService(new InMemoryClientReplyAliasRepository(), new EmailNormalizer()),
+            new InMemoryOutboundReplyMessageRepository(),
             queue,
             audit,
             new MailingSendOptions(batchSize),
@@ -262,8 +266,7 @@ public sealed class MailingSendWarmupThrottleTests
     {
         public string ProviderName => SendEvent.FakeProvider;
 
-        public Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("Synthetic provider explosion.");
+        public Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken) => throw new InvalidOperationException("boom");
 
         public Task<EmailProviderWebhookParseResult> ParseWebhookAsync(string rawBody, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken) =>
             Task.FromResult(EmailProviderWebhookParseResult.Failure("not-supported"));
@@ -277,23 +280,26 @@ public sealed class MailingSendWarmupThrottleTests
 
     private sealed class TestUnsubscribeTokenService : IUnsubscribeTokenService
     {
-        public string Generate(Guid mailingId, string recipientEmail, Guid? importBatchId = null) => $"unsubscribe-{recipientEmail}";
+        public string Generate(Guid mailingId, string email) => "test-token";
 
         public UnsubscribeTokenValidationResult Validate(string token) => UnsubscribeTokenValidationResult.Failure("not-supported");
-
-        public string BuildRecipientKey(Guid mailingId, string normalizedEmail, Guid? importBatchId = null) => $"key-{normalizedEmail}";
     }
 
     private sealed class TestInboundReplyTokenService : IInboundReplyTokenService
     {
-        public string Generate(Guid mailingId, string clientId, string recipientEmail) => $"reply-{recipientEmail}";
+        public string Generate(Guid mailingId, string clientId, string recipientEmail) => "reply-token";
 
         public InboundReplyTokenValidationResult Validate(string token) => InboundReplyTokenValidationResult.Failure("not-supported");
 
-        public string BuildRecipientKey(Guid mailingId, string normalizedEmail) => $"reply-key-{normalizedEmail}";
+        public string BuildRecipientKey(Guid mailingId, string normalizedEmail) => "recipient-key";
 
         public string BuildReplyToAddress(string token) => $"reply+{token}@reply.example.test";
 
         public string HashToken(string? token) => token ?? string.Empty;
+    }
+
+    private sealed class StaticMailWarmupLimitOptionsProvider(MailWarmupLimitOptions options) : IMailWarmupLimitOptionsProvider
+    {
+        public MailWarmupLimitOptions Current => options;
     }
 }
