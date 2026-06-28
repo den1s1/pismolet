@@ -18,7 +18,7 @@ public sealed class MailingWizardSimplificationTests
     private const string UserEmail = "wizard-user@example.test";
 
     [Fact]
-    public async Task New_mailing_goes_directly_to_addresses_step_without_draft_page()
+    public async Task New_mailing_goes_directly_to_message_step_without_draft_page()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, UserEmail, "Wizard User");
@@ -33,13 +33,15 @@ public sealed class MailingWizardSimplificationTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location?.OriginalString ?? string.Empty;
         Assert.StartsWith("/mailings/", location, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith("/recipients", location, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("/message", location, StringComparison.OrdinalIgnoreCase);
 
         var page = await client.GetStringAsync(location);
-        Assert.Contains("1. Добавьте список адресов", page);
-        Assert.Contains("2. Письмо", page);
-        Assert.Contains("3. Расчёт и оплата", page);
-        Assert.Contains("4. Готово", page);
+        Assert.Contains("1. Напишите письмо", page);
+        Assert.Contains("2. Адресаты", page);
+        Assert.Contains("3. Просмотр списка", page);
+        Assert.Contains("4. Подтверждение", page);
+        Assert.Contains("5. Оплата", page);
+        Assert.Contains("Сохранить письмо и перейти к адресатам", page);
         Assert.DoesNotContain("Создайте черновик рассылки", page);
         Assert.DoesNotContain("Название рассылки", page);
         Assert.DoesNotContain(">Черновик<", page);
