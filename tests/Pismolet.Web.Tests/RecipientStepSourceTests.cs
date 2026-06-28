@@ -12,6 +12,19 @@ public sealed class RecipientStepSourceTests
     }
 
     [Fact]
+    public void Program_does_not_register_legacy_wizard_endpoint_layers()
+    {
+        var program = ReadRepositoryFile("src/Pismolet.Web/Program.cs");
+
+        Assert.DoesNotContain("MapMailingCreationFlowReworkEndpoints", program);
+        Assert.DoesNotContain("MapSimplifiedRecipientStepEndpoints", program);
+        Assert.DoesNotContain("MapSimplifiedMessageStepEndpoints", program);
+        Assert.False(File.Exists(RepositoryPath("src/Pismolet.Web/Endpoints/MailingCreationFlowReworkEndpoints.cs")));
+        Assert.False(File.Exists(RepositoryPath("src/Pismolet.Web/Endpoints/SimplifiedRecipientStepEndpoints.cs")));
+        Assert.False(File.Exists(RepositoryPath("src/Pismolet.Web/Endpoints/SimplifiedMessageStepEndpoints.cs")));
+    }
+
+    [Fact]
     public void Recipient_flow_renders_final_address_blocks_directly()
     {
         var reviewEndpoint = ReadRepositoryFile("src/Pismolet.Web/Endpoints/MailingRecipientReviewOverlayEndpoints.cs");
