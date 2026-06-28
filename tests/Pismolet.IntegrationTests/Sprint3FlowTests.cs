@@ -15,7 +15,7 @@ namespace Pismolet.IntegrationTests;
 public sealed class Sprint3FlowTests
 {
     [Fact]
-    public async Task FullFlow_import_declaration_message_succeeds()
+    public async Task FullFlow_import_message_confirmation_succeeds()
     {
         using var factory = CreateFactory();
         var client = CreateClient(factory);
@@ -23,17 +23,6 @@ public sealed class Sprint3FlowTests
 
         await RegisterAndLoginAsync(factory, client, email);
         var mailingId = await CreateMailingAndImportCsvAsync(client);
-
-        var declaration = await client.PostAsync($"/mailings/{mailingId}/declaration", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["baseSource"] = "Customers",
-            ["messageType"] = "Advertising",
-            ["baseLegality"] = "on",
-            ["advertisingConsent"] = "on"
-        }));
-
-        Assert.Equal(HttpStatusCode.Redirect, declaration.StatusCode);
-        Assert.Equal($"/mailings/{mailingId}/message", declaration.Headers.Location?.ToString());
 
         var message = await client.PostAsync($"/mailings/{mailingId}/message", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -43,7 +32,19 @@ public sealed class Sprint3FlowTests
         }));
 
         Assert.Equal(HttpStatusCode.Redirect, message.StatusCode);
-        Assert.Equal($"/mailings/{mailingId}/payment", message.Headers.Location?.ToString());
+        Assert.Equal($"/mailings/{mailingId}/confirmation", message.Headers.Location?.ToString());
+
+        var confirmation = await client.PostAsync($"/mailings/{mailingId}/confirmation", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["baseSource"] = "Customers",
+            ["messageType"] = "Advertising",
+            ["baseLegality"] = "on",
+            ["advertisingConsent"] = "on",
+            ["campaignLaunchConfirmation"] = "on"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/payment", confirmation.Headers.Location?.ToString());
 
         using var scope = factory.Services.CreateScope();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditLogger>().GetRecords();
@@ -57,7 +58,7 @@ public sealed class Sprint3FlowTests
     }
 
     [Fact]
-    public async Task Declaration_without_required_checkbox_returns_error()
+    public async Task Confirmation_without_required_checkbox_returns_error()
     {
         using var factory = CreateFactory();
         var client = CreateClient(factory);
@@ -65,7 +66,7 @@ public sealed class Sprint3FlowTests
         await RegisterAndLoginAsync(factory, client, UniqueEmail());
         var mailingId = await CreateMailingAndImportCsvAsync(client);
 
-        var response = await client.PostAsync($"/mailings/{mailingId}/declaration", new FormUrlEncodedContent(new Dictionary<string, string>
+        var response = await client.PostAsync($"/mailings/{mailingId}/confirmation", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["baseSource"] = "Customers",
             ["messageType"] = "Transactional"
@@ -73,9 +74,9 @@ public sealed class Sprint3FlowTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("4. Финальное подтверждение", body);
         Assert.Contains("Подтвердите базу", body);
-        Assert.Contains("/legal/base-lawfulness", body);
-        Assert.Contains("/legal/data-processing", body);
+        Assert.Contains($"/mailings/{mailingId}/confirmation", body);
     }
 
     [Fact]
