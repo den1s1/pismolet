@@ -268,3 +268,25 @@ public interface IReplyEventRepository
 
     void MarkBodyDeleted(Guid replyEventId);
 }
+
+public interface IClientReplyAliasRepository
+{
+    ClientReplyAlias? GetByClientId(string clientId);
+
+    ClientReplyAlias? GetByAlias(string alias);
+
+    bool AliasExists(string alias);
+
+    ClientReplyAlias AddOrGet(ClientReplyAlias alias);
+
+    void Save(ClientReplyAlias alias);
+}
+
+public interface IOutboundReplyMessageRepository
+{
+    OutboundReplyMessageMapping? GetByMessageId(string messageId);
+
+    IReadOnlyCollection<OutboundReplyMessageMapping> FindByMessageIds(IEnumerable<string> messageIds);
+
+    void Save(OutboundReplyMessageMapping mapping);
+}
