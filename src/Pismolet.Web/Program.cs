@@ -119,7 +119,7 @@ app.MapHomeEndpoints();
 app.MapLegalDocumentEndpoints();
 app.MapLegalBaseLawfulnessEndpoints();
 app.MapAccountEndpoints();
-app.MapMailingCreationFlowReworkEndpoints();
+app.MapMailingCreationStartEndpoints();
 app.MapMailingRichMessageFlowEndpoints();
 app.MapMailingRecipientReviewOverlayEndpoints();
 app.MapMailingConfirmationSubmitOverlayEndpoints();
