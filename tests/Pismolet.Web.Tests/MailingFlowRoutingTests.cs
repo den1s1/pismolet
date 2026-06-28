@@ -19,9 +19,18 @@ public sealed class MailingFlowRoutingTests
             .OfType<RouteEndpoint>()
             .ToArray();
 
-        Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "/mailings/{id:guid}/message" && endpoint.Order == -2000);
-        Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "/mailings/{id:guid}/message/preview" && endpoint.Order == -2000);
-        Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "/mailings/{id:guid}/recipients" && endpoint.Order == -3000);
-        Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "/mailings/{id:guid}/confirmation" && endpoint.Order == -3000);
+        AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/message", -2000);
+        AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/message/preview", -2000);
+        AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/recipients", -3000);
+        AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/confirmation", -3000);
+    }
+
+    private static void AssertPreferredRouteOrder(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, int expectedOrder)
+    {
+        var matches = endpoints.Where(endpoint => endpoint.RoutePattern.RawText == pattern).ToArray();
+
+        Assert.NotEmpty(matches);
+        Assert.Equal(expectedOrder, matches.Min(endpoint => endpoint.Order));
+        Assert.All(matches, endpoint => Assert.True(endpoint.Order >= expectedOrder, $"Route {pattern} has unexpected higher priority order {endpoint.Order}."));
     }
 }
