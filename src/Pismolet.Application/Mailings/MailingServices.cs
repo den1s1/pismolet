@@ -209,17 +209,7 @@ public sealed class MailingMessageService(
             return MailingMessageResult.Failure("Рассылка не найдена.");
         }
 
-        if (mailing.LastImportStats.Accepted <= 0)
-        {
-            return MailingMessageResult.Failure("Сначала загрузите адреса для рассылки.");
-        }
-
-        if (mailing.Declaration is null || !mailing.Declaration.IsBaseLegalityConfirmed)
-        {
-            return MailingMessageResult.Failure("Сначала подтвердите базу адресов.");
-        }
-
-        if (command.MessageType == MessageType.Advertising && !mailing.Declaration.IsAdvertisingConsentConfirmed)
+        if (command.MessageType == MessageType.Advertising && mailing.Declaration is not null && !mailing.Declaration.IsAdvertisingConsentConfirmed)
         {
             return MailingMessageResult.Failure("Рекламное письмо нельзя сохранить без подтверждения рекламного согласия.");
         }
