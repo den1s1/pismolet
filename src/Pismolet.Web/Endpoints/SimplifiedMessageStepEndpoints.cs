@@ -86,16 +86,27 @@ public static class SimplifiedMessageStepEndpoints
         var plainBody = form["plainBody"].ToString();
         var htmlBody = form["htmlBody"].ToString();
         var legacyBody = form["body"].ToString();
-        if (string.IsNullOrWhiteSpace(plainBody) && string.IsNullOrWhiteSpace(htmlBody) && !string.IsNullOrWhiteSpace(legacyBody))
+        if (!string.IsNullOrWhiteSpace(legacyBody))
         {
-            bodyFormat = InferBodyFormat(legacyBody);
-            if (bodyFormat == BodyFormatHtml)
+            if (bodyTab == BodyTabHtml && string.IsNullOrWhiteSpace(htmlBody))
             {
                 htmlBody = legacyBody;
             }
-            else
+            else if (bodyTab == BodyTabVisual && string.IsNullOrWhiteSpace(visualBody))
             {
-                plainBody = legacyBody;
+                visualBody = legacyBody;
+            }
+            else if (string.IsNullOrWhiteSpace(plainBody) && string.IsNullOrWhiteSpace(htmlBody) && string.IsNullOrWhiteSpace(visualBody))
+            {
+                bodyFormat = InferBodyFormat(legacyBody);
+                if (bodyFormat == BodyFormatHtml)
+                {
+                    htmlBody = legacyBody;
+                }
+                else
+                {
+                    plainBody = legacyBody;
+                }
             }
         }
 

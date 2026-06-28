@@ -180,7 +180,7 @@ public sealed class MessagePreviewUiTests
     }
 
     [Fact]
-    public async Task Regular_visual_message_save_stores_sanitized_html()
+    public async Task Regular_visual_message_save_blocks_dangerous_html()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
@@ -200,18 +200,11 @@ public sealed class MessagePreviewUiTests
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
-        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected message response: {(int)response.StatusCode}");
+        var html = await response.Content.ReadAsStringAsync();
 
-        var savedBody = GetMailing(factory, mailingId).MessageDraft?.Body;
-        Assert.NotNull(savedBody);
-        Assert.Equal(MessageBodyFormat.Html, GetMailing(factory, mailingId).MessageDraft?.BodyFormat);
-        Assert.Contains("<p><strong>Привет</strong></p>", savedBody);
-        Assert.Contains("<a>плохая ссылка</a>", savedBody);
-        Assert.Contains("<a href=\"https://example.ru/\">хорошая ссылка</a>", savedBody);
-        Assert.DoesNotContain("Raw HTML body should not be saved", savedBody);
-        Assert.DoesNotContain("script", savedBody, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("onclick", savedBody, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("javascript", savedBody, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("HTML содержит запрещённый обработчик события onclick", html);
+        Assert.Null(GetMailing(factory, mailingId).MessageDraft);
     }
 
     [Fact]
@@ -271,6 +264,38 @@ public sealed class MessagePreviewUiTests
     }
 
     [Fact]
+    public async Task Html_message_save_keeps_common_email_html_without_stripping()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+        var emailHtml = """
+<table width="600" cellpadding="0" cellspacing="0">
+  <tr><td style="color:#333333;font-size:18px"><h1>Готовый HTML</h1><p>Текст письма</p><img src="https://example.ru/pic.png" width="120" alt="Картинка"></td></tr>
+</table>
+""";
+
+        using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Библиотека №5",
+            ["subject"] = "HTML письмо",
+            ["bodyTab"] = "html",
+            ["bodyFormat"] = "html",
+            ["htmlBody"] = emailHtml
+        });
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected message response: {(int)response.StatusCode}");
+
+        var mailing = GetMailing(factory, mailingId);
+        Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
+        Assert.Equal(emailHtml, mailing.MessageDraft?.Body);
+    }
+
+    [Fact]
     public async Task Message_save_error_keeps_submitted_sender_subject_and_html_body()
     {
         using var factory = CreateAuthorizedFactory();
@@ -305,7 +330,7 @@ public sealed class MessagePreviewUiTests
     }
 
     [Fact]
-    public async Task Html_message_save_sanitizes_dangerous_markup_before_persisting()
+    public async Task Html_message_save_blocks_dangerous_markup_before_persisting()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
@@ -314,30 +339,31 @@ public sealed class MessagePreviewUiTests
         await ImportAcceptedAddress(client, mailingId);
         await ConfirmBaseDeclaration(client, mailingId);
 
-        await SaveMessage(
-            client,
-            mailingId,
-            "html",
-            string.Empty,
-            """
+        var dangerousHtml = """
 <p onclick="alert(1)">Здравствуйте<script>alert('x')</script></p>
 <a href="javascript:alert(1)">плохая ссылка</a>
 <a href="https://example.ru">хорошая ссылка</a>
 <span style="color:#00ff00;font-size:18px;background-image:url(javascript:evil)">опасный стиль</span>
 <style>body{display:none}</style>
-""");
+""";
+        using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Библиотека №5",
+            ["subject"] = "Опасный HTML",
+            ["bodyTab"] = "html",
+            ["bodyFormat"] = "html",
+            ["htmlBody"] = dangerousHtml
+        });
 
-        var savedBody = GetMailing(factory, mailingId).MessageDraft?.Body;
-        Assert.NotNull(savedBody);
-        Assert.Contains("<p>Здравствуйте</p>", savedBody);
-        Assert.Contains("<a>плохая ссылка</a>", savedBody);
-        Assert.Contains("<a href=\"https://example.ru/\">хорошая ссылка</a>", savedBody);
-        Assert.Contains("<span>опасный стиль</span>", savedBody);
-        Assert.DoesNotContain("script", savedBody, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("onclick", savedBody, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("javascript", savedBody, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("background-image", savedBody, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<style", savedBody, StringComparison.OrdinalIgnoreCase);
+        var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("HTML содержит запрещённый обработчик события onclick", html);
+        Assert.Contains("value='Библиотека №5'", html);
+        Assert.Contains("value='Опасный HTML'", html);
+        Assert.Contains("onclick=&quot;alert(1)&quot;", html);
+        Assert.Null(GetMailing(factory, mailingId).MessageDraft);
     }
 
     private static async Task ImportAcceptedAddress(HttpClient client, Guid mailingId)

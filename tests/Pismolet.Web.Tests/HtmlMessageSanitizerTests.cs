@@ -16,27 +16,41 @@ public sealed class HtmlMessageSanitizerTests
     }
 
     [Fact]
-    public void Sanitize_removes_scripts_events_dangerous_links_and_unsafe_styles()
+    public void Validate_allows_common_email_html()
     {
         var html = """
-<p onclick="alert(1)">Обычный текст<script>alert('x')</script><style>body{display:none}</style></p>
-<a href="javascript:alert(1)">опасная ссылка</a>
-<a href="mailto:hello@example.ru">почта</a>
-<span style="color:#00ff00;font-size:18px;background-image:url(javascript:evil)">стиль</span>
-<iframe src="https://evil.test"></iframe>
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Письмо</title></head>
+<body>
+  <table width="600" cellpadding="0" cellspacing="0">
+    <tr><td style="color:#333333;font-size:18px"><h1>Здравствуйте</h1><p>Текст письма</p><img src="https://example.ru/pic.png" width="120" alt="Картинка"></td></tr>
+  </table>
+</body>
+</html>
 """;
 
-        var result = HtmlMessageSanitizer.Sanitize(html);
+        var result = HtmlMessageSanitizer.Validate(html);
 
-        Assert.Contains("<p>Обычный текст</p>", result);
-        Assert.Contains("<a>опасная ссылка</a>", result);
-        Assert.Contains("<a href=\"mailto:hello@example.ru\">почта</a>", result);
-        Assert.Contains("<span>стиль</span>", result);
-        Assert.DoesNotContain("script", result, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("style>", result, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("onclick", result, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("javascript", result, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("iframe", result, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("url(", result, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Ok, result.Error);
+    }
+
+    [Fact]
+    public void Validate_rejects_scripts_events_dangerous_links_and_unsafe_styles()
+    {
+        AssertValidationError("<p onclick=\"alert(1)\">Обычный текст</p>", "onclick");
+        AssertValidationError("<script>alert('x')</script>", "script");
+        AssertValidationError("<style>body{display:none}</style>", "style");
+        AssertValidationError("<a href=\"javascript:alert(1)\">опасная ссылка</a>", "ссыл");
+        AssertValidationError("<span style=\"background-image:url(javascript:evil)\">стиль</span>", "CSS");
+        AssertValidationError("<iframe src=\"https://evil.test\"></iframe>", "iframe");
+    }
+
+    private static void AssertValidationError(string html, string expected)
+    {
+        var result = HtmlMessageSanitizer.Validate(html);
+
+        Assert.False(result.Ok);
+        Assert.Contains(expected, result.Error, StringComparison.OrdinalIgnoreCase);
     }
 }
