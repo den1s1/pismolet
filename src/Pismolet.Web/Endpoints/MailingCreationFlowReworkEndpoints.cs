@@ -119,6 +119,17 @@ public static class MailingCreationFlowReworkEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Письмо", MessagePage(mailing, result.Error, senderName, subject, body, bodyFormat), authenticated: true));
         }
 
+        var updated = result.Mailing ?? mailings.GetForOwner(id, email) ?? mailing;
+        if (updated.LastImportStats.Accepted > 0 && updated.Declaration is not null)
+        {
+            return Results.Redirect($"/mailings/{id}/payment");
+        }
+
+        if (updated.LastImportStats.Accepted > 0)
+        {
+            return Results.Redirect($"/mailings/{id}/confirmation");
+        }
+
         return Results.Redirect($"/mailings/{id}/recipients");
     }
 
@@ -134,11 +145,6 @@ public static class MailingCreationFlowReworkEndpoints
         if (mailing is null)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена."), authenticated: true));
-        }
-
-        if (mailing.MessageDraft is null)
-        {
-            return Results.Redirect($"/mailings/{id}/message");
         }
 
         var allMailings = mailings.ListForOwner(email);
@@ -162,11 +168,6 @@ public static class MailingCreationFlowReworkEndpoints
         if (mailing is null)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена."), authenticated: true));
-        }
-
-        if (mailing.MessageDraft is null)
-        {
-            return Results.Redirect($"/mailings/{id}/message");
         }
 
         var form = await http.Request.ReadFormAsync(cancellationToken);
