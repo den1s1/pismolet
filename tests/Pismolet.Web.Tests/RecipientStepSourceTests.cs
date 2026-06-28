@@ -34,19 +34,32 @@ public sealed class RecipientStepSourceTests
     }
 
     [Fact]
+    public void Program_registers_permanent_recipient_step_endpoint()
+    {
+        var program = ReadRepositoryFile("src/Pismolet.Web/Program.cs");
+
+        Assert.Contains("MapMailingRecipientStepEndpoints", program);
+        Assert.DoesNotContain("MapMailingRecipientReviewOverlayEndpoints", program);
+        Assert.True(File.Exists(RepositoryPath("src/Pismolet.Web/Endpoints/MailingRecipientStepEndpoints.cs")));
+        Assert.False(File.Exists(RepositoryPath("src/Pismolet.Web/Endpoints/MailingRecipientReviewOverlayEndpoints.cs")));
+    }
+
+    [Fact]
     public void Recipient_flow_renders_final_address_blocks_directly()
     {
-        var reviewEndpoint = ReadRepositoryFile("src/Pismolet.Web/Endpoints/MailingRecipientReviewOverlayEndpoints.cs");
+        var recipientEndpoint = ReadRepositoryFile("src/Pismolet.Web/Endpoints/MailingRecipientStepEndpoints.cs");
         var managementEndpoint = ReadRepositoryFile("src/Pismolet.Web/Endpoints/MailingRecipientManagementEndpoints.cs");
 
-        Assert.Contains("MapPost(\"/mailings/{id:guid}/recipients\"", reviewEndpoint);
-        Assert.Contains("address-summary-block", reviewEndpoint);
-        Assert.Contains("address-list-block", reviewEndpoint);
-        Assert.Contains("address-inline-form address-search-form", reviewEndpoint);
-        Assert.Contains("address-inline-form address-add-form", reviewEndpoint);
+        Assert.Contains("MapPost(\"/mailings/{id:guid}/recipients\"", recipientEndpoint);
+        Assert.Contains("address-summary-block", recipientEndpoint);
+        Assert.Contains("address-list-block", recipientEndpoint);
+        Assert.Contains("address-inline-form address-search-form", recipientEndpoint);
+        Assert.Contains("address-inline-form address-add-form", recipientEndpoint);
+        Assert.DoesNotContain("ConfirmMailingDeclarationCommand", recipientEndpoint);
+        Assert.DoesNotContain("HasDeclarationFields", recipientEndpoint);
         Assert.Contains("MapPost(\"/mailings/{id:guid}/recipients/add\"", managementEndpoint);
         Assert.Contains("MapPost(\"/mailings/{id:guid}/recipients/remove\"", managementEndpoint);
-        Assert.DoesNotContain("style='", reviewEndpoint);
+        Assert.DoesNotContain("style='", recipientEndpoint);
         Assert.DoesNotContain("style='", managementEndpoint);
     }
 
