@@ -48,6 +48,21 @@ public sealed class MailingFlowRoutingTests
         AssertNoLegacyFallbackRoute(endpoints, "/mailings/{id:guid}/confirmation", "POST");
     }
 
+    [Fact]
+    public void Mailing_flow_does_not_register_legacy_declaration_step()
+    {
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        using var scope = factory.Services.CreateScope();
+        var endpoints = scope.ServiceProvider
+            .GetServices<EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .ToArray();
+
+        AssertNoRoute(endpoints, "/mailings/{id:guid}/declaration", "GET");
+        AssertNoRoute(endpoints, "/mailings/{id:guid}/declaration", "POST");
+    }
+
     private static void AssertPreferredRouteOrder(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method, int expectedOrder)
     {
         var matches = MatchingRoutes(endpoints, pattern, method);
@@ -61,6 +76,12 @@ public sealed class MailingFlowRoutingTests
     {
         var matches = MatchingRoutes(endpoints, pattern, method);
         Assert.DoesNotContain(matches, endpoint => endpoint.Order is -1000 or -200 or -100);
+    }
+
+    private static void AssertNoRoute(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method)
+    {
+        var matches = MatchingRoutes(endpoints, pattern, method);
+        Assert.Empty(matches);
     }
 
     private static RouteEndpoint[] MatchingRoutes(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method) => endpoints
