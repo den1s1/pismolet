@@ -245,6 +245,7 @@ public static class SimplifiedMessageStepEndpoints
         </div>
         <input type='hidden' name='bodyTab' value='{activeTab}'>
         <input type='hidden' name='bodyFormat' value='{BodyFormatHtml}'>
+        <textarea name='body' data-body-fallback hidden></textarea>
         <textarea name='plainBody' hidden>{H(plainBody)}</textarea>
         <div class='actions' style='margin-top:0'>
           <button type='button' class='{visualTabClass}' data-body-tab='visual'>Обычный текст</button>
@@ -457,6 +458,9 @@ public static class SimplifiedMessageStepEndpoints
   var buttons = root.querySelectorAll('[data-body-tab]');
   var panels = root.querySelectorAll('[data-body-panel]');
   var richEditor = root.querySelector('[data-rich-text-editor]');
+  var fallbackBody = root.querySelector('textarea[name="body"][data-body-fallback]');
+  var visualSource = root.querySelector('textarea[name="visualBody"]');
+  var htmlSource = root.querySelector('textarea[name="htmlBody"]');
 
   function select(tab) {
     if (tab !== 'html') tab = 'visual';
@@ -481,6 +485,15 @@ public static class SimplifiedMessageStepEndpoints
     if (!editable || !source) return;
     normalizeLegacyRichMarkup(editable);
     source.value = editable.innerHTML.trim();
+  }
+
+  function syncFallbackBody() {
+    syncRichEditor();
+    if (!fallbackBody) return;
+    var tab = tabInput ? tabInput.value : 'visual';
+    fallbackBody.value = tab === 'html'
+      ? (htmlSource ? htmlSource.value : '')
+      : (visualSource ? visualSource.value : '');
   }
 
   function initRichEditor() {
@@ -587,10 +600,10 @@ public static class SimplifiedMessageStepEndpoints
     });
 
     if (form) {
-      form.addEventListener('submit', syncRichEditor);
+      form.addEventListener('submit', syncFallbackBody);
     }
 
-    syncRichEditor();
+    syncFallbackBody();
   }
 
   function normalizeLegacyRichMarkup(rootElement) {

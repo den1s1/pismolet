@@ -148,6 +148,7 @@ public sealed class MessagePreviewUiTests
         Assert.Contains("data-rich-link-input", html);
         Assert.Contains("name='visualBody'", html);
         Assert.Contains("name='htmlBody'", html);
+        Assert.Contains("data-body-fallback", html);
         Assert.DoesNotContain("disabled = tab", html);
         var htmlPanelEnd = html.IndexOf("</section>", htmlPanelStart, StringComparison.Ordinal);
         Assert.True(htmlPanelEnd > htmlPanelStart, "HTML message panel closing section was not found.");
@@ -239,6 +240,34 @@ public sealed class MessagePreviewUiTests
         var mailing = GetMailing(factory, mailingId);
         Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
         Assert.Equal("<h1>Готовый HTML</h1><p>Текст письма</p>", mailing.MessageDraft?.Body);
+    }
+
+    [Fact]
+    public async Task Html_message_save_uses_legacy_body_fallback_when_html_field_is_missing()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+
+        using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Библиотека №5",
+            ["subject"] = "HTML письмо",
+            ["bodyTab"] = "html",
+            ["bodyFormat"] = "html",
+            ["visualBody"] = string.Empty,
+            ["body"] = "<h1>Fallback HTML</h1><p>Текст письма</p>"
+        });
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected message response: {(int)response.StatusCode}");
+
+        var mailing = GetMailing(factory, mailingId);
+        Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
+        Assert.Equal("<h1>Fallback HTML</h1><p>Текст письма</p>", mailing.MessageDraft?.Body);
     }
 
     [Fact]
