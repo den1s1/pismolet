@@ -124,7 +124,7 @@ public sealed class MessagePreviewUiTests
     }
 
     [Fact]
-    public async Task Message_editor_exposes_minimal_rich_text_toolbar_for_html_body()
+    public async Task Message_editor_exposes_minimal_rich_text_toolbar_for_regular_body_and_raw_html_textarea()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory);
@@ -135,13 +135,24 @@ public sealed class MessagePreviewUiTests
 
         var html = await client.GetStringAsync($"/mailings/{mailingId}/message");
 
-        Assert.Contains("data-rich-text-editor", html);
+        var visualPanelStart = html.IndexOf("data-body-panel='visual'", StringComparison.Ordinal);
+        var richEditorStart = html.IndexOf("data-rich-text-editor", StringComparison.Ordinal);
+        var htmlPanelStart = html.IndexOf("data-body-panel='html'", StringComparison.Ordinal);
+        Assert.True(visualPanelStart >= 0, "Regular message panel was not found.");
+        Assert.True(htmlPanelStart > visualPanelStart, "HTML panel was not found after regular message panel.");
+        Assert.True(richEditorStart > visualPanelStart && richEditorStart < htmlPanelStart, "Rich editor must belong to the regular message tab.");
         Assert.Contains("data-rich-command='bold'", html);
         Assert.Contains("data-rich-command='italic'", html);
         Assert.Contains("data-rich-font-size", html);
         Assert.Contains("data-rich-color", html);
         Assert.Contains("data-rich-link-input", html);
+        Assert.Contains("name='visualBody'", html);
         Assert.Contains("name='htmlBody'", html);
+        var htmlPanelEnd = html.IndexOf("</section>", htmlPanelStart, StringComparison.Ordinal);
+        Assert.True(htmlPanelEnd > htmlPanelStart, "HTML message panel closing section was not found.");
+        var htmlPanel = html[htmlPanelStart..htmlPanelEnd];
+        Assert.Contains("<textarea name='htmlBody'", htmlPanel);
+        Assert.DoesNotContain("data-rich-text-editor", htmlPanel);
     }
 
     [Fact]
@@ -164,6 +175,41 @@ public sealed class MessagePreviewUiTests
         var mailing = GetMailing(factory, mailingId);
         Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
         Assert.Equal("<p><strong>Важное</strong> <em>сообщение</em> <span style=\"color:#3366ff;font-size:18px\">синим</span> <a href=\"https://example.ru/news\">читать</a></p>", mailing.MessageDraft?.Body);
+    }
+
+    [Fact]
+    public async Task Regular_visual_message_save_stores_sanitized_html()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+
+        using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Библиотека №5",
+            ["subject"] = "Приглашаем на встречу",
+            ["bodyTab"] = "visual",
+            ["bodyFormat"] = "html",
+            ["visualBody"] = "<p onclick=\"alert(1)\"><strong>Привет</strong><script>alert('x')</script></p><a href=\"javascript:alert(1)\">плохая ссылка</a><a href=\"https://example.ru\">хорошая ссылка</a>",
+            ["htmlBody"] = "<h1>Raw HTML body should not be saved</h1>"
+        });
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected message response: {(int)response.StatusCode}");
+
+        var savedBody = GetMailing(factory, mailingId).MessageDraft?.Body;
+        Assert.NotNull(savedBody);
+        Assert.Equal(MessageBodyFormat.Html, GetMailing(factory, mailingId).MessageDraft?.BodyFormat);
+        Assert.Contains("<p><strong>Привет</strong></p>", savedBody);
+        Assert.Contains("<a>плохая ссылка</a>", savedBody);
+        Assert.Contains("<a href=\"https://example.ru/\">хорошая ссылка</a>", savedBody);
+        Assert.DoesNotContain("Raw HTML body should not be saved", savedBody);
+        Assert.DoesNotContain("script", savedBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onclick", savedBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("javascript", savedBody, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

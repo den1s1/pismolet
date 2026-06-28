@@ -11,6 +11,8 @@ public static class SimplifiedMessageStepEndpoints
 {
     private const string BodyFormatText = "text";
     private const string BodyFormatHtml = "html";
+    private const string BodyTabVisual = "visual";
+    private const string BodyTabHtml = "html";
 
     public static IEndpointRouteBuilder MapSimplifiedMessageStepEndpoints(this IEndpointRouteBuilder app)
     {
@@ -77,6 +79,8 @@ public static class SimplifiedMessageStepEndpoints
         var existing = mailings.GetForOwner(id, email);
         var form = await http.Request.ReadFormAsync();
         var bodyFormat = NormalizeBodyFormat(form["bodyFormat"].ToString());
+        var bodyTab = NormalizeBodyTab(form["bodyTab"].ToString());
+        var visualBody = form["visualBody"].ToString();
         var plainBody = form["plainBody"].ToString();
         var htmlBody = form["htmlBody"].ToString();
         var legacyBody = form["body"].ToString();
@@ -93,12 +97,30 @@ public static class SimplifiedMessageStepEndpoints
             }
         }
 
-        var body = bodyFormat == BodyFormatHtml ? htmlBody : plainBody;
-        var messageBodyFormat = ToMessageBodyFormat(bodyFormat);
+        string body;
+        MessageBodyFormat messageBodyFormat;
+        if (bodyTab == BodyTabVisual)
+        {
+            body = visualBody;
+            messageBodyFormat = MessageBodyFormat.Html;
+            bodyFormat = BodyFormatHtml;
+        }
+        else if (bodyTab == BodyTabHtml)
+        {
+            body = htmlBody;
+            messageBodyFormat = MessageBodyFormat.Html;
+            bodyFormat = BodyFormatHtml;
+        }
+        else
+        {
+            body = bodyFormat == BodyFormatHtml ? htmlBody : plainBody;
+            messageBodyFormat = ToMessageBodyFormat(bodyFormat);
+        }
+
         var attachments = await ReadAttachmentsAsync(form);
         if (!attachments.Ok)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(existing, attachments.Error, bodyFormat, plainBody, htmlBody), authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(existing, attachments.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody), authenticated: true));
         }
 
         var result = messages.Save(new SaveMailingMessageCommand(
@@ -115,7 +137,7 @@ public static class SimplifiedMessageStepEndpoints
         var mailing = result.Mailing ?? existing;
         if (!result.Ok || mailing is null)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(mailing, result.Error, bodyFormat, plainBody, htmlBody), authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Редактор письма", MessageForm(mailing, result.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody), authenticated: true));
         }
 
         var action = form["action"].ToString();
@@ -136,7 +158,14 @@ public static class SimplifiedMessageStepEndpoints
             : MessageType.Transactional;
     }
 
-    private static string MessageForm(Mailing? mailing, string? error, string? activeFormat = null, string? plainBodyOverride = null, string? htmlBodyOverride = null)
+    private static string MessageForm(
+        Mailing? mailing,
+        string? error,
+        string? activeFormat = null,
+        string? plainBodyOverride = null,
+        string? htmlBodyOverride = null,
+        string? activeTabOverride = null,
+        string? visualBodyOverride = null)
     {
         if (mailing is null)
         {
@@ -149,13 +178,20 @@ public static class SimplifiedMessageStepEndpoints
         var senderName = H(draft?.SenderName ?? string.Empty);
         var messageSubject = H(draft?.Subject ?? string.Empty);
         var savedBody = draft?.Body ?? string.Empty;
+        var savedBodyFormat = draft?.BodyFormat ?? MessageBodyFormat.Text;
+        var activeTab = NormalizeBodyTab(activeTabOverride);
+        if (string.IsNullOrWhiteSpace(activeTab))
+        {
+            activeTab = savedBodyFormat == MessageBodyFormat.Html ? BodyTabHtml : BodyTabVisual;
+        }
+
         var plainBody = plainBodyOverride ?? (format == BodyFormatText ? savedBody : string.Empty);
         var htmlBody = htmlBodyOverride ?? (format == BodyFormatHtml ? savedBody : string.Empty);
-        var editorHtmlBody = format == BodyFormatHtml ? HtmlMessageSanitizer.Sanitize(htmlBody) : string.Empty;
-        var textTabClass = format == BodyFormatText ? "button compact" : "btn secondary compact";
-        var htmlTabClass = format == BodyFormatHtml ? "button compact" : "btn secondary compact";
-        var textPanelStyle = format == BodyFormatText ? string.Empty : " style='display:none'";
-        var htmlPanelStyle = format == BodyFormatHtml ? string.Empty : " style='display:none'";
+        var visualBody = visualBodyOverride ?? ToVisualEditorHtml(savedBody, savedBodyFormat);
+        var visualTabClass = activeTab == BodyTabVisual ? "button compact" : "btn secondary compact";
+        var htmlTabClass = activeTab == BodyTabHtml ? "button compact" : "btn secondary compact";
+        var visualPanelStyle = activeTab == BodyTabVisual ? string.Empty : " style='display:none'";
+        var htmlPanelStyle = activeTab == BodyTabHtml ? string.Empty : " style='display:none'";
         var prohibitedContentHref = $"/legal/prohibited-content?returnUrl=/mailings/{mailing.Id}/message";
         var serviceFooterHref = $"/legal/service-email-footer?returnUrl=/mailings/{mailing.Id}/message";
         var attachmentsBlock = AttachmentsBlock(draft?.Attachments ?? Array.Empty<MailingAttachment>());
@@ -185,21 +221,18 @@ public static class SimplifiedMessageStepEndpoints
       <section data-body-editor class='message-body-editor' style='display:grid;gap:12px'>
         <div>
           <div class='field-title'>Текст письма</div>
-          <div class='field-hint'>Выберите формат. Обычный текст проще и надёжнее; HTML подходит для писем с собственной вёрсткой.</div>
+          <div class='field-hint'>Выберите формат. Обычное письмо подходит для простого оформления; HTML — для письма с собственной вёрсткой.</div>
         </div>
-        <input type='hidden' name='bodyFormat' value='{format}'>
+        <input type='hidden' name='bodyTab' value='{activeTab}'>
+        <input type='hidden' name='bodyFormat' value='{BodyFormatHtml}'>
+        <textarea name='plainBody' hidden>{H(plainBody)}</textarea>
         <div class='actions' style='margin-top:0'>
-          <button type='button' class='{textTabClass}' data-body-format='text'>Обычный текст</button>
-          <button type='button' class='{htmlTabClass}' data-body-format='html'>HTML</button>
+          <button type='button' class='{visualTabClass}' data-body-tab='visual'>Обычный текст</button>
+          <button type='button' class='{htmlTabClass}' data-body-tab='html'>HTML</button>
         </div>
-        <div data-body-panel='text'{textPanelStyle}>
-          <label>Обычный текст
-            <textarea name='plainBody' rows='14' placeholder='Здравствуйте!&#10;&#10;Расскажите, почему вы пишете и что нужно сделать получателю.'>{H(plainBody)}</textarea>
-          </label>
-        </div>
-        <div data-body-panel='html'{htmlPanelStyle}>
+        <div data-body-panel='visual'{visualPanelStyle}>
           <div class='rich-editor' data-rich-text-editor>
-            <div class='rich-toolbar' aria-label='Форматирование письма'>
+            <div class='rich-toolbar' aria-label='Форматирование обычного письма'>
               <button type='button' class='btn secondary compact rich-tool' data-rich-command='bold' title='Жирный'><b>B</b></button>
               <button type='button' class='btn secondary compact rich-tool' data-rich-command='italic' title='Курсив'><i>I</i></button>
               <select class='rich-select' data-rich-font-size title='Размер текста'>
@@ -217,10 +250,16 @@ public static class SimplifiedMessageStepEndpoints
               <input class='rich-link-input' type='url' placeholder='https://example.ru' data-rich-link-input>
               <button type='button' class='btn secondary compact rich-link-button' data-rich-link>Ссылка</button>
             </div>
-            <div class='rich-editable' contenteditable='true' data-rich-editable aria-label='Текст HTML письма'></div>
-            <textarea name='htmlBody' data-rich-html-source hidden>{H(editorHtmlBody)}</textarea>
+            <div class='rich-editable' contenteditable='true' data-rich-editable aria-label='Текст обычного письма' data-placeholder='Здравствуйте! Расскажите, почему вы пишете и что нужно сделать получателю.'></div>
+            <textarea name='visualBody' data-rich-html-source hidden>{H(visualBody)}</textarea>
           </div>
-          <span class='field-hint'>Скрипты, обработчики событий, опасные ссылки и небезопасные стили будут удалены перед сохранением.</span>
+          <span class='field-hint'>Письмолёт сохранит оформление безопасным HTML и перед отправкой удалит скрипты, опасные ссылки и небезопасные стили.</span>
+        </div>
+        <div data-body-panel='html'{htmlPanelStyle}>
+          <label>HTML-код письма
+            <textarea name='htmlBody' rows='18' spellcheck='false' placeholder='&lt;h1&gt;Заголовок&lt;/h1&gt;&#10;&lt;p&gt;Текст письма&lt;/p&gt;'>{H(htmlBody)}</textarea>
+          </label>
+          <span class='field-hint'>Вставьте HTML-код тела письма. Скрипты, обработчики событий, опасные ссылки и небезопасные стили будут удалены перед сохранением.</span>
         </div>
       </section>
       <label>Вложения
@@ -391,21 +430,24 @@ public static class SimplifiedMessageStepEndpoints
 (function () {
   var root = document.querySelector('[data-body-editor]');
   if (!root) return;
-  var input = root.querySelector('input[name="bodyFormat"]');
-  var buttons = root.querySelectorAll('[data-body-format]');
+  var tabInput = root.querySelector('input[name="bodyTab"]');
+  var formatInput = root.querySelector('input[name="bodyFormat"]');
+  var buttons = root.querySelectorAll('[data-body-tab]');
   var panels = root.querySelectorAll('[data-body-panel]');
   var richEditor = root.querySelector('[data-rich-text-editor]');
 
-  function select(format) {
+  function select(tab) {
+    if (tab !== 'html') tab = 'visual';
     syncRichEditor();
-    input.value = format;
+    if (tabInput) tabInput.value = tab;
+    if (formatInput) formatInput.value = 'html';
     buttons.forEach(function (button) {
-      var active = button.getAttribute('data-body-format') === format;
+      var active = button.getAttribute('data-body-tab') === tab;
       button.className = active ? 'button compact' : 'btn secondary compact';
       button.setAttribute('aria-selected', active ? 'true' : 'false');
     });
     panels.forEach(function (panel) {
-      var active = panel.getAttribute('data-body-panel') === format;
+      var active = panel.getAttribute('data-body-panel') === tab;
       panel.style.display = active ? '' : 'none';
     });
   }
@@ -585,12 +627,12 @@ public static class SimplifiedMessageStepEndpoints
 
   buttons.forEach(function (button) {
     button.addEventListener('click', function () {
-      select(button.getAttribute('data-body-format'));
+      select(button.getAttribute('data-body-tab'));
     });
   });
 
   initRichEditor();
-  select(input.value || 'text');
+  select(tabInput ? tabInput.value : 'visual');
 })();
 </script>
 """;
@@ -622,6 +664,18 @@ public static class SimplifiedMessageStepEndpoints
         ? BodyFormatHtml
         : BodyFormatText;
 
+    private static string NormalizeBodyTab(string? value)
+    {
+        if (string.Equals(value, BodyTabVisual, StringComparison.OrdinalIgnoreCase))
+        {
+            return BodyTabVisual;
+        }
+
+        return string.Equals(value, BodyTabHtml, StringComparison.OrdinalIgnoreCase)
+            ? BodyTabHtml
+            : string.Empty;
+    }
+
     private static MessageBodyFormat ToMessageBodyFormat(string value) => string.Equals(value, BodyFormatHtml, StringComparison.OrdinalIgnoreCase)
         ? MessageBodyFormat.Html
         : MessageBodyFormat.Text;
@@ -634,6 +688,10 @@ public static class SimplifiedMessageStepEndpoints
     {
         return ToBodyFormatCode(MessageBodyFormatDetector.InferFromBody(body));
     }
+
+    private static string ToVisualEditorHtml(string body, MessageBodyFormat format) => format == MessageBodyFormat.Html
+        ? HtmlMessageSanitizer.Sanitize(body)
+        : ToHtmlText(body);
 
     private static string ToHtmlText(string value) => H(value)
         .Replace("\r\n", "\n", StringComparison.Ordinal)

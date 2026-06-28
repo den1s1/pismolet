@@ -363,10 +363,13 @@
 }
 
 .rich-select {
+  width: auto;
   max-width: 110px;
+  flex: 0 0 auto;
 }
 
 .rich-link-input {
+  width: auto;
   flex: 1 1 220px;
 }
 
@@ -408,6 +411,11 @@
 .rich-editable:focus {
   border-color: #93c5fd;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.rich-editable:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
 }
 
 .admin-shell {
