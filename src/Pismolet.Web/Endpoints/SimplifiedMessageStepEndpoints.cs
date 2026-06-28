@@ -99,17 +99,20 @@ public static class SimplifiedMessageStepEndpoints
 
         string body;
         MessageBodyFormat messageBodyFormat;
-        if (bodyTab == BodyTabVisual)
+        var shouldUseRawHtmlBody = bodyTab == BodyTabHtml
+            || (bodyTab == BodyTabVisual && string.IsNullOrWhiteSpace(visualBody) && !string.IsNullOrWhiteSpace(htmlBody));
+        if (bodyTab == BodyTabVisual && !shouldUseRawHtmlBody)
         {
             body = visualBody;
             messageBodyFormat = MessageBodyFormat.Html;
             bodyFormat = BodyFormatHtml;
         }
-        else if (bodyTab == BodyTabHtml)
+        else if (shouldUseRawHtmlBody)
         {
             body = htmlBody;
             messageBodyFormat = MessageBodyFormat.Html;
             bodyFormat = BodyFormatHtml;
+            bodyTab = BodyTabHtml;
         }
         else
         {
@@ -437,6 +440,8 @@ public static class SimplifiedMessageStepEndpoints
   var buttons = root.querySelectorAll('[data-body-tab]');
   var panels = root.querySelectorAll('[data-body-panel]');
   var richEditor = root.querySelector('[data-rich-text-editor]');
+  var visualSource = root.querySelector('textarea[name="visualBody"]');
+  var htmlSource = root.querySelector('textarea[name="htmlBody"]');
 
   function select(tab) {
     if (tab !== 'html') tab = 'visual';
@@ -452,6 +457,8 @@ public static class SimplifiedMessageStepEndpoints
       var active = panel.getAttribute('data-body-panel') === tab;
       panel.style.display = active ? '' : 'none';
     });
+    if (visualSource) visualSource.disabled = tab !== 'visual';
+    if (htmlSource) htmlSource.disabled = tab !== 'html';
   }
 
   function syncRichEditor() {

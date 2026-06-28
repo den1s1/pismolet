@@ -213,6 +213,34 @@ public sealed class MessagePreviewUiTests
     }
 
     [Fact]
+    public async Task Html_message_save_uses_raw_html_when_visual_tab_marker_is_stale()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory);
+        var mailingId = SeedMailing(factory);
+        using var client = CreateAuthenticatedClient(factory);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+
+        using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["senderName"] = "Библиотека №5",
+            ["subject"] = "HTML письмо",
+            ["bodyTab"] = "visual",
+            ["bodyFormat"] = "html",
+            ["visualBody"] = string.Empty,
+            ["htmlBody"] = "<h1>Готовый HTML</h1><p>Текст письма</p>"
+        });
+
+        var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected message response: {(int)response.StatusCode}");
+
+        var mailing = GetMailing(factory, mailingId);
+        Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
+        Assert.Equal("<h1>Готовый HTML</h1><p>Текст письма</p>", mailing.MessageDraft?.Body);
+    }
+
+    [Fact]
     public async Task Html_message_save_sanitizes_dangerous_markup_before_persisting()
     {
         using var factory = CreateAuthorizedFactory();
