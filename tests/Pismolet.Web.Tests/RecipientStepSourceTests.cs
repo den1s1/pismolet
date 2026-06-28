@@ -25,6 +25,15 @@ public sealed class RecipientStepSourceTests
     }
 
     [Fact]
+    public void Program_registers_confirmation_submit_endpoint()
+    {
+        var program = ReadRepositoryFile("src/Pismolet.Web/Program.cs");
+
+        Assert.Contains("MapMailingConfirmationSubmitEndpoints", program);
+        Assert.True(File.Exists(RepositoryPath("src/Pismolet.Web/Endpoints/MailingConfirmationSubmitEndpoints.cs")));
+    }
+
+    [Fact]
     public void Recipient_flow_renders_final_address_blocks_directly()
     {
         var reviewEndpoint = ReadRepositoryFile("src/Pismolet.Web/Endpoints/MailingRecipientReviewOverlayEndpoints.cs");
