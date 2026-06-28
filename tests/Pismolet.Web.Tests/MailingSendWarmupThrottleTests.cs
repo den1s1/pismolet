@@ -280,9 +280,11 @@ public sealed class MailingSendWarmupThrottleTests
 
     private sealed class TestUnsubscribeTokenService : IUnsubscribeTokenService
     {
-        public string Generate(Guid mailingId, string email) => "test-token";
+        public string Generate(Guid mailingId, string recipientEmail, Guid? importBatchId = null) => "test-token";
 
         public UnsubscribeTokenValidationResult Validate(string token) => UnsubscribeTokenValidationResult.Failure("not-supported");
+
+        public string BuildRecipientKey(Guid mailingId, string normalizedEmail, Guid? importBatchId = null) => "recipient-key";
     }
 
     private sealed class TestInboundReplyTokenService : IInboundReplyTokenService
@@ -301,5 +303,7 @@ public sealed class MailingSendWarmupThrottleTests
     private sealed class StaticMailWarmupLimitOptionsProvider(MailWarmupLimitOptions options) : IMailWarmupLimitOptionsProvider
     {
         public MailWarmupLimitOptions Current => options;
+
+        public MailWarmupLimitOptions GetCurrent() => options;
     }
 }
