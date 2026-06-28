@@ -83,6 +83,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAdminOperationService, AdminOperationService>();
         services.AddScoped<IGlobalUnsubscribeService, GlobalUnsubscribeService>();
         services.AddScoped<IEmailWebhookProcessingService, EmailWebhookProcessingService>();
+        services.AddScoped<IClientReplyAliasService, ClientReplyAliasService>();
         services.AddScoped<IInboundReplyMatchingService, InboundReplyMatchingService>();
         services.AddScoped<IInboundReplyProcessingService, InboundReplyProcessingService>();
         services.AddScoped<ILegalEvidenceService, LegalEvidenceService>();
