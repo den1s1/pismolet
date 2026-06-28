@@ -12,17 +12,20 @@ public sealed class RecipientStepSourceTests
     }
 
     [Fact]
-    public void Recipient_step_renders_final_address_blocks_directly()
+    public void Recipient_flow_renders_final_address_blocks_directly()
     {
-        var endpoint = ReadRepositoryFile("src/Pismolet.Web/Endpoints/SimplifiedRecipientStepEndpoints.cs");
+        var reviewEndpoint = ReadRepositoryFile("src/Pismolet.Web/Endpoints/MailingRecipientReviewOverlayEndpoints.cs");
+        var managementEndpoint = ReadRepositoryFile("src/Pismolet.Web/Endpoints/MailingRecipientManagementEndpoints.cs");
 
-        Assert.Contains("MapPost(\"/mailings/{id:guid}/recipients\"", endpoint);
-        Assert.Contains("address-summary-block", endpoint);
-        Assert.Contains("address-base-block", endpoint);
-        Assert.Contains("address-list-block", endpoint);
-        Assert.Contains("address-inline-form address-search-form", endpoint);
-        Assert.Contains("address-inline-form address-add-form", endpoint);
-        Assert.DoesNotContain("style='", endpoint);
+        Assert.Contains("MapPost(\"/mailings/{id:guid}/recipients\"", reviewEndpoint);
+        Assert.Contains("address-summary-block", reviewEndpoint);
+        Assert.Contains("address-list-block", reviewEndpoint);
+        Assert.Contains("address-inline-form address-search-form", reviewEndpoint);
+        Assert.Contains("address-inline-form address-add-form", reviewEndpoint);
+        Assert.Contains("MapPost(\"/mailings/{id:guid}/recipients/add\"", managementEndpoint);
+        Assert.Contains("MapPost(\"/mailings/{id:guid}/recipients/remove\"", managementEndpoint);
+        Assert.DoesNotContain("style='", reviewEndpoint);
+        Assert.DoesNotContain("style='", managementEndpoint);
     }
 
     [Fact]
