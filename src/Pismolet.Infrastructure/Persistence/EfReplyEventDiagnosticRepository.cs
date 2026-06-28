@@ -7,7 +7,7 @@ namespace Pismolet.Web.Infrastructure.Persistence;
 
 public sealed class EfReplyEventDiagnosticRepository(PismoletDbContext db) : IReplyEventRepository
 {
-    private readonly EfReplyEventRepository inner = new(db);
+    private readonly Pismolet.Web.Infrastructure.Persistence.EfReplyEventRepository inner = new(db);
 
     public ReplyEvent AddIfNotExists(ReplyEvent replyEvent) => inner.AddIfNotExists(replyEvent);
 
