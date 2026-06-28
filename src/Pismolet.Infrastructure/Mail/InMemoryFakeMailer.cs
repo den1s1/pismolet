@@ -28,7 +28,8 @@ public sealed class InMemoryFakeMailer : IFakeMailer
         string? replyToAddress = null,
         string? replyToken = null,
         string? providerMessageId = null,
-        string? textBody = null) => _outbox.Enqueue(new FakeMail(
+        string? textBody = null,
+        string? messageId = null) => _outbox.Enqueue(new FakeMail(
             To: to,
             Subject: subject,
             Link: link,
@@ -36,7 +37,8 @@ public sealed class InMemoryFakeMailer : IFakeMailer
             ReplyToAddress: replyToAddress,
             ReplyToken: replyToken,
             ProviderMessageId: providerMessageId,
-            TextBody: textBody));
+            TextBody: textBody,
+            MessageId: messageId));
 
     public void AddForwardedReply(string to, string subject, string fromEmail, string textBody, string providerMessageId) => _outbox.Enqueue(new FakeMail(
         To: to,
