@@ -201,7 +201,7 @@ static InboundReplySpoolOptions ReadInboundReplySpoolOptions(IConfiguration conf
         ReadLong(configuration, "InboundReplies:MaxMessageBytes", fallback.MaxMessageBytes, InboundReplySpoolOptions.MinMessageBytes, InboundReplySpoolOptions.MaxAllowedMessageBytes),
         ReadInt(configuration, "InboundReplies:ProcessedRetentionDays", fallback.ProcessedRetentionDays, InboundReplySpoolOptions.MinRetentionDays, InboundReplySpoolOptions.MaxRetentionDays),
         ReadInt(configuration, "InboundReplies:FailedRetentionDays", fallback.FailedRetentionDays, InboundReplySpoolOptions.MinRetentionDays, InboundReplySpoolOptions.MaxRetentionDays),
-        ReadInt(configuration, "InboundReplies:MaxFilesPerPoll", fallback.MaxFilesPerPoll, InboundReplySpoolOptions.MaxFilesPerPollLimit, InboundReplySpoolOptions.MaxFilesPerPollLimit));
+        ReadInt(configuration, "InboundReplies:MaxFilesPerPoll", fallback.MaxFilesPerPoll, InboundReplySpoolOptions.MinFilesPerPoll, InboundReplySpoolOptions.MaxFilesPerPollLimit));
 }
 
 static PostfixDeliveryAutomationSettingsOptions ReadPostfixDeliveryAutomationSettingsOptions(IConfiguration configuration)
