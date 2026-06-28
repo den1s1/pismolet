@@ -125,7 +125,6 @@ app.MapMailingRecipientReviewOverlayEndpoints();
 app.MapMailingConfirmationSubmitOverlayEndpoints();
 app.MapMailingRecipientManagementEndpoints();
 app.MapDashboardEndpoints();
-app.MapSimplifiedMessageStepEndpoints();
 app.MapProfileEndpoints();
 app.MapPaymentEndpoints();
 app.MapCheckEndpoints();
