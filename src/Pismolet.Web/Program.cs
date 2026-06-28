@@ -123,7 +123,7 @@ app.MapMailingCreationStartEndpoints();
 app.MapMailingRichMessageFlowEndpoints();
 app.MapMailingRecipientReviewOverlayEndpoints();
 app.MapMailingConfirmationSubmitOverlayEndpoints();
-app.MapSimplifiedRecipientStepEndpoints();
+app.MapMailingRecipientManagementEndpoints();
 app.MapDashboardEndpoints();
 app.MapSimplifiedMessageStepEndpoints();
 app.MapProfileEndpoints();
