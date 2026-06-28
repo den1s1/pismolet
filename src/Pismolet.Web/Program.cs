@@ -127,6 +127,7 @@ app.MapProfileEndpoints();
 app.MapPaymentEndpoints();
 app.MapCheckEndpoints();
 app.MapSendEndpoints();
+app.MapAdminModerationAutoLaunchEndpoints();
 app.MapAdminEndpoints();
 app.MapAdminUsersPageEndpoints();
 app.MapAdminLegalEvidenceEndpoints();
@@ -197,7 +198,7 @@ static InboundReplySpoolOptions ReadInboundReplySpoolOptions(IConfiguration conf
         ReadLong(configuration, "InboundReplies:MaxMessageBytes", fallback.MaxMessageBytes, InboundReplySpoolOptions.MinMessageBytes, InboundReplySpoolOptions.MaxAllowedMessageBytes),
         ReadInt(configuration, "InboundReplies:ProcessedRetentionDays", fallback.ProcessedRetentionDays, InboundReplySpoolOptions.MinRetentionDays, InboundReplySpoolOptions.MaxRetentionDays),
         ReadInt(configuration, "InboundReplies:FailedRetentionDays", fallback.FailedRetentionDays, InboundReplySpoolOptions.MinRetentionDays, InboundReplySpoolOptions.MaxRetentionDays),
-        ReadInt(configuration, "InboundReplies:MaxFilesPerPoll", fallback.MaxFilesPerPoll, InboundReplySpoolOptions.MinFilesPerPoll, InboundReplySpoolOptions.MaxFilesPerPollLimit));
+        ReadInt(configuration, "InboundReplies:MaxFilesPerPoll", fallback.MaxFilesPerPoll, InboundReplySpoolOptions.MinFilesPerPollLimit));
 }
 
 static PostfixDeliveryAutomationSettingsOptions ReadPostfixDeliveryAutomationSettingsOptions(IConfiguration configuration)
