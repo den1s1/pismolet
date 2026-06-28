@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MimeKit;
@@ -163,7 +164,7 @@ public sealed class SmtpAccountConfirmationMailer : IFakeMailer
     private void Send(MimeMessage message)
     {
         using var client = new SmtpClient { Timeout = Math.Max(1, _options.TimeoutSeconds) * 1000 };
-        client.Connect(_options.Host, _options.Port, SmtpEmailProviderAdapterSafeOptions.Parse(_options.SecureSocketOptions, _options.Port));
+        client.Connect(_options.Host, _options.Port, ParseSecureSocketOptions(_options.SecureSocketOptions, _options.Port));
         if (!string.IsNullOrWhiteSpace(_options.Username))
         {
             client.Authenticate(_options.Username, _options.Password);
@@ -192,6 +193,16 @@ public sealed class SmtpAccountConfirmationMailer : IFakeMailer
         return at >= 0 && at < _options.FromEmail.Length - 1
             ? _options.FromEmail[(at + 1)..].Trim()
             : "pismolet.local";
+    }
+
+    private static SecureSocketOptions ParseSecureSocketOptions(string value, int port)
+    {
+        if (Enum.TryParse<SecureSocketOptions>(value, ignoreCase: true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTlsWhenAvailable;
     }
 
     private static SmtpEmailProviderOptions ReadOptions(IConfiguration configuration)
