@@ -16,15 +16,14 @@
 | 3.5. Spool reader и файловая обработка | Завершён для MVP-каркаса | Reader обрабатывает eml из incoming, двигает файлы в processing, вызывает parser/processor, переносит в processed или failed, пишет error-файл, чистит retention. |
 | 3.6. Админ-диагностика и отчёт клиента | Завершён для MVP | Используется существующий `/admin/replies`; страница улучшена: маскирует email, показывает статус, рассылку, тему, body status и ошибку без чувствительных технических данных. |
 | 3.7. Инфраструктурный runbook и server dry-run | Завершён для документации | Созданы `docs/inbound_reply_runbook.md` и `docs/inbound_reply_server_dry_run.md`; dry-run выполнен на сервере. |
-| 3.8. Production smoke и включение reply-домена | Server dry-run пройден | На сервере commit `8e0f5929402ed58b73beacc0787b322a792f6599`: build/test зелёные, worker включён, обычное тестовое письмо обработано, auto-reply обработан как автоответ, failed-каталог пустой, `/admin/replies` показывает оба события. Следующий шаг — маршрут входящей почты и фактический inbound smoke. |
+| 3.8. Production smoke и включение reply-домена | Завершён для MVP | На сервере commit `8e0f5929402ed58b73beacc0787b322a792f6599`: build/test зелёные, worker включён, server dry-run и внешний smoke пройдены, тестовые письма обработаны и перенесены в `processed`. Отдельно нужен matched-forward smoke на ответе к настоящей рассылке. |
 | 3.9. Юридическая и retention-синхронизация | Не начат | Выполнять после финального фактического поведения retention. |
 
 ## Открытые технические подпункты
 
 1. Передать фактический envelope recipient в `InboundReplyRawMessage`, когда будет выбран Postfix pipe/sidecar-контракт.
-2. Настроить маршрут входящей почты для `reply.pismolet.ru` и выполнить фактический inbound smoke.
-3. Проверить фактическую доставку пересланного ответа на доменной почте после deploy.
-4. После production smoke обновить фактический статус спринта 3.8.
+2. Проверить фактическую доставку пересланного ответа на доменной почте через reply-адрес настоящей рассылки.
+3. После matched-forward smoke обновить статус пересылки в runbook/плане.
 
 ## Последние commit SHA по этапу
 
@@ -56,3 +55,4 @@
 - `005a7f4c667e8181cef79984ab41399783d08e07` — integration-тест processing path ответов.
 - `20e3bec46bca006e4c9b06a8e702544dcf91a54a` — исправление поля body в integration-тесте.
 - `ec7bc76147ff42bc1d087889e1a61dda87342267` — server dry-run чеклист inbound replies.
+- `f4665772551c9a579d717d8dd97082268fe5fd46` — успешный server dry-run ответов.
