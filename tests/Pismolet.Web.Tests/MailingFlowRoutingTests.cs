@@ -28,16 +28,43 @@ public sealed class MailingFlowRoutingTests
         AssertPreferredRouteOrder(endpoints, "/mailings/{id:guid}/confirmation", "POST", -3000);
     }
 
+    [Fact]
+    public void Mailing_flow_does_not_register_rework_fallback_routes_for_later_steps()
+    {
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        using var scope = factory.Services.CreateScope();
+        var endpoints = scope.ServiceProvider
+            .GetServices<EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .ToArray();
+
+        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/message", "GET");
+        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/message", "POST");
+        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/recipients", "GET");
+        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/recipients", "POST");
+        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/confirmation", "GET");
+        AssertNoFallbackRoute(endpoints, "/mailings/{id:guid}/confirmation", "POST");
+    }
+
     private static void AssertPreferredRouteOrder(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method, int expectedOrder)
     {
-        var matches = endpoints
-            .Where(endpoint => endpoint.RoutePattern.RawText == pattern && SupportsMethod(endpoint, method))
-            .ToArray();
+        var matches = MatchingRoutes(endpoints, pattern, method);
 
         Assert.NotEmpty(matches);
         Assert.Equal(expectedOrder, matches.Min(endpoint => endpoint.Order));
         Assert.All(matches, endpoint => Assert.True(endpoint.Order >= expectedOrder, $"Route {method} {pattern} has unexpected higher priority order {endpoint.Order}."));
     }
+
+    private static void AssertNoFallbackRoute(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method)
+    {
+        var matches = MatchingRoutes(endpoints, pattern, method);
+        Assert.DoesNotContain(matches, endpoint => endpoint.Order == -1000);
+    }
+
+    private static RouteEndpoint[] MatchingRoutes(IReadOnlyCollection<RouteEndpoint> endpoints, string pattern, string method) => endpoints
+        .Where(endpoint => endpoint.RoutePattern.RawText == pattern && SupportsMethod(endpoint, method))
+        .ToArray();
 
     private static bool SupportsMethod(RouteEndpoint endpoint, string method)
     {
