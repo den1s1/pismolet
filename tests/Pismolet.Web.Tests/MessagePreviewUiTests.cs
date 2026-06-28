@@ -275,6 +275,7 @@ public sealed class MessagePreviewUiTests
         var emailHtml = """
 <table width="600" cellpadding="0" cellspacing="0">
   <tr><td style="color:#333333;font-size:18px"><h1>Готовый HTML</h1><p>Текст письма</p><img src="https://example.ru/pic.png" width="120" alt="Картинка"></td></tr>
+  <tr><td><a href="tel:89163112380">8 (916) 311-23-80</a></td></tr>
 </table>
 """;
 

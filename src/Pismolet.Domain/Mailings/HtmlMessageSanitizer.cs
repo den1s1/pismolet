@@ -408,7 +408,7 @@ public static class HtmlMessageSanitizer
 
             if (tagName == "a" && normalizedName == "href" && !IsSafeHref(value))
             {
-                return HtmlMessageValidationResult.Failure("HTML содержит запрещённую ссылку. В ссылках разрешены только http, https и mailto.");
+                return HtmlMessageValidationResult.Failure("HTML содержит запрещённую ссылку. В ссылках разрешены только http, https, mailto и tel.");
             }
 
             if (tagName == "img" && normalizedName == "src" && !IsSafeImageSrc(value))
@@ -492,7 +492,7 @@ public static class HtmlMessageSanitizer
         }
 
         return Uri.TryCreate(href, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeMailto)
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeMailto || uri.Scheme == "tel")
                 ? uri.ToString()
                 : string.Empty;
     }
@@ -501,7 +501,7 @@ public static class HtmlMessageSanitizer
     {
         var href = StripControlCharacters(value).Trim();
         return Uri.TryCreate(href, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeMailto);
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeMailto || uri.Scheme == "tel");
     }
 
     private static string SafeImageSrc(string value)

@@ -26,6 +26,7 @@ public sealed class HtmlMessageSanitizerTests
   <table width="600" cellpadding="0" cellspacing="0">
     <tr><td style="color:#333333;font-size:18px"><h1>Здравствуйте</h1><p>Текст письма</p><img src="https://example.ru/pic.png" width="120" alt="Картинка"></td></tr>
   </table>
+  <p><a href="tel:89163112380">8 (916) 311-23-80</a></p>
 </body>
 </html>
 """;
