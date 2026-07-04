@@ -223,6 +223,13 @@ dl.details a,
 .footer-cta { margin-top: 28px; padding: 28px; border-radius: 28px; background: var(--dark); color: #fff; display: grid; gap: 12px; }
 .footer-cta p { color: #cbd5e1; }
 .site-footer { border-top: 1px solid var(--line); padding: 26px 24px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; color: var(--muted); max-width: 1180px; margin: 0 auto; }
+.site-footer::before {
+  content: "Исполнитель: Смирнов Денис Евгеньевич, самозанятый, плательщик НПД, ИНН 505078193424, г. Москва. Поддержка: help@pismolet.ru, +7 916 660 82 59.";
+  flex: 1 0 100%;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
 .site-footer a { text-decoration: none; margin-left: 14px; }
 .footer-links { display: flex; flex-wrap: wrap; gap: 14px; }
 .footer-links a { margin-left: 0; }
