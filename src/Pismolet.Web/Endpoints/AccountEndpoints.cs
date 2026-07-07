@@ -217,7 +217,7 @@ public static class AccountEndpoints
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         var trimmed = value.Trim();
-        if (!trimmed.StartsWith('/', StringComparison.Ordinal) || trimmed.StartsWith("//", StringComparison.Ordinal) || trimmed.Contains("\\", StringComparison.Ordinal)) return null;
+        if (!trimmed.StartsWith("/", StringComparison.Ordinal) || trimmed.StartsWith("//", StringComparison.Ordinal) || trimmed.IndexOf((char)92) >= 0) return null;
         return trimmed;
     }
 
