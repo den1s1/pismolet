@@ -158,6 +158,10 @@ h3 { font-size: 22px; }
 .list li::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--ok); font-weight: 900; }
 .notice { border-radius: 24px; padding: 22px; border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; }
 .notice strong { display: block; margin-bottom: 6px; color: #7c2d12; }
+.faq { display: grid; gap: 12px; }
+.faq-item { border: 1px solid var(--line); border-radius: 18px; background: #fff; padding: 0 18px; }
+.faq-item summary { cursor: pointer; padding: 16px 0; font-weight: 850; color: var(--text); }
+.faq-item p { padding: 0 0 18px; color: var(--muted); }
 
 dl.details,
 .details {
