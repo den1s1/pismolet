@@ -18,7 +18,8 @@ if (isRunningUnderTests)
     {
         ["Persistence:Provider"] = "InMemory",
         ["MailProvider"] = "FakeMailer",
-        ["Prodamus:CallbackCheckRequired"] = "false"
+        ["Prodamus:CallbackCheckRequired"] = "false",
+        ["Prodamus:PaymentPageSignatureKey"] = "testing-prodamus-signature-key"
     });
 }
 
