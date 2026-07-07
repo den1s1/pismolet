@@ -4,6 +4,7 @@ using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Mailings;
+using Pismolet.Web.Infrastructure.DependencyInjection;
 using Pismolet.Web.Rendering;
 
 namespace Pismolet.Web.Endpoints;
