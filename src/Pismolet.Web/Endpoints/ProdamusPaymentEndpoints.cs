@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
@@ -10,6 +11,13 @@ namespace Pismolet.Web.Endpoints;
 
 public static class ProdamusPaymentEndpoints
 {
+    private static readonly string[] CallbackDiagnosticFieldNames =
+    {
+        "order_id", "order_num", "order", "payment_id", "paymentId", "id",
+        "order_sum", "amount", "sum", "payment_amount", "paid_amount", "products[0][price]", "products[0][quantity]",
+        "payment_status", "status", "order_status", "state", "currency", "sys", "date", "payment_date", "transaction_id", "payment_type"
+    };
+
     public static IEndpointRouteBuilder MapProdamusPaymentEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/mailings/{id:guid}/payment", ShowPayment).RequireAuthorization().WithOrder(-4000);
@@ -50,17 +58,18 @@ public static class ProdamusPaymentEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Переход к оплате", AutoSubmitPage(result.Review, prodamus, http), authenticated: true));
     }
 
-    private static async Task<IResult> Result(HttpContext http, IMailingPaymentService payments, IPaymentRepository paymentRepository, ProdamusOptions prodamus, IMailingReviewService reviews)
+    private static async Task<IResult> Result(HttpContext http, IMailingPaymentService payments, IPaymentRepository paymentRepository, ProdamusOptions prodamus, IMailingReviewService reviews, ILoggerFactory loggerFactory)
     {
+        var logger = loggerFactory.CreateLogger("Pismolet.Payments.Prodamus");
         var fields = await ReadFields(http);
-        if (!ValidateCallback(fields, prodamus, out var error)) return Results.BadRequest(error);
-        if (!ProdamusPaymentForm.TryGetOperationId(fields, out var operationId)) return Results.BadRequest("Не передан идентификатор заказа Prodamus.");
+        if (!ValidateCallback(fields, prodamus, out var error)) return CallbackBadRequest(logger, error, fields);
+        if (!ProdamusPaymentForm.TryGetOperationId(fields, out var operationId)) return CallbackBadRequest(logger, "Не передан идентификатор заказа Prodamus.", fields);
         var amountError = ValidatePaymentAmount(paymentRepository, operationId, fields);
-        if (amountError is not null) return Results.BadRequest(amountError);
-        if (!ProdamusPaymentForm.IsPaidCallback(fields)) return Results.BadRequest("Prodamus не подтвердил успешный статус платежа.");
+        if (amountError is not null) return CallbackBadRequest(logger, amountError, fields);
+        if (!ProdamusPaymentForm.IsPaidCallback(fields)) return CallbackBadRequest(logger, "Prodamus не подтвердил успешный статус платежа.", fields);
 
         var result = payments.ConfirmProviderPayment(operationId, ToRequestMetadata(http), CallbackSummary(fields));
-        if (!result.Ok) return Results.BadRequest(result.Error);
+        if (!result.Ok) return CallbackBadRequest(logger, result.Error, fields);
         var payment = paymentRepository.GetByProviderOperationId(operationId);
         if (payment is not null) reviews.StartChecks(payment.OwnerEmail, payment.MailingId, ToRequestMetadata(http));
         return Results.Text("OK", "text/plain; charset=utf-8");
@@ -209,6 +218,23 @@ public static class ProdamusPaymentEndpoints
 
         return null;
     }
+
+    private static IResult CallbackBadRequest(ILogger logger, string reason, IReadOnlyDictionary<string, string> fields)
+    {
+        logger.LogWarning("Prodamus callback rejected: {Reason}. Safe fields: {Fields}", reason, SafeCallbackDiagnostics(fields));
+        return Results.BadRequest(reason);
+    }
+
+    private static string SafeCallbackDiagnostics(IReadOnlyDictionary<string, string> fields)
+    {
+        var parts = CallbackDiagnosticFieldNames
+            .Where(fields.ContainsKey)
+            .Select(key => $"{key}={TrimDiagnosticValue(fields[key])}");
+        var keys = string.Join(',', fields.Keys.OrderBy(key => key, StringComparer.Ordinal));
+        return string.Join(';', parts) + $"; field_count={fields.Count}; keys={keys}";
+    }
+
+    private static string TrimDiagnosticValue(string value) => value.Length <= 80 ? value : value[..80] + "...";
 
     private static string CallbackSummary(IReadOnlyDictionary<string, string> fields)
     {
