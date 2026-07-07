@@ -9,7 +9,7 @@
   - `/payments/prodamus/result`;
   - `/payments/prodamus/success`;
   - `/payments/prodamus/fail`;
-- страница оплаты `/mailings/{id}/payment` теперь ведёт клиента на платёжную страницу Prodamus;
+- страница оплаты `/mailings/{id}/payment` теперь ведёт клиента на `https://pismolet.payform.ru`;
 - success URL не меняет статус оплаты;
 - оплата подтверждается только через server result;
 - сумма входящего уведомления сверяется с серверным расчётом;
@@ -28,6 +28,7 @@
 
 ## Post-deploy шаги
 
+- проверить переход клиента на `https://pismolet.payform.ru`;
 - задать параметры Prodamus в окружении `app.pismolet.ru`;
 - прописать в кабинете Prodamus URL:
   - success: `https://app.pismolet.ru/payments/prodamus/success`;
