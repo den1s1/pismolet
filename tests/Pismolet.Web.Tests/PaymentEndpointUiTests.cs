@@ -101,15 +101,23 @@ public sealed class PaymentEndpointUiTests
             ["campaignLaunchConfirmation"] = "on"
         });
         var start = await client.PostAsync($"/mailings/{mailingId}/payment/start", confirmation);
+        var startHtml = await start.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, start.StatusCode);
 
         var operationId = GetProviderOperationId(factory, mailingId);
+        Assert.Contains(WebUtility.UrlEncode($"order_num={operationId}"), startHtml);
+
         var successHtml = await client.GetStringAsync($"/payments/prodamus/success?order_num={WebUtility.UrlEncode(operationId)}");
 
         Assert.Contains("Переход после оплаты получен", successHtml);
         Assert.Contains("profile-menu", successHtml);
         Assert.Contains("Профиль", successHtml);
         Assert.DoesNotContain("href='/account/login'>Войти", successHtml);
+
+        var legacySuccessHtml = await client.GetStringAsync("/payments/prodamus/success");
+        Assert.Contains("profile-menu", legacySuccessHtml);
+        Assert.Contains("href='/dashboard'>В личный кабинет", legacySuccessHtml);
+        Assert.DoesNotContain("На главную", legacySuccessHtml);
     }
 
     private static async Task ImportAcceptedAddress(HttpClient client, Guid mailingId)
