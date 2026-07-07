@@ -11,9 +11,13 @@
   - `/payments/prodamus/fail`;
 - страница оплаты `/mailings/{id}/payment` ведёт клиента на `https://pismolet.payform.ru/`;
 - URL платёжной страницы нормализуется с завершающим `/`, чтобы не уходить на payform без слэша;
-- если URL платёжной страницы не настроен, платёж не создаётся и клиент видит понятное сообщение;
+- переход на оплату формируется по сценарию Prodamus `do=pay`;
+- сумма передаётся через корзину товаров: `products[0][price]` и `products[0][quantity]`;
+- URL возврата и уведомления передаются как `urlReturn`, `urlSuccess`, `urlNotification`;
+- запрос на оплату подписывается HMAC SHA-256 по правилам Prodamus;
+- если URL платёжной страницы или HMAC-ключ не настроены, платёж не создаётся и клиент видит понятное сообщение;
 - success URL не меняет статус оплаты;
-- оплата подтверждается только через server result;
+- оплата подтверждается только через server result/webhook;
 - сумма входящего уведомления сверяется с серверным расчётом;
 - после подтверждения оплаты запускается следующий этап проверки/модерации рассылки;
 - Письмолёт не хранит данные банковских карт.
@@ -28,14 +32,29 @@
 
 > Техническая подготовка и отправка email-рассылки по базе клиента
 
+## Параметры окружения
+
+Обязательные:
+
+- `Prodamus__PaymentPageUrl=https://pismolet.payform.ru/`;
+- `Prodamus__PaymentPageSignatureKey=<ключ со страницы оплаты Prodamus>`.
+
+Опциональные:
+
+- `Prodamus__CallbackCheckPhrase=<ключ для проверки webhook>`, если отличается от ключа подписи страницы оплаты;
+- `Prodamus__SysCode=<sys из Prodamus>`, если служба поддержки Prodamus его выдала;
+- `Prodamus__ServiceName=Техническая подготовка и отправка email-рассылки по базе клиента`.
+
 ## Post-deploy шаги
 
 - проверить, что переход клиента идёт на `https://pismolet.payform.ru/`;
+- задать HMAC-ключ страницы оплаты в окружении как `Prodamus__PaymentPageSignatureKey`;
 - если URL переопределяется через окружение, задать его как `Prodamus__PaymentPageUrl=https://pismolet.payform.ru/`;
 - прописать в кабинете Prodamus URL:
   - success: `https://app.pismolet.ru/payments/prodamus/success`;
-  - fail: `https://app.pismolet.ru/payments/prodamus/fail`;
-  - result: `https://app.pismolet.ru/payments/prodamus/result`;
+  - fail/return: `https://app.pismolet.ru/payments/prodamus/fail`;
+  - notification/webhook: `https://app.pismolet.ru/payments/prodamus/result`;
+- включить уведомления об оплате в настройках канала продаж Prodamus;
 - настроить выгрузку оплат в `Мой налог`;
 - проверить название услуги в чеке;
 - провести тестовую оплату малой суммы;
@@ -46,5 +65,5 @@
 
 - логины и пароли от кабинета Prodamus;
 - приватные ссылки на платёжную страницу, если они содержат индивидуальные токены;
-- проверочные значения для уведомлений;
+- HMAC-ключи и проверочные значения для уведомлений;
 - любые платёжные данные клиента.
