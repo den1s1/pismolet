@@ -124,7 +124,11 @@ public static class ProdamusPaymentEndpoints
 
     private static string PaymentAction(Mailing mailing, bool isPromo, bool hasAdvertisingConsent, string paymentRulesHref, string payButtonText)
     {
-        if (isPromo && !hasAdvertisingConsent) return $"<h2>Нужно подтвердить рекламное согласие</h2><p class='notice warn'>Это рекламная рассылка. Вернитесь на финальное подтверждение и подтвердите наличие рекламного согласия адресатов.</p><a class='button' href='/mailings/{mailing.Id}/confirmation'>Вернуться к подтверждению</a>";
+        if (isPromo && !hasAdvertisingConsent)
+        {
+            return $"<h2>Нужно подтвердить рекламное согласие</h2><p class='notice warn'>Это рекламная рассылка. Вернитесь на финальное подтверждение и подтвердите наличие рекламного согласия адресатов.</p><div class='actions'><a class='button' href='/mailings/{mailing.Id}/confirmation'>Вернуться к подтверждению</a><a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Вернуться к адресатам</a></div>";
+        }
+
         return $"<form method='post' action='/mailings/{mailing.Id}/payment/start' class='confirmation-list checks'><h2>Финальное подтверждение</h2><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я проверил рассылку, понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><div class='notice warn'>Если рассылка не будет отправлена по технической причине или из-за отказа Письмолёта до начала отправки, вопрос возврата решается по правилам возврата.</div><button class='button full-pay-button'>{H(payButtonText)}</button><p class='muted payment-provider-note'>После подтверждения откроется платёжная страница Prodamus. Письмолёт не хранит данные банковских карт.</p></form>";
     }
 
