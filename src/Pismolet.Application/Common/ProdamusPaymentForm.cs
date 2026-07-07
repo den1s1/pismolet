@@ -12,7 +12,7 @@ public static class ProdamusPaymentForm
 
     private static readonly JsonSerializerOptions JsonOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
     private static readonly string[] CheckFieldNames = { "signature", "sign", "Signature" };
-    private static readonly string[] OperationIdFieldNames = { "order_id", "order_num", "order", "payment_id", "paymentId", "id" };
+    private static readonly string[] OperationIdFieldNames = { "order_num", "order_id", "order", "payment_id", "paymentId", "id" };
     private static readonly string[] AmountFieldNames = { "order_sum", "sum", "amount", "payment_amount", "paid_amount", "products[0][price]" };
     private static readonly string[] StatusFieldNames = { "payment_status", "status", "order_status", "state" };
 
