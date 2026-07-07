@@ -78,9 +78,10 @@ public static class ProdamusPaymentEndpoints
     private static async Task<IResult> Success(HttpContext http, IPaymentRepository paymentRepository, IMailingReviewService reviews)
     {
         var fields = await ReadFields(http);
+        var authenticated = IsAuthenticated(http);
         if (!ProdamusPaymentForm.TryGetOperationId(fields, out var operationId))
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(null, string.Empty, "Переход после оплаты получен. Окончательный статус меняет только уведомление Prodamus."), authenticated: IsAuthenticated(http)));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(null, string.Empty, "Переход после оплаты получен. Окончательный статус меняет только уведомление Prodamus.", authenticated), authenticated: authenticated));
         }
 
         var payment = paymentRepository.GetByProviderOperationId(operationId);
@@ -90,7 +91,7 @@ public static class ProdamusPaymentEndpoints
             return Results.Redirect($"/mailings/{payment.MailingId}/send");
         }
 
-        return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(payment, operationId, "Переход после оплаты получен. Ждём уведомление Prodamus."), authenticated: IsAuthenticated(http)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(payment, operationId, "Переход после оплаты получен. Ждём уведомление Prodamus.", authenticated), authenticated: authenticated));
     }
 
     private static async Task<IResult> Fail(HttpContext http, IPaymentRepository paymentRepository)
@@ -145,14 +146,18 @@ public static class ProdamusPaymentEndpoints
     {
         var payment = review.Payment ?? throw new InvalidOperationException("Payment is required after StartPayment.");
         var operationId = payment.Attempts.LastOrDefault(x => x.Provider == ProdamusPaymentForm.ProviderName)?.ProviderOperationId ?? ProdamusPaymentForm.BuildOrderId(payment.Id);
-        var fields = ProdamusPaymentForm.BuildStartFields(review.Mailing.Id, review.Mailing.PublicId, payment.OwnerEmail, operationId, payment.AcceptedRecipientsCount, payment.ExcludedRecipientsCount, payment.PricePerRecipient, payment.TotalAmount, payment.Currency, prodamus, AbsoluteUrl(http, "/payments/prodamus/success"), AbsoluteUrl(http, "/payments/prodamus/fail"), AbsoluteUrl(http, "/payments/prodamus/result"));
+        var successUrl = AbsoluteUrl(http, $"/payments/prodamus/success?order_num={WebUtility.UrlEncode(operationId)}");
+        var failUrl = AbsoluteUrl(http, $"/payments/prodamus/fail?order_num={WebUtility.UrlEncode(operationId)}");
+        var resultUrl = AbsoluteUrl(http, "/payments/prodamus/result");
+        var fields = ProdamusPaymentForm.BuildStartFields(review.Mailing.Id, review.Mailing.PublicId, payment.OwnerEmail, operationId, payment.AcceptedRecipientsCount, payment.ExcludedRecipientsCount, payment.PricePerRecipient, payment.TotalAmount, payment.Currency, prodamus, successUrl, failUrl, resultUrl);
         var payUrl = BuildPaymentUrl(prodamus.PaymentPageUrl, fields);
         return $"<section class='payment-autosubmit' aria-live='polite'><h1>Переходим на платёжную страницу</h1><p class='muted'>Сейчас откроется платёжная страница Prodamus. Если переход не произошёл автоматически, нажмите кнопку ниже.</p><p><a class='button full-pay-button' href='{H(payUrl)}'>Продолжить оплату</a></p><p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/payment'>Вернуться к расчёту</a></p></section><script>window.location.replace({JsString(payUrl)});</script>";
     }
 
-    private static string SuccessPage(Payment? payment, string operationId, string message)
+    private static string SuccessPage(Payment? payment, string operationId, string message, bool authenticated)
     {
-        var next = payment is null ? "<p><a class='btn secondary' href='/'>На главную</a></p>" : payment.Status == PaymentStatus.Paid ? $"<p><a class='btn' href='/mailings/{payment.MailingId}/send'>Открыть запуск рассылки</a></p>" : $"<div class='notice warn'>Мы получили возврат из платёжного сервиса и ждём серверное подтверждение оплаты. Финальный статус меняет только result URL.</div><p><a class='btn' href='/mailings/{payment.MailingId}/send'>Проверить статус и продолжить</a></p><p><a href='/dashboard'>В личный кабинет</a></p>";
+        var fallback = authenticated ? "<p><a class='btn secondary' href='/dashboard'>В личный кабинет</a></p>" : "<p><a class='btn secondary' href='/'>На главную</a></p>";
+        var next = payment is null ? fallback : payment.Status == PaymentStatus.Paid ? $"<p><a class='btn' href='/mailings/{payment.MailingId}/send'>Открыть запуск рассылки</a></p>" : $"<div class='notice warn'>Мы получили возврат из платёжного сервиса и ждём серверное подтверждение оплаты. Финальный статус меняет только result URL.</div><p><a class='btn' href='/mailings/{payment.MailingId}/send'>Проверить статус и продолжить</a></p><p><a href='/dashboard'>В личный кабинет</a></p>";
         var operation = string.IsNullOrWhiteSpace(operationId) ? string.Empty : $"<p class='muted'>Заказ: {H(operationId)}</p>";
         return $"<section class='panel'><h1>Переход после оплаты получен</h1><p>{H(message)}</p>{operation}{next}</section>";
     }
