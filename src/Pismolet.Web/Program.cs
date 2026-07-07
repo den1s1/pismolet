@@ -17,7 +17,8 @@ if (isRunningUnderTests)
     builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     {
         ["Persistence:Provider"] = "InMemory",
-        ["MailProvider"] = "FakeMailer"
+        ["MailProvider"] = "FakeMailer",
+        ["Prodamus:CallbackCheckRequired"] = "false"
     });
 }
 
@@ -50,6 +51,7 @@ builder.Services.AddAuthorization(options =>
         }));
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
+builder.Services.AddPismoletProdamusPayment(builder.Configuration);
 builder.Services.AddSingleton(ReadInboundReplySpoolOptions(builder.Configuration));
 builder.Services.AddSingleton<IInboundReplyMimeParser, PostfixRawMimeInboundReplyParser>();
 builder.Services.AddScoped<MailingPaymentService>();
@@ -127,6 +129,7 @@ app.MapMailingRecipientManagementEndpoints();
 app.MapDashboardEndpoints();
 app.MapProfileEndpoints();
 app.MapPaymentEndpoints();
+app.MapProdamusPaymentEndpoints();
 app.MapCheckEndpoints();
 app.MapSendEndpoints();
 app.MapAdminModerationAutoLaunchEndpoints();
