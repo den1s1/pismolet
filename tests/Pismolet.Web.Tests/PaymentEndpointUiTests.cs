@@ -85,6 +85,33 @@ public sealed class PaymentEndpointUiTests
         Assert.NotEqual(MailingStatus.PaymentPending, mailing.Status);
     }
 
+    [Fact]
+    public async Task Prodamus_success_return_keeps_authenticated_navigation_when_session_is_present()
+    {
+        using var factory = CreateAuthorizedFactory();
+        SeedUser(factory, OwnerEmail, "Payment UI Owner");
+        var mailingId = SeedMailing(factory, OwnerEmail, "Authenticated Prodamus return campaign");
+        using var client = CreateAuthenticatedClient(factory, OwnerEmail);
+        await ImportAcceptedAddress(client, mailingId);
+        await ConfirmBaseDeclaration(client, mailingId);
+        await SaveMessage(client, mailingId);
+
+        using var confirmation = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["campaignLaunchConfirmation"] = "on"
+        });
+        var start = await client.PostAsync($"/mailings/{mailingId}/payment/start", confirmation);
+        Assert.Equal(HttpStatusCode.OK, start.StatusCode);
+
+        var operationId = GetProviderOperationId(factory, mailingId);
+        var successHtml = await client.GetStringAsync($"/payments/prodamus/success?order_num={WebUtility.UrlEncode(operationId)}");
+
+        Assert.Contains("Переход после оплаты получен", successHtml);
+        Assert.Contains("profile-menu", successHtml);
+        Assert.Contains("Профиль", successHtml);
+        Assert.DoesNotContain("href='/account/login'>Войти", successHtml);
+    }
+
     private static async Task ImportAcceptedAddress(HttpClient client, Guid mailingId)
     {
         using var content = new MultipartFormDataContent
@@ -182,6 +209,18 @@ public sealed class PaymentEndpointUiTests
         Assert.True(result.Ok, result.Error);
         Assert.NotNull(result.Mailing);
         return result.Mailing.Id;
+    }
+
+    private static string GetProviderOperationId(WebApplicationFactory<Program> factory, Guid mailingId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var payments = scope.ServiceProvider.GetRequiredService<IPaymentRepository>();
+        var payment = payments.GetByMailingId(mailingId);
+        Assert.NotNull(payment);
+        var attempt = payment.Attempts.LastOrDefault(x => x.Provider == ProdamusPaymentForm.ProviderName)
+            ?? payment.Attempts.LastOrDefault();
+        Assert.NotNull(attempt);
+        return attempt.ProviderOperationId;
     }
 
     private static RequestMetadata Request() => new("127.0.0.1", "payment-endpoint-ui-tests");
