@@ -36,7 +36,7 @@ public static class ProdamusPaymentEndpoints
         if (!review.Ok || review.Review is null) return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(review), authenticated: true));
 
         var form = await http.Request.ReadFormAsync();
-        var confirmationError = ValidatePaymentConfirmations(review.Review.Mailing, form);
+        var confirmationError = ValidatePaymentConfirmations(review.Review.Mailing, form) ?? ValidatePaymentPage(prodamus);
         if (confirmationError is not null) return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(review, confirmationError), authenticated: true));
 
         var result = payments.StartPayment(email, id, ToRequestMetadata(http));
@@ -181,6 +181,18 @@ public static class ProdamusPaymentEndpoints
         if (payment is null) return "Платёжная попытка не найдена.";
         if (!ProdamusPaymentForm.TryGetAmount(fields, out var actual)) return "Некорректная сумма платежа.";
         return actual == payment.TotalAmount ? null : "Сумма платежа не совпадает с заказом.";
+    }
+
+    private static string? ValidatePaymentPage(ProdamusOptions prodamus)
+    {
+        if (!prodamus.HasPaymentPageUrl)
+        {
+            return "Платёжная страница Prodamus не настроена. Укажите точный URL из письма или кабинета Prodamus в Prodamus:PaymentPageUrl.";
+        }
+
+        return Uri.TryCreate(prodamus.PaymentPageUrl, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https"
+            ? null
+            : "Некорректный URL платёжной страницы Prodamus.";
     }
 
     private static string CallbackSummary(IReadOnlyDictionary<string, string> fields)
