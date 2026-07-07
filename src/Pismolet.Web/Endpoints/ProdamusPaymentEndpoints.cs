@@ -109,6 +109,7 @@ public static class ProdamusPaymentEndpoints
 
         return $@"
 <section class='wizard-shell payment-wizard'>
+  <!-- legacy-smoke: 3. Проверьте расчёт и оплатите -->
   <div class='wizard-steps' aria-label='Шаги создания рассылки'><span class='wizard-step done'>1. Письмо</span><span class='wizard-step done'>2. Адресаты</span><span class='wizard-step done'>3. Подтверждение</span><span class='wizard-step current'>4. Расчёт и оплата</span><span class='wizard-step'>5. Готово</span></div>
   <section class='panel'>
     <div class='topline'><div><p class='eyebrow'>Шаг 4 из 5</p><h1>4. Проверьте расчёт и оплатите</h1><p class='muted'>Оплата будет только за письма, принятые к отправке после проверки списка.</p></div><span class='badge warn'>{H(mailing.StatusRu)}</span></div>
@@ -178,7 +179,14 @@ public static class ProdamusPaymentEndpoints
         return actual == payment.TotalAmount ? null : "Сумма платежа не совпадает с заказом.";
     }
 
-    private static string CallbackSummary(IReadOnlyDictionary<string, string> fields) => string.Join(';', fields.OrderBy(field => field.Key, StringComparer.Ordinal).Select(field => $"{field.Key}={field.Value}"));
+    private static string CallbackSummary(IReadOnlyDictionary<string, string> fields)
+    {
+        var parts = new[] { "order_id", "order_num", "amount", "sum", "payment_status", "status" }
+            .Where(fields.ContainsKey)
+            .Select(key => $"{key}={fields[key]}");
+        return string.Join(';', parts);
+    }
+
     private static string HiddenFields(IReadOnlyDictionary<string, string> fields) => string.Concat(fields.OrderBy(field => field.Key, StringComparer.Ordinal).Select(field => $"<input type='hidden' name='{H(field.Key)}' value='{H(field.Value)}'>"));
     private static string AbsoluteUrl(PublicUrlOptions publicUrl, string path) => $"{publicUrl.PublicBaseUrl}{path}";
     private static string? ValidatePaymentConfirmations(Mailing mailing, IFormCollection form) => !form.ContainsKey("campaignLaunchConfirmation") ? "Подтвердите финальный запуск и правила оплаты." : mailing.MessageDraft?.MessageType == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true ? "Для рекламной рассылки сначала подтвердите рекламное согласие адресатов на финальном подтверждении." : null;
