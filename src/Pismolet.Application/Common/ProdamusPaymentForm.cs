@@ -28,7 +28,7 @@ public static class ProdamusPaymentForm
         var customerExtra = $"Рассылка {publicId}: {acceptedRecipients} писем × {unitPrice} ₽; исключено {excludedRecipients}.";
         var fields = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["do"] = "pay",
+            ["do"] = "link",
             ["order_id"] = operationId,
             ["customer_email"] = ownerEmail,
             ["customer_extra"] = customerExtra,
@@ -52,9 +52,9 @@ public static class ProdamusPaymentForm
         return fields;
     }
 
-    public static string BuildStartSignature(IReadOnlyDictionary<string, string> fields, string signatureKey) => BuildHmac(BuildNestedPayload(fields), signatureKey);
+    public static string BuildStartSignature(IReadOnlyDictionary<string, string> fields, string signatureKey) => BuildHmac(BuildFlatPayload(fields), signatureKey);
 
-    public static string BuildCheck(IReadOnlyDictionary<string, string> fields, string checkValue) => BuildHmac(BuildNestedPayload(fields), checkValue);
+    public static string BuildCheck(IReadOnlyDictionary<string, string> fields, string checkValue) => BuildHmac(BuildFlatPayload(fields), checkValue);
 
     public static bool VerifyCheck(IReadOnlyDictionary<string, string> fields, string expected, string checkValue) =>
         !string.IsNullOrWhiteSpace(expected) && string.Equals(BuildCheck(fields, checkValue), expected.Trim(), StringComparison.OrdinalIgnoreCase);
@@ -85,28 +85,13 @@ public static class ProdamusPaymentForm
         return normalized is "success" or "succeeded" or "paid" or "completed" or "approved" or "ok" or "1";
     }
 
-    private static SortedDictionary<string, object> BuildNestedPayload(IReadOnlyDictionary<string, string> fields)
+    private static SortedDictionary<string, string> BuildFlatPayload(IReadOnlyDictionary<string, string> fields)
     {
-        var payload = new SortedDictionary<string, object>(StringComparer.Ordinal);
-        var product = new SortedDictionary<string, object>(StringComparer.Ordinal);
-
+        var payload = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var field in fields)
         {
             if (CheckFieldNames.Contains(field.Key, StringComparer.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(field.Value)) continue;
-
-            if (field.Key.StartsWith("products[0][", StringComparison.Ordinal) && field.Key.EndsWith("]", StringComparison.Ordinal))
-            {
-                var productKey = field.Key[12..^1];
-                product[productKey] = field.Value;
-                continue;
-            }
-
             payload[field.Key] = field.Value;
-        }
-
-        if (product.Count > 0)
-        {
-            payload["products"] = new[] { product };
         }
 
         return payload;
