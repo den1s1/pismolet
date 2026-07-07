@@ -187,17 +187,25 @@ public static class ProdamusPaymentEndpoints
     {
         if (!prodamus.HasPaymentPageUrl)
         {
-            return "Платёжная страница Prodamus не настроена. Укажите точный URL из письма или кабинета Prodamus в Prodamus:PaymentPageUrl.";
+            return "Платёжная страница Prodamus не настроена. Укажите URL в Prodamus:PaymentPageUrl.";
         }
 
-        return Uri.TryCreate(prodamus.PaymentPageUrl, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https"
-            ? null
-            : "Некорректный URL платёжной страницы Prodamus.";
+        if (!Uri.TryCreate(prodamus.PaymentPageUrl, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+        {
+            return "Некорректный URL платёжной страницы Prodamus.";
+        }
+
+        if (!prodamus.HasPaymentPageSignatureKey)
+        {
+            return "Ключ HMAC SHA-256 для Prodamus не настроен. Укажите его в Prodamus:PaymentPageSignatureKey.";
+        }
+
+        return null;
     }
 
     private static string CallbackSummary(IReadOnlyDictionary<string, string> fields)
     {
-        var parts = new[] { "order_id", "order_num", "amount", "sum", "payment_status", "status" }
+        var parts = new[] { "order_id", "order_num", "order_sum", "amount", "sum", "payment_status", "status" }
             .Where(fields.ContainsKey)
             .Select(key => $"{key}={fields[key]}");
         return string.Join(';', parts);
