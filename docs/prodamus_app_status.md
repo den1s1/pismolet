@@ -11,10 +11,10 @@
   - `/payments/prodamus/fail`;
 - страница оплаты `/mailings/{id}/payment` ведёт клиента на `https://pismolet.payform.ru/`;
 - URL платёжной страницы нормализуется с завершающим `/`, чтобы не уходить на payform без слэша;
-- переход на оплату формируется по сценарию Prodamus `do=pay`;
+- переход на оплату формируется как GET-ссылка к Prodamus с `do=link`, по C#-примеру Prodamus;
 - сумма передаётся через корзину товаров: `products[0][price]` и `products[0][quantity]`;
 - URL возврата и уведомления передаются как `urlReturn`, `urlSuccess`, `urlNotification`;
-- запрос на оплату подписывается HMAC SHA-256 по правилам Prodamus;
+- запрос на оплату подписывается HMAC SHA-256 по flat-словарю параметров, как в C#-примере Prodamus;
 - если URL платёжной страницы или HMAC-ключ не настроены, платёж не создаётся и клиент видит понятное сообщение;
 - success URL не меняет статус оплаты;
 - оплата подтверждается только через server result/webhook;
@@ -47,7 +47,7 @@
 
 ## Post-deploy шаги
 
-- проверить, что переход клиента идёт на `https://pismolet.payform.ru/`;
+- проверить, что переход клиента идёт на `https://pismolet.payform.ru/` с query-параметрами;
 - задать HMAC-ключ страницы оплаты в окружении как `Prodamus__PaymentPageSignatureKey`;
 - если URL переопределяется через окружение, задать его как `Prodamus__PaymentPageUrl=https://pismolet.payform.ru/`;
 - прописать в кабинете Prodamus URL:
