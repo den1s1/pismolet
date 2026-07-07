@@ -137,7 +137,8 @@ public static class ProdamusPaymentEndpoints
         var payment = review.Payment ?? throw new InvalidOperationException("Payment is required after StartPayment.");
         var operationId = payment.Attempts.LastOrDefault(x => x.Provider == ProdamusPaymentForm.ProviderName)?.ProviderOperationId ?? ProdamusPaymentForm.BuildOrderId(payment.Id);
         var fields = ProdamusPaymentForm.BuildStartFields(review.Mailing.Id, review.Mailing.PublicId, payment.OwnerEmail, operationId, payment.AcceptedRecipientsCount, payment.ExcludedRecipientsCount, payment.PricePerRecipient, payment.TotalAmount, payment.Currency, prodamus, AbsoluteUrl(http, "/payments/prodamus/success"), AbsoluteUrl(http, "/payments/prodamus/fail"), AbsoluteUrl(http, "/payments/prodamus/result"));
-        return $"<section class='payment-autosubmit' aria-live='polite'><h1>Переходим на платёжную страницу</h1><p class='muted'>Сейчас откроется платёжная страница Prodamus. Если переход не произошёл автоматически, нажмите кнопку ниже.</p><form id='prodamus-payment-form' method='post' action='{H(prodamus.PaymentPageUrl)}'>{HiddenFields(fields)}<noscript><button class='button full-pay-button'>Продолжить оплату</button></noscript></form><p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/payment'>Вернуться к расчёту</a></p></section><script>document.getElementById('prodamus-payment-form')?.submit();</script>";
+        var payUrl = BuildPaymentUrl(prodamus.PaymentPageUrl, fields);
+        return $"<section class='payment-autosubmit' aria-live='polite'><h1>Переходим на платёжную страницу</h1><p class='muted'>Сейчас откроется платёжная страница Prodamus. Если переход не произошёл автоматически, нажмите кнопку ниже.</p><p><a class='button full-pay-button' href='{H(payUrl)}'>Продолжить оплату</a></p><p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/payment'>Вернуться к расчёту</a></p></section><script>window.location.replace({JsString(payUrl)});</script>";
     }
 
     private static string SuccessPage(Payment? payment, string operationId, string message)
@@ -211,7 +212,14 @@ public static class ProdamusPaymentEndpoints
         return string.Join(';', parts);
     }
 
-    private static string HiddenFields(IReadOnlyDictionary<string, string> fields) => string.Concat(fields.OrderBy(field => field.Key, StringComparer.Ordinal).Select(field => $"<input type='hidden' name='{H(field.Key)}' value='{H(field.Value)}'>"));
+    private static string BuildPaymentUrl(string paymentPageUrl, IReadOnlyDictionary<string, string> fields)
+    {
+        var separator = paymentPageUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        var query = string.Join("&", fields.Select(field => $"{WebUtility.UrlEncode(field.Key)}={WebUtility.UrlEncode(field.Value)}"));
+        return paymentPageUrl + separator + query;
+    }
+
+    private static string JsString(string value) => "'" + value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal).Replace("</", "<\\/", StringComparison.Ordinal) + "'";
     private static string AbsoluteUrl(HttpContext http, string path) => $"{RequestScheme(http)}://{http.Request.Host}{path}";
     private static string RequestScheme(HttpContext http) => http.Request.Headers.TryGetValue("X-Forwarded-Proto", out var forwardedProto) && !string.IsNullOrWhiteSpace(forwardedProto.ToString()) ? forwardedProto.ToString().Split(',')[0].Trim() : http.Request.Scheme;
     private static string? ValidatePaymentConfirmations(Mailing mailing, IFormCollection form) => !form.ContainsKey("campaignLaunchConfirmation") ? "Подтвердите финальный запуск и правила оплаты." : mailing.MessageDraft?.MessageType == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true ? "Для рекламной рассылки сначала подтвердите рекламное согласие адресатов на финальном подтверждении." : null;
