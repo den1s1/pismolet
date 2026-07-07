@@ -9,7 +9,7 @@ public static class ProdamusServiceCollectionExtensions
 {
     public static IServiceCollection AddPismoletProdamusPayment(this IServiceCollection services, IConfiguration configuration)
     {
-        var paymentPageUrl = configuration["Prodamus:PaymentPageUrl"] ?? ProdamusOptions.LocalFakePaymentPageUrl;
+        var paymentPageUrl = configuration["Prodamus:PaymentPageUrl"] ?? ProdamusOptions.PublicPayformPaymentPageUrl;
         var checkPhrase = configuration["Prodamus:CallbackCheckPhrase"] ?? string.Empty;
         var serviceName = configuration["Prodamus:ServiceName"] ?? ProdamusOptions.DefaultServiceName;
         var required = bool.TryParse(configuration["Prodamus:CallbackCheckRequired"], out var parsedRequired) ? parsedRequired : true;
