@@ -22,12 +22,23 @@ public static class ProdamusServiceCollectionExtensions
         var isTest = bool.TryParse(configuration["Prodamus:IsTest"] ?? configuration["Prodamus__IsTest"], out var parsedTest) && parsedTest;
 
         services.AddSingleton(new ProdamusOptions(
-            PaymentPageUrl: paymentPageUrl.Trim(),
+            PaymentPageUrl: NormalizePaymentPageUrl(paymentPageUrl),
             CallbackCheckValue: checkPhrase,
             CallbackCheckRequired: required,
             ServiceName: string.IsNullOrWhiteSpace(serviceName) ? ProdamusOptions.DefaultServiceName : serviceName.Trim(),
             IsTest: isTest));
         services.AddScoped<IPaymentProvider, ProdamusPaymentProvider>();
         return services;
+    }
+
+    private static string NormalizePaymentPageUrl(string value)
+    {
+        var trimmed = value.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return string.Empty;
+        }
+
+        return trimmed.EndsWith('/', StringComparison.Ordinal) ? trimmed : trimmed + "/";
     }
 }
