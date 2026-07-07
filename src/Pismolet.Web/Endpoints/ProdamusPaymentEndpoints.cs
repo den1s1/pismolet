@@ -80,7 +80,7 @@ public static class ProdamusPaymentEndpoints
         var fields = await ReadFields(http);
         if (!ProdamusPaymentForm.TryGetOperationId(fields, out var operationId))
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(null, string.Empty, "Переход после оплаты получен. Окончательный статус меняет только уведомление Prodamus.")));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(null, string.Empty, "Переход после оплаты получен. Окончательный статус меняет только уведомление Prodamus."), authenticated: IsAuthenticated(http)));
         }
 
         var payment = paymentRepository.GetByProviderOperationId(operationId);
@@ -90,14 +90,14 @@ public static class ProdamusPaymentEndpoints
             return Results.Redirect($"/mailings/{payment.MailingId}/send");
         }
 
-        return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(payment, operationId, "Переход после оплаты получен. Ждём уведомление Prodamus.")));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(payment, operationId, "Переход после оплаты получен. Ждём уведомление Prodamus."), authenticated: IsAuthenticated(http)));
     }
 
     private static async Task<IResult> Fail(HttpContext http, IPaymentRepository paymentRepository)
     {
         var fields = await ReadFields(http);
         var payment = ProdamusPaymentForm.TryGetOperationId(fields, out var operationId) ? paymentRepository.GetByProviderOperationId(operationId) : null;
-        return HtmlRenderer.Html(HtmlRenderer.Page("Оплата не завершена", FailPage(payment, operationId)));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Оплата не завершена", FailPage(payment, operationId), authenticated: IsAuthenticated(http)));
     }
 
     private static string PaymentPage(MailingPaymentResult result, string? confirmationError = null)
@@ -257,6 +257,7 @@ public static class ProdamusPaymentEndpoints
     private static string? ValidatePaymentConfirmations(Mailing mailing, IFormCollection form) => !form.ContainsKey("campaignLaunchConfirmation") ? "Подтвердите финальный запуск и правила оплаты." : mailing.MessageDraft?.MessageType == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true ? "Для рекламной рассылки сначала подтвердите рекламное согласие адресатов на финальном подтверждении." : null;
     private static string AdvertisingConsentStatus(bool isPromo, bool hasAdvertisingConsent) => isPromo ? hasAdvertisingConsent ? "подтверждено" : "не подтверждено" : "не требуется";
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
+    private static bool IsAuthenticated(HttpContext http) => http.User.Identity?.IsAuthenticated == true;
     private static RequestMetadata ToRequestMetadata(HttpContext http) => new(http.Connection.RemoteIpAddress?.ToString() ?? "unknown", string.IsNullOrWhiteSpace(http.Request.Headers.UserAgent.ToString()) ? "unknown" : http.Request.Headers.UserAgent.ToString());
     private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
