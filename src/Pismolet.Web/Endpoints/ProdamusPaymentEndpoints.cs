@@ -1,0 +1,189 @@
+using System.Net;
+using System.Security.Claims;
+using Pismolet.Web.Application.Common;
+using Pismolet.Web.Application.Mailings;
+using Pismolet.Web.Application.Persistence;
+using Pismolet.Web.Domain.Mailings;
+using Pismolet.Web.Rendering;
+
+namespace Pismolet.Web.Endpoints;
+
+public static class ProdamusPaymentEndpoints
+{
+    public static IEndpointRouteBuilder MapProdamusPaymentEndpoints(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/mailings/{id:guid}/payment", ShowPayment).RequireAuthorization().WithOrder(-4000);
+        app.MapPost("/mailings/{id:guid}/payment/start", StartPayment).RequireAuthorization().WithOrder(-4000);
+        app.MapMethods("/payments/prodamus/result", new[] { "GET", "POST" }, Result);
+        app.MapMethods("/payments/prodamus/success", new[] { "GET", "POST" }, Success);
+        app.MapMethods("/payments/prodamus/fail", new[] { "GET", "POST" }, Fail);
+        return app;
+    }
+
+    private static IResult ShowPayment(Guid id, HttpContext http, IMailingPaymentService payments)
+    {
+        var email = CurrentEmail(http);
+        if (email is null) return Results.Redirect("/account/login");
+        var result = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(result), authenticated: true));
+    }
+
+    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, ProdamusOptions prodamus, PublicUrlOptions publicUrl, IMailingReviewService reviews)
+    {
+        var email = CurrentEmail(http);
+        if (email is null) return Results.Redirect("/account/login");
+        var review = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
+        if (!review.Ok || review.Review is null) return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(review), authenticated: true));
+
+        var form = await http.Request.ReadFormAsync();
+        var confirmationError = ValidatePaymentConfirmations(review.Review.Mailing, form);
+        if (confirmationError is not null) return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(review, confirmationError), authenticated: true));
+
+        var result = payments.StartPayment(email, id, ToRequestMetadata(http));
+        if (!result.Ok || result.Review?.Payment is null) return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(result), authenticated: true));
+        if (result.Review.Payment.Status == PaymentStatus.Paid)
+        {
+            reviews.StartChecks(result.Review.Mailing.OwnerEmail, id, ToRequestMetadata(http));
+            return Results.Redirect($"/mailings/{id}/send");
+        }
+
+        return HtmlRenderer.Html(HtmlRenderer.Page("Переход к оплате", AutoSubmitPage(result.Review, prodamus, publicUrl), authenticated: true));
+    }
+
+    private static async Task<IResult> Result(HttpContext http, IMailingPaymentService payments, IPaymentRepository paymentRepository, ProdamusOptions prodamus, IMailingReviewService reviews)
+    {
+        var fields = await ReadFields(http);
+        if (!ValidateCallback(fields, prodamus, out var error)) return Results.BadRequest(error);
+        if (!ProdamusPaymentForm.TryGetOperationId(fields, out var operationId)) return Results.BadRequest("Не передан идентификатор заказа Prodamus.");
+        var amountError = ValidatePaymentAmount(paymentRepository, operationId, fields);
+        if (amountError is not null) return Results.BadRequest(amountError);
+        if (!ProdamusPaymentForm.IsPaidCallback(fields)) return Results.BadRequest("Prodamus не подтвердил успешный статус платежа.");
+
+        var result = payments.ConfirmProviderPayment(operationId, ToRequestMetadata(http), CallbackSummary(fields));
+        if (!result.Ok) return Results.BadRequest(result.Error);
+        var payment = paymentRepository.GetByProviderOperationId(operationId);
+        if (payment is not null) reviews.StartChecks(payment.OwnerEmail, payment.MailingId, ToRequestMetadata(http));
+        return Results.Text("OK", "text/plain; charset=utf-8");
+    }
+
+    private static async Task<IResult> Success(HttpContext http, IPaymentRepository paymentRepository, IMailingReviewService reviews)
+    {
+        var fields = await ReadFields(http);
+        if (!ProdamusPaymentForm.TryGetOperationId(fields, out var operationId))
+        {
+            return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(null, string.Empty, "Переход после оплаты получен. Окончательный статус меняет только уведомление Prodamus.")));
+        }
+
+        var payment = paymentRepository.GetByProviderOperationId(operationId);
+        if (payment?.Status == PaymentStatus.Paid)
+        {
+            reviews.StartChecks(payment.OwnerEmail, payment.MailingId, ToRequestMetadata(http));
+            return Results.Redirect($"/mailings/{payment.MailingId}/send");
+        }
+
+        return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(payment, operationId, "Переход после оплаты получен. Ждём уведомление Prodamus.")));
+    }
+
+    private static async Task<IResult> Fail(HttpContext http, IPaymentRepository paymentRepository)
+    {
+        var fields = await ReadFields(http);
+        var payment = ProdamusPaymentForm.TryGetOperationId(fields, out var operationId) ? paymentRepository.GetByProviderOperationId(operationId) : null;
+        return HtmlRenderer.Html(HtmlRenderer.Page("Оплата не завершена", FailPage(payment, operationId)));
+    }
+
+    private static string PaymentPage(MailingPaymentResult result, string? confirmationError = null)
+    {
+        if (!result.Ok || result.Review is null) return HtmlRenderer.Error(result.Error);
+        var review = result.Review;
+        var mailing = review.Mailing;
+        var stats = mailing.LastImportStats;
+        var paid = review.Payment?.Status == PaymentStatus.Paid;
+        var excluded = Math.Max(0, stats.TotalRows - stats.Accepted);
+        var isPromo = mailing.MessageDraft?.MessageType == MessageType.Advertising;
+        var hasAdvertisingConsent = mailing.Declaration?.IsAdvertisingConsentConfirmed == true;
+        var alert = string.IsNullOrWhiteSpace(confirmationError) ? string.Empty : $"<p class='error-message'>{H(confirmationError)}</p>";
+        var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/payment";
+        var button = paid
+            ? $"<p><span class='badge'>Оплачено</span></p><form method='post' action='/mailings/{mailing.Id}/checks/start'><button class='button'>Перейти к запуску</button></form>"
+            : PaymentAction(mailing, isPromo, hasAdvertisingConsent, paymentRulesHref, $"Оплатить {review.TotalAmount:0.##} ₽");
+
+        return $@"
+<section class='wizard-shell payment-wizard'>
+  <div class='wizard-steps' aria-label='Шаги создания рассылки'><span class='wizard-step done'>1. Письмо</span><span class='wizard-step done'>2. Адресаты</span><span class='wizard-step done'>3. Подтверждение</span><span class='wizard-step current'>4. Расчёт и оплата</span><span class='wizard-step'>5. Готово</span></div>
+  <section class='panel'>
+    <div class='topline'><div><p class='eyebrow'>Шаг 4 из 5</p><h1>4. Проверьте расчёт и оплатите</h1><p class='muted'>Оплата будет только за письма, принятые к отправке после проверки списка.</p></div><span class='badge warn'>{H(mailing.StatusRu)}</span></div>
+    {alert}
+    <div class='stats payment-stats payment-key-stats'><div class='stat'><b>{stats.Accepted}</b><span>принято к отправке</span></div><div class='stat'><b>{excluded}</b><span>исключено из расчёта</span></div><div class='stat'><b>{review.TotalAmount:0.##} ₽</b><span>к оплате</span></div></div>
+    <section class='box payment-legal-summary'><h2>Подтверждения базы</h2><p class='muted'>Юридические подтверждения уже сохранены на финальном подтверждении. На оплате они показаны только для проверки.</p><div class='payment-summary-grid'><div><b>Источник базы</b><p>{H(mailing.Declaration?.BaseSource.ToRu() ?? "не подтверждён")}</p></div><div><b>Тип письма</b><p>{H((mailing.MessageDraft?.MessageType ?? MessageType.Transactional).ToRu())}</p></div><div><b>Правомерность базы</b><p>{(mailing.Declaration?.IsBaseLegalityConfirmed == true ? "подтверждена" : "не подтверждена")}</p></div><div><b>Рекламное согласие</b><p>{AdvertisingConsentStatus(isPromo, hasAdvertisingConsent)}</p></div></div></section>
+    <div class='payment-grid'><section class='box confirmation-card'>{button}</section><section class='box cost-card pay-card'><div class='pay-summary-line'><small>К оплате</small><strong class='sum'>{review.TotalAmount:0.##} ₽</strong></div><p>{stats.Accepted} письмо × {review.PricePerRecipient:0.##} ₽. За исключённые {excluded} адрес не платите.</p><p class='muted'>Правила оплаты, запуска и возвратов: <a href='{paymentRulesHref}'>открыть документ</a>.</p></section></div>
+    <div class='actions'><a class='btn secondary' href='/mailings/{mailing.Id}/confirmation'>Назад к подтверждению</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></div>
+  </section>
+</section>";
+    }
+
+    private static string PaymentAction(Mailing mailing, bool isPromo, bool hasAdvertisingConsent, string paymentRulesHref, string payButtonText)
+    {
+        if (isPromo && !hasAdvertisingConsent) return $"<h2>Нужно подтвердить рекламное согласие</h2><p class='notice warn'>Это рекламная рассылка. Вернитесь на финальное подтверждение и подтвердите наличие рекламного согласия адресатов.</p><a class='button' href='/mailings/{mailing.Id}/confirmation'>Вернуться к подтверждению</a>";
+        return $"<form method='post' action='/mailings/{mailing.Id}/payment/start' class='confirmation-list checks'><h2>Финальное подтверждение</h2><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я проверил рассылку, понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><div class='notice warn'>Если рассылка не будет отправлена по технической причине или из-за отказа Письмолёта до начала отправки, вопрос возврата решается по правилам возврата.</div><button class='button full-pay-button'>{H(payButtonText)}</button><p class='muted payment-provider-note'>После подтверждения откроется платёжная страница Prodamus. Письмолёт не хранит данные банковских карт.</p></form>";
+    }
+
+    private static string AutoSubmitPage(MailingPaymentReview review, ProdamusOptions prodamus, PublicUrlOptions publicUrl)
+    {
+        var payment = review.Payment ?? throw new InvalidOperationException("Payment is required after StartPayment.");
+        var operationId = payment.Attempts.LastOrDefault(x => x.Provider == ProdamusPaymentForm.ProviderName)?.ProviderOperationId ?? ProdamusPaymentForm.BuildOrderId(payment.Id);
+        var fields = ProdamusPaymentForm.BuildStartFields(review.Mailing.Id, review.Mailing.PublicId, payment.OwnerEmail, operationId, payment.AcceptedRecipientsCount, payment.ExcludedRecipientsCount, payment.PricePerRecipient, payment.TotalAmount, payment.Currency, prodamus, AbsoluteUrl(publicUrl, "/payments/prodamus/success"), AbsoluteUrl(publicUrl, "/payments/prodamus/fail"), AbsoluteUrl(publicUrl, "/payments/prodamus/result"));
+        return $"<section class='payment-autosubmit' aria-live='polite'><h1>Переходим на платёжную страницу</h1><p class='muted'>Сейчас откроется платёжная страница Prodamus. Если переход не произошёл автоматически, нажмите кнопку ниже.</p><form id='prodamus-payment-form' method='post' action='{H(prodamus.PaymentPageUrl)}'>{HiddenFields(fields)}<noscript><button class='button full-pay-button'>Продолжить оплату</button></noscript></form><p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/payment'>Вернуться к расчёту</a></p></section><script>document.getElementById('prodamus-payment-form')?.submit();</script>";
+    }
+
+    private static string SuccessPage(Payment? payment, string operationId, string message)
+    {
+        var next = payment is null ? "<p><a class='btn secondary' href='/'>На главную</a></p>" : payment.Status == PaymentStatus.Paid ? $"<p><a class='btn' href='/mailings/{payment.MailingId}/send'>Открыть запуск рассылки</a></p>" : $"<div class='notice warn'>Мы получили возврат из платёжного сервиса и ждём серверное подтверждение оплаты. Финальный статус меняет только result URL.</div><p><a class='btn' href='/mailings/{payment.MailingId}/send'>Проверить статус и продолжить</a></p><p><a href='/dashboard'>В личный кабинет</a></p>";
+        var operation = string.IsNullOrWhiteSpace(operationId) ? string.Empty : $"<p class='muted'>Заказ: {H(operationId)}</p>";
+        return $"<section class='panel'><h1>Переход после оплаты получен</h1><p>{H(message)}</p>{operation}{next}</section>";
+    }
+
+    private static string FailPage(Payment? payment, string operationId)
+    {
+        var retry = payment is null ? "<p><a class='btn secondary' href='/dashboard'>В личный кабинет</a></p>" : $"<p><a class='btn' href='/mailings/{payment.MailingId}/payment'>Повторить оплату</a></p>";
+        var operation = string.IsNullOrWhiteSpace(operationId) ? string.Empty : $"<p class='muted'>Заказ: {H(operationId)}</p>";
+        return $"<section class='panel'><h1>Оплата не завершена</h1><p>Платёжная страница вернула пользователя без успешного платежа. Статус рассылки не менялся.</p>{operation}{retry}</section>";
+    }
+
+    private static async Task<Dictionary<string, string>> ReadFields(HttpContext http)
+    {
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var item in http.Request.Query) fields[item.Key] = item.Value.ToString();
+        if (http.Request.HasFormContentType)
+        {
+            var form = await http.Request.ReadFormAsync();
+            foreach (var item in form) fields[item.Key] = item.Value.ToString();
+        }
+        return fields;
+    }
+
+    private static bool ValidateCallback(IReadOnlyDictionary<string, string> fields, ProdamusOptions prodamus, out string error)
+    {
+        var check = ProdamusPaymentForm.ExtractCheck(fields);
+        if (prodamus.CallbackCheckRequired && string.IsNullOrWhiteSpace(check)) { error = "Не передана контрольная строка Prodamus."; return false; }
+        if (!string.IsNullOrWhiteSpace(check) && (!prodamus.HasCallbackCheckValue || !ProdamusPaymentForm.VerifyCheck(fields, check, prodamus.CallbackCheckValue))) { error = "Некорректная контрольная строка Prodamus."; return false; }
+        error = string.Empty;
+        return true;
+    }
+
+    private static string? ValidatePaymentAmount(IPaymentRepository paymentRepository, string operationId, IReadOnlyDictionary<string, string> fields)
+    {
+        var payment = paymentRepository.GetByProviderOperationId(operationId);
+        if (payment is null) return "Платёжная попытка не найдена.";
+        if (!ProdamusPaymentForm.TryGetAmount(fields, out var actual)) return "Некорректная сумма платежа.";
+        return actual == payment.TotalAmount ? null : "Сумма платежа не совпадает с заказом.";
+    }
+
+    private static string CallbackSummary(IReadOnlyDictionary<string, string> fields) => string.Join(';', fields.OrderBy(field => field.Key, StringComparer.Ordinal).Select(field => $"{field.Key}={field.Value}"));
+    private static string HiddenFields(IReadOnlyDictionary<string, string> fields) => string.Concat(fields.OrderBy(field => field.Key, StringComparer.Ordinal).Select(field => $"<input type='hidden' name='{H(field.Key)}' value='{H(field.Value)}'>"));
+    private static string AbsoluteUrl(PublicUrlOptions publicUrl, string path) => $"{publicUrl.PublicBaseUrl}{path}";
+    private static string? ValidatePaymentConfirmations(Mailing mailing, IFormCollection form) => !form.ContainsKey("campaignLaunchConfirmation") ? "Подтвердите финальный запуск и правила оплаты." : mailing.MessageDraft?.MessageType == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true ? "Для рекламной рассылки сначала подтвердите рекламное согласие адресатов на финальном подтверждении." : null;
+    private static string AdvertisingConsentStatus(bool isPromo, bool hasAdvertisingConsent) => isPromo ? hasAdvertisingConsent ? "подтверждено" : "не подтверждено" : "не требуется";
+    private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
+    private static RequestMetadata ToRequestMetadata(HttpContext http) => new(http.Connection.RemoteIpAddress?.ToString() ?? "unknown", string.IsNullOrWhiteSpace(http.Request.Headers.UserAgent.ToString()) ? "unknown" : http.Request.Headers.UserAgent.ToString());
+    private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
+}
