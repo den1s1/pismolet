@@ -4,7 +4,6 @@ using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Mailings;
-using Pismolet.Web.Infrastructure.DependencyInjection;
 using Pismolet.Web.Rendering;
 
 namespace Pismolet.Web.Endpoints;
@@ -29,7 +28,7 @@ public static class ProdamusPaymentEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Расчёт и оплата", PaymentPage(result), authenticated: true));
     }
 
-    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, ProdamusOptions prodamus, PublicUrlOptions publicUrl, IMailingReviewService reviews)
+    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, ProdamusOptions prodamus, IMailingReviewService reviews)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
@@ -48,7 +47,7 @@ public static class ProdamusPaymentEndpoints
             return Results.Redirect($"/mailings/{id}/send");
         }
 
-        return HtmlRenderer.Html(HtmlRenderer.Page("Переход к оплате", AutoSubmitPage(result.Review, prodamus, publicUrl), authenticated: true));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Переход к оплате", AutoSubmitPage(result.Review, prodamus, http), authenticated: true));
     }
 
     private static async Task<IResult> Result(HttpContext http, IMailingPaymentService payments, IPaymentRepository paymentRepository, ProdamusOptions prodamus, IMailingReviewService reviews)
@@ -129,11 +128,11 @@ public static class ProdamusPaymentEndpoints
         return $"<form method='post' action='/mailings/{mailing.Id}/payment/start' class='confirmation-list checks'><h2>Финальное подтверждение</h2><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я проверил рассылку, понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><div class='notice warn'>Если рассылка не будет отправлена по технической причине или из-за отказа Письмолёта до начала отправки, вопрос возврата решается по правилам возврата.</div><button class='button full-pay-button'>{H(payButtonText)}</button><p class='muted payment-provider-note'>После подтверждения откроется платёжная страница Prodamus. Письмолёт не хранит данные банковских карт.</p></form>";
     }
 
-    private static string AutoSubmitPage(MailingPaymentReview review, ProdamusOptions prodamus, PublicUrlOptions publicUrl)
+    private static string AutoSubmitPage(MailingPaymentReview review, ProdamusOptions prodamus, HttpContext http)
     {
         var payment = review.Payment ?? throw new InvalidOperationException("Payment is required after StartPayment.");
         var operationId = payment.Attempts.LastOrDefault(x => x.Provider == ProdamusPaymentForm.ProviderName)?.ProviderOperationId ?? ProdamusPaymentForm.BuildOrderId(payment.Id);
-        var fields = ProdamusPaymentForm.BuildStartFields(review.Mailing.Id, review.Mailing.PublicId, payment.OwnerEmail, operationId, payment.AcceptedRecipientsCount, payment.ExcludedRecipientsCount, payment.PricePerRecipient, payment.TotalAmount, payment.Currency, prodamus, AbsoluteUrl(publicUrl, "/payments/prodamus/success"), AbsoluteUrl(publicUrl, "/payments/prodamus/fail"), AbsoluteUrl(publicUrl, "/payments/prodamus/result"));
+        var fields = ProdamusPaymentForm.BuildStartFields(review.Mailing.Id, review.Mailing.PublicId, payment.OwnerEmail, operationId, payment.AcceptedRecipientsCount, payment.ExcludedRecipientsCount, payment.PricePerRecipient, payment.TotalAmount, payment.Currency, prodamus, AbsoluteUrl(http, "/payments/prodamus/success"), AbsoluteUrl(http, "/payments/prodamus/fail"), AbsoluteUrl(http, "/payments/prodamus/result"));
         return $"<section class='payment-autosubmit' aria-live='polite'><h1>Переходим на платёжную страницу</h1><p class='muted'>Сейчас откроется платёжная страница Prodamus. Если переход не произошёл автоматически, нажмите кнопку ниже.</p><form id='prodamus-payment-form' method='post' action='{H(prodamus.PaymentPageUrl)}'>{HiddenFields(fields)}<noscript><button class='button full-pay-button'>Продолжить оплату</button></noscript></form><p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/payment'>Вернуться к расчёту</a></p></section><script>document.getElementById('prodamus-payment-form')?.submit();</script>";
     }
 
@@ -189,7 +188,8 @@ public static class ProdamusPaymentEndpoints
     }
 
     private static string HiddenFields(IReadOnlyDictionary<string, string> fields) => string.Concat(fields.OrderBy(field => field.Key, StringComparer.Ordinal).Select(field => $"<input type='hidden' name='{H(field.Key)}' value='{H(field.Value)}'>"));
-    private static string AbsoluteUrl(PublicUrlOptions publicUrl, string path) => $"{publicUrl.PublicBaseUrl}{path}";
+    private static string AbsoluteUrl(HttpContext http, string path) => $"{RequestScheme(http)}://{http.Request.Host}{path}";
+    private static string RequestScheme(HttpContext http) => http.Request.Headers.TryGetValue("X-Forwarded-Proto", out var forwardedProto) && !string.IsNullOrWhiteSpace(forwardedProto.ToString()) ? forwardedProto.ToString().Split(',')[0].Trim() : http.Request.Scheme;
     private static string? ValidatePaymentConfirmations(Mailing mailing, IFormCollection form) => !form.ContainsKey("campaignLaunchConfirmation") ? "Подтвердите финальный запуск и правила оплаты." : mailing.MessageDraft?.MessageType == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true ? "Для рекламной рассылки сначала подтвердите рекламное согласие адресатов на финальном подтверждении." : null;
     private static string AdvertisingConsentStatus(bool isPromo, bool hasAdvertisingConsent) => isPromo ? hasAdvertisingConsent ? "подтверждено" : "не подтверждено" : "не требуется";
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
