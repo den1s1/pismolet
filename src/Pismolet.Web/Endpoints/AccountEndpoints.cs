@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
@@ -36,15 +37,19 @@ public static class AccountEndpoints
 
         app.MapPost("/account/resend-confirmation", ResendConfirmation);
 
-        app.MapGet("/account/login", () => HtmlRenderer.Html(HtmlRenderer.Page(
-            "Вход",
-            HtmlRenderer.AccountForm("/account/login", "Войти", name: false))));
+        app.MapGet("/account/login", LoginPage);
 
         app.MapPost("/account/login", Login);
 
         app.MapPost("/account/logout", Logout).RequireAuthorization();
 
         return app;
+    }
+
+    private static IResult LoginPage(HttpContext http)
+    {
+        var returnUrl = SafeLocalReturnUrl(FirstNonEmpty(http.Request.Query["returnUrl"].ToString(), http.Request.Query["ReturnUrl"].ToString()));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Вход", LoginForm(returnUrl)));
     }
 
     private static async Task<IResult> Register(
@@ -94,13 +99,14 @@ public static class AccountEndpoints
         var command = new LoginUserCommand(
             Email: form["email"].ToString(),
             Password: form["password"].ToString());
+        var returnUrl = SafeLocalReturnUrl(FirstNonEmpty(form["returnUrl"].ToString(), http.Request.Query["returnUrl"].ToString(), http.Request.Query["ReturnUrl"].ToString()));
 
         var user = accounts.Authenticate(command, ToRequestMetadata(http));
         if (user is null)
         {
             return HtmlRenderer.Html(HtmlRenderer.Page(
                 "Ошибка входа",
-                HtmlRenderer.Error("Неверный email/пароль или email ещё не подтверждён.")));
+                LoginForm(returnUrl, "Неверный email/пароль или email ещё не подтверждён.")));
         }
 
         var claims = new[]
@@ -112,9 +118,15 @@ public static class AccountEndpoints
 
         await http.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,
-            new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+            new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)),
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                AllowRefresh = true,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+            });
 
-        return Results.Redirect("/dashboard");
+        return Results.Redirect(returnUrl ?? "/dashboard");
     }
 
     private static async Task<IResult> Logout(HttpContext http, IUserAccountService accounts)
@@ -186,12 +198,37 @@ public static class AccountEndpoints
             Route: "/account/register",
             MetadataJson: metadataJson));
 
+    private static string LoginForm(string? returnUrl, string? error = null)
+    {
+        var errorHtml = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
+        var returnUrlField = string.IsNullOrWhiteSpace(returnUrl) ? string.Empty : $"<input type='hidden' name='returnUrl' value='{H(returnUrl)}'>";
+        return $"<section class='panel form-card'><h1>Войти</h1>{errorHtml}<form method='post' action='/account/login'>{returnUrlField}<label>Email<input type='email' name='email' autocomplete='email' required></label><label>Пароль<input type='password' minlength='8' name='password' required></label><button class='btn'>Войти</button></form><p><a href='/account/resend-confirmation'>Повторить подтверждение email</a></p></section>";
+    }
+
     private static bool IsChecked(IFormCollection form, string key)
     {
         var value = form[key].ToString();
         return value.Equals("true", StringComparison.OrdinalIgnoreCase)
             || value.Equals("on", StringComparison.OrdinalIgnoreCase)
             || value.Equals("1", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? SafeLocalReturnUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        if (!trimmed.StartsWith('/', StringComparison.Ordinal) || trimmed.StartsWith("//", StringComparison.Ordinal) || trimmed.Contains('\\', StringComparison.Ordinal)) return null;
+        return trimmed;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value)) return value;
+        }
+
+        return null;
     }
 
     private static RequestMetadata ToRequestMetadata(HttpContext http)
@@ -203,4 +240,5 @@ public static class AccountEndpoints
     }
 
     private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+    private static string H(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
 }
