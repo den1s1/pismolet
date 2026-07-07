@@ -12,9 +12,15 @@ public static class ProdamusServiceCollectionExtensions
         var paymentPageUrl = configuration["Prodamus:PaymentPageUrl"]
             ?? configuration["Prodamus__PaymentPageUrl"]
             ?? ProdamusOptions.DefaultPaymentPageUrl;
+        var paymentPageSignatureKey = configuration["Prodamus:PaymentPageSignatureKey"]
+            ?? configuration["Prodamus__PaymentPageSignatureKey"]
+            ?? string.Empty;
+        var sysCode = configuration["Prodamus:SysCode"]
+            ?? configuration["Prodamus__SysCode"]
+            ?? string.Empty;
         var checkPhrase = configuration["Prodamus:CallbackCheckPhrase"]
             ?? configuration["Prodamus__CallbackCheckPhrase"]
-            ?? string.Empty;
+            ?? paymentPageSignatureKey;
         var serviceName = configuration["Prodamus:ServiceName"]
             ?? configuration["Prodamus__ServiceName"]
             ?? ProdamusOptions.DefaultServiceName;
@@ -23,7 +29,9 @@ public static class ProdamusServiceCollectionExtensions
 
         services.AddSingleton(new ProdamusOptions(
             PaymentPageUrl: NormalizePaymentPageUrl(paymentPageUrl),
-            CallbackCheckValue: checkPhrase,
+            PaymentPageSignatureKey: paymentPageSignatureKey.Trim(),
+            SysCode: sysCode.Trim(),
+            CallbackCheckValue: checkPhrase.Trim(),
             CallbackCheckRequired: required,
             ServiceName: string.IsNullOrWhiteSpace(serviceName) ? ProdamusOptions.DefaultServiceName : serviceName.Trim(),
             IsTest: isTest));
