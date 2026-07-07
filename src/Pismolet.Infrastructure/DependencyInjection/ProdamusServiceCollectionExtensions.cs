@@ -39,6 +39,6 @@ public static class ProdamusServiceCollectionExtensions
             return string.Empty;
         }
 
-        return trimmed.EndsWith('/', StringComparison.Ordinal) ? trimmed : trimmed + "/";
+        return trimmed.EndsWith("/", StringComparison.Ordinal) ? trimmed : trimmed + "/";
     }
 }
