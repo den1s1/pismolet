@@ -169,9 +169,15 @@ public static class ProdamusPaymentEndpoints
 
     private static bool ValidateCallback(IReadOnlyDictionary<string, string> fields, ProdamusOptions prodamus, out string error)
     {
+        if (!prodamus.CallbackCheckRequired)
+        {
+            error = string.Empty;
+            return true;
+        }
+
         var check = ProdamusPaymentForm.ExtractCheck(fields);
-        if (prodamus.CallbackCheckRequired && string.IsNullOrWhiteSpace(check)) { error = "Не передана контрольная строка Prodamus."; return false; }
-        if (!string.IsNullOrWhiteSpace(check) && (!prodamus.HasCallbackCheckValue || !ProdamusPaymentForm.VerifyCheck(fields, check, prodamus.CallbackCheckValue))) { error = "Некорректная контрольная строка Prodamus."; return false; }
+        if (string.IsNullOrWhiteSpace(check)) { error = "Не передана контрольная строка Prodamus."; return false; }
+        if (!prodamus.HasCallbackCheckValue || !ProdamusPaymentForm.VerifyCheck(fields, check, prodamus.CallbackCheckValue)) { error = "Некорректная контрольная строка Prodamus."; return false; }
         error = string.Empty;
         return true;
     }
