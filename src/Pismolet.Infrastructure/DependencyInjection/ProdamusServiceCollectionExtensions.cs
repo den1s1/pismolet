@@ -9,11 +9,17 @@ public static class ProdamusServiceCollectionExtensions
 {
     public static IServiceCollection AddPismoletProdamusPayment(this IServiceCollection services, IConfiguration configuration)
     {
-        var paymentPageUrl = configuration["Prodamus:PaymentPageUrl"] ?? ProdamusOptions.PublicPayformPaymentPageUrl;
-        var checkPhrase = configuration["Prodamus:CallbackCheckPhrase"] ?? string.Empty;
-        var serviceName = configuration["Prodamus:ServiceName"] ?? ProdamusOptions.DefaultServiceName;
-        var required = bool.TryParse(configuration["Prodamus:CallbackCheckRequired"], out var parsedRequired) ? parsedRequired : true;
-        var isTest = bool.TryParse(configuration["Prodamus:IsTest"], out var parsedTest) && parsedTest;
+        var paymentPageUrl = configuration["Prodamus:PaymentPageUrl"]
+            ?? configuration["Prodamus__PaymentPageUrl"]
+            ?? ProdamusOptions.DefaultPaymentPageUrl;
+        var checkPhrase = configuration["Prodamus:CallbackCheckPhrase"]
+            ?? configuration["Prodamus__CallbackCheckPhrase"]
+            ?? string.Empty;
+        var serviceName = configuration["Prodamus:ServiceName"]
+            ?? configuration["Prodamus__ServiceName"]
+            ?? ProdamusOptions.DefaultServiceName;
+        var required = bool.TryParse(configuration["Prodamus:CallbackCheckRequired"] ?? configuration["Prodamus__CallbackCheckRequired"], out var parsedRequired) ? parsedRequired : true;
+        var isTest = bool.TryParse(configuration["Prodamus:IsTest"] ?? configuration["Prodamus__IsTest"], out var parsedTest) && parsedTest;
 
         services.AddSingleton(new ProdamusOptions(
             PaymentPageUrl: paymentPageUrl.Trim(),
