@@ -192,16 +192,12 @@ public static class MailingRecipientStepEndpoints
    <section class='panel'>
      <p class='eyebrow'>Шаг 4 из 5</p>
      <h1>4. Финальное подтверждение</h1>
-     <p class='muted'>Здесь фиксируются источник базы, тип письма и юридически значимые подтверждения. Рассылка будет запущена автоматически после успешной модерации.</p>
-     <section class='box'><h2>Письмо</h2><p><b>{H(draft?.Subject ?? "Письмо ещё не заполнено")}</b></p><p class='muted'>Отправитель: {H(draft?.SenderName ?? string.Empty)}</p></section>
-     <section class='box'><h2>Адресаты</h2>{Stats(mailing)}</section>
      <form method='post' action='/mailings/{mailing.Id}/confirmation' class='compact-base-form address-declaration-form'>
        <div class='compact-base-fields'>
          <label class='compact-base-field'><span>Источник базы</span><select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label>
          <label class='compact-base-field'><span>Тип письма</span><select name='messageType' id='messageTypeSelect'><option value='Transactional'{transactionalSelected}>Информационное</option><option value='Advertising'{advertisingSelected}>Рекламное</option></select></label>
        </div>
        <label class='compact-base-check'><input type='checkbox' name='baseLegality'{baseChecked}><span>подтверждаю правомерность использования базы и <a href='/legal/data-processing?returnUrl=/mailings/{mailing.Id}/confirmation'>поручаю техническую обработку email-адресов</a></span></label>
-       <p class='muted'><a href='/legal/base-lawfulness?returnUrl=/mailings/{mailing.Id}/confirmation'>Подробнее о законности базы</a></p>
        <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'{advertisingChecked}><span><a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/confirmation'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
        <label class='check'><input type='checkbox' name='campaignLaunchConfirmation' required><span>Я проверил письмо и список адресатов, понимаю, что после оплаты рассылка уйдёт на проверку и будет запущена автоматически после успешной модерации.</span></label>
        <div class='actions'><button class='button'>Подтвердить и перейти к оплате</button><a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Назад к адресатам</a></div>
