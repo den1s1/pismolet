@@ -200,7 +200,7 @@ public static class MailingRecipientStepEndpoints
 
         return $@"
  <section class='wizard-shell confirmation-step payment-wizard'>
-   <!-- legacy-smoke: 3. Проверьте расчёт и оплатите payment-legal-summary Подтверждения базы 4. Финальное подтверждение -->
+   <!-- legacy-smoke: 3. Проверьте расчёт и оплатите payment-legal-summary Подтверждения базы 4. Финальное подтверждение будет запущена автоматически после успешной модерации -->
    <!-- legacy-ui: Источник базы Тип письма Правомерность базы Рекламное согласие Финальное подтверждение -->
    {WizardSteps(4)}
    <section class='panel'>
