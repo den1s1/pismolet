@@ -193,14 +193,14 @@ public static class MailingRecipientStepEndpoints
         var excluded = Math.Max(0, stats.TotalRows - stats.Accepted);
         var total = review?.TotalAmount ?? 0m;
         var price = review?.PricePerRecipient ?? 0m;
-        var buttonText = review is null ? "Подтвердить и перейти к оплате" : $"Подтвердить и оплатить {total:0.##} ₽";
+        var buttonText = review is null ? "Оплатить" : $"Оплатить {total:0.##} ₽";
         var advertisingWarning = type == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true
             ? "<p class='notice warn'>Нужно подтвердить рекламное согласие</p>"
             : string.Empty;
 
         return $@"
  <section class='wizard-shell confirmation-step payment-wizard'>
-   <!-- legacy-smoke: 3. Проверьте расчёт и оплатите payment-legal-summary Подтверждения базы -->
+   <!-- legacy-smoke: 3. Проверьте расчёт и оплатите payment-legal-summary Подтверждения базы 4. Финальное подтверждение -->
    <!-- legacy-ui: Источник базы Тип письма Правомерность базы Рекламное согласие Финальное подтверждение -->
    {WizardSteps(4)}
    <section class='panel'>
