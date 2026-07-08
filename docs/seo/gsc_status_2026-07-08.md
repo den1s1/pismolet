@@ -10,6 +10,11 @@
 - `https://pismolet.ru/articles/rassylka-v-yandex-pochte/`;
 - `https://pismolet.ru/articles/kak-sdelat-rassylku-klientam/`.
 
+Обе коммерческие страницы были проверены через Google URL Inspection, на момент проверки не были проиндексированы, после чего по ним отправлены запросы индексирования:
+
+- `https://pismolet.ru/rassylka-pisem/`;
+- `https://pismolet.ru/rassylka-klientam/`.
+
 ## Предыдущие результаты
 
 - Доменный ресурс `pismolet.ru` подтверждён через DNS.
@@ -19,9 +24,11 @@
 
 ## Дальше
 
-Проверить в Google Search Console страницы:
+Подождать обработки запросов индексирования и повторно проверить статусы:
 
+- `https://pismolet.ru/articles/rassylka-v-yandex-pochte/`;
+- `https://pismolet.ru/articles/kak-sdelat-rassylku-klientam/`;
 - `https://pismolet.ru/rassylka-pisem/`;
 - `https://pismolet.ru/rassylka-klientam/`.
 
-Затем повторить проверку статусов через несколько дней.
+Контрольный срок первой повторной проверки: через 2–3 дня. Следующая проверка выдачи: через 7–14 дней.
