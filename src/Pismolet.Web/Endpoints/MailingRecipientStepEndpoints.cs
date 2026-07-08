@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using System.Text;
+using ClosedXML.Excel;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Imports;
 using Pismolet.Web.Application.Mailings;
@@ -297,10 +298,7 @@ public static class MailingRecipientStepEndpoints
                 return ImportSource.Fail("Файл слишком большой для dev-среза.");
             }
 
-            var stream = new MemoryStream();
-            await file.CopyToAsync(stream, cancellationToken);
-            stream.Position = 0;
-            return ImportSource.Pass(string.IsNullOrWhiteSpace(file.FileName) ? "recipients.csv" : file.FileName, stream);
+            return await BuildUploadedFileImportSource(file, cancellationToken);
         }
 
         var manual = form["manualAddresses"].ToString();
@@ -338,6 +336,141 @@ public static class MailingRecipientStepEndpoints
 
         return ImportSource.Fail("Загрузите файл, вставьте адреса вручную или выберите существующий список.");
     }
+
+    private static async Task<ImportSource> BuildUploadedFileImportSource(IFormFile file, CancellationToken cancellationToken)
+    {
+        await using var uploaded = new MemoryStream();
+        await file.CopyToAsync(uploaded, cancellationToken);
+        uploaded.Position = 0;
+
+        if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            return ImportSource.Pass(string.IsNullOrWhiteSpace(file.FileName) ? "recipients.csv" : file.FileName, new MemoryStream(uploaded.ToArray()));
+        }
+
+        IReadOnlyList<string[]> rows;
+        try
+        {
+            rows = file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase)
+                ? ReadXlsxRows(uploaded)
+                : await ReadCsvRowsAsync(uploaded, cancellationToken);
+        }
+        catch
+        {
+            return ImportSource.Fail("Не удалось прочитать файл. Проверьте формат таблицы.");
+        }
+
+        if (rows.Count == 0)
+        {
+            return ImportSource.Fail("Файл пустой.");
+        }
+
+        var emailIndex = FindEmailColumnIndex(rows[0]);
+        var dataRows = rows.Skip(1);
+        if (emailIndex < 0)
+        {
+            emailIndex = FindBestEmailColumnIndex(rows);
+            dataRows = rows;
+        }
+
+        if (emailIndex < 0)
+        {
+            return ImportSource.Fail("В файле не найдены email-адреса.");
+        }
+
+        var emails = dataRows
+            .Select(row => emailIndex < row.Length ? row[emailIndex].Trim() : string.Empty)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToArray();
+        if (emails.Length == 0)
+        {
+            return ImportSource.Fail("В файле нет строк с адресами.");
+        }
+
+        if (emails.Length > RecipientImportService.MaxRows)
+        {
+            return ImportSource.Fail($"Файл содержит больше {RecipientImportService.MaxRows} строк.");
+        }
+
+        var csv = "email\n" + string.Join('\n', emails.Select(CsvEscape));
+        return ImportSource.Pass("uploaded-addresses.csv", new MemoryStream(Encoding.UTF8.GetBytes(csv)));
+    }
+
+    private static async Task<IReadOnlyList<string[]>> ReadCsvRowsAsync(Stream content, CancellationToken cancellationToken)
+    {
+        content.Position = 0;
+        using var reader = new StreamReader(content, leaveOpen: true);
+        var rows = new List<string[]>();
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            rows.Add(SplitCsv(line));
+        }
+
+        return rows;
+    }
+
+    private static IReadOnlyList<string[]> ReadXlsxRows(Stream content)
+    {
+        content.Position = 0;
+        using var workbook = new XLWorkbook(content);
+        var worksheet = workbook.Worksheets.FirstOrDefault();
+        if (worksheet is null)
+        {
+            return Array.Empty<string[]>();
+        }
+
+        var rows = new List<string[]>();
+        foreach (var row in worksheet.RowsUsed())
+        {
+            var lastCell = row.LastCellUsed();
+            if (lastCell is null)
+            {
+                continue;
+            }
+
+            rows.Add(row.Cells(1, lastCell.Address.ColumnNumber).Select(cell => cell.GetString().Trim()).ToArray());
+        }
+
+        return rows;
+    }
+
+    private static int FindEmailColumnIndex(string[] header) => Array.FindIndex(header, IsEmailColumnName);
+
+    private static bool IsEmailColumnName(string value)
+    {
+        var normalized = value.Trim('\uFEFF').Trim().ToLowerInvariant();
+        return normalized is "email" or "e-mail" or "e mail" or "mail";
+    }
+
+    private static int FindBestEmailColumnIndex(IReadOnlyList<string[]> rows)
+    {
+        var maxColumns = rows.Max(row => row.Length);
+        var bestIndex = -1;
+        var bestCount = 0;
+        for (var index = 0; index < maxColumns; index++)
+        {
+            var count = rows.Count(row => index < row.Length && LooksLikeEmail(row[index]));
+            if (count > bestCount)
+            {
+                bestIndex = index;
+                bestCount = count;
+            }
+        }
+
+        return bestCount > 0 ? bestIndex : -1;
+    }
+
+    private static bool LooksLikeEmail(string value)
+    {
+        var trimmed = value.Trim();
+        return trimmed.Contains('@', StringComparison.Ordinal) && trimmed.Contains('.', StringComparison.Ordinal);
+    }
+
+    private static string[] SplitCsv(string line) => line.Split(',').Select(x => x.Trim().Trim('"')).ToArray();
+
+    private static string CsvEscape(string value) => value.Contains(',', StringComparison.Ordinal) || value.Contains('"', StringComparison.Ordinal) || value.Contains('\n', StringComparison.Ordinal) || value.Contains('\r', StringComparison.Ordinal)
+        ? '"' + value.Replace("\"", "\"\"", StringComparison.Ordinal) + '"'
+        : value;
 
     private static bool IsWarningIssue(RecipientImportIssue issue) => issue.Message.Contains("Адрес не исключён", StringComparison.OrdinalIgnoreCase);
 
