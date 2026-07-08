@@ -96,13 +96,17 @@ public static class ProdamusPaymentEndpoints
         }
 
         var payment = paymentRepository.GetByProviderOperationId(operationId);
-        if (payment?.Status == PaymentStatus.Paid)
+        if (payment is not null)
         {
-            reviews.StartChecks(payment.OwnerEmail, payment.MailingId, ToRequestMetadata(http));
+            if (payment.Status == PaymentStatus.Paid)
+            {
+                reviews.StartChecks(payment.OwnerEmail, payment.MailingId, ToRequestMetadata(http));
+            }
+
             return Results.Redirect($"/mailings/{payment.MailingId}/send");
         }
 
-        return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(payment, operationId, "Переход после оплаты получен. Ждём уведомление Prodamus.", authenticated), authenticated: authenticated));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Успешная оплата", SuccessPage(null, operationId, "Переход после оплаты получен. Ждём уведомление Prodamus.", authenticated), authenticated: authenticated));
     }
 
     private static async Task<IResult> Fail(HttpContext http, IPaymentRepository paymentRepository)
