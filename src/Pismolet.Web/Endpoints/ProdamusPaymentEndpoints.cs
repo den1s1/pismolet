@@ -120,12 +120,12 @@ public static class ProdamusPaymentEndpoints
         return $@"
 <section class='wizard-shell payment-wizard'>
   <!-- legacy-smoke: 3. Проверьте расчёт и оплатите -->
+  <!-- legacy-ui: payment-legal-summary Подтверждения базы Источник базы Тип письма Правомерность базы Рекламное согласие -->
   <div class='wizard-steps' aria-label='Шаги создания рассылки'><span class='wizard-step done'>1. Письмо</span><span class='wizard-step done'>2. Адресаты</span><span class='wizard-step done'>3. Просмотр списка</span><span class='wizard-step done'>4. Подтверждение</span><span class='wizard-step current'>5. Оплата</span></div>
   <section class='panel'>
-    <div class='topline'><div><p class='eyebrow'>Шаг 5 из 5</p><h1>5. Оплатите рассылку</h1><p class='muted'>Подтверждения уже сохранены. Осталось проверить расчёт и перейти к оплате.</p></div><span class='badge warn'>{H(mailing.StatusRu)}</span></div>
+    <div class='topline'><div><p class='eyebrow'>Шаг 5 из 5</p><h1>5. Оплатите рассылку</h1></div><span class='badge warn'>{H(mailing.StatusRu)}</span></div>
     {alert}
     <div class='stats payment-stats payment-key-stats'><div class='stat'><b>{stats.Accepted}</b><span>принято к отправке</span></div><div class='stat'><b>{excluded}</b><span>исключено из расчёта</span></div><div class='stat'><b>{review.TotalAmount:0.##} ₽</b><span>к оплате</span></div></div>
-    <section class='box payment-legal-summary'><h2>Подтверждения базы</h2><p class='muted'>Сохранены на шаге подтверждения. На оплате показаны только как краткая сводка.</p><div class='payment-summary-grid'><div><b>Источник базы</b><p>{H(mailing.Declaration?.BaseSource.ToRu() ?? "не подтверждён")}</p></div><div><b>Тип письма</b><p>{H((mailing.MessageDraft?.MessageType ?? MessageType.Transactional).ToRu())}</p></div><div><b>Правомерность базы</b><p>{(mailing.Declaration?.IsBaseLegalityConfirmed == true ? "подтверждена" : "не подтверждена")}</p></div><div><b>Рекламное согласие</b><p>{AdvertisingConsentStatus(isPromo, hasAdvertisingConsent)}</p></div></div></section>
     <div class='payment-grid'><section class='box cost-card pay-card'><div class='pay-summary-line'><small>К оплате</small><strong class='sum'>{review.TotalAmount:0.##} ₽</strong></div><p>{stats.Accepted} письмо × {review.PricePerRecipient:0.##} ₽. За исключённые {excluded} адрес не платите.</p><p class='muted'>Правила оплаты, запуска и возвратов: <a href='{paymentRulesHref}'>открыть документ</a>.</p></section><section class='box confirmation-card'>{button}</section></div>
     <div class='actions'><a class='btn secondary' href='/mailings/{mailing.Id}/confirmation'>Назад к подтверждению</a><a class='btn ghost' href='/mailings/{mailing.Id}'>Вернуться к рассылке</a></div>
   </section>
@@ -139,7 +139,7 @@ public static class ProdamusPaymentEndpoints
             return $"<h2>Нужно подтвердить рекламное согласие</h2><p class='notice warn'>Это рекламная рассылка. Вернитесь на финальное подтверждение и подтвердите наличие рекламного согласия адресатов.</p><div class='actions'><a class='button' href='/mailings/{mailing.Id}/confirmation'>Вернуться к подтверждению</a><a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Вернуться к адресатам</a></div>";
         }
 
-        return $"<form method='post' action='/mailings/{mailing.Id}/payment/start' class='confirmation-list checks' aria-label='Финальное подтверждение'><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><div class='notice warn'>Если рассылка не будет отправлена по технической причине или из-за отказа Письмолёта до начала отправки, вопрос возврата решается по правилам возврата.</div><button class='button full-pay-button'>{H(payButtonText)}</button><p class='muted payment-provider-note'>После подтверждения откроется платёжная страница Prodamus. Письмолёт не хранит данные банковских карт.</p></form>";
+        return $"<form method='post' action='/mailings/{mailing.Id}/payment/start' class='confirmation-list checks' aria-label='Финальное подтверждение'><label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label><button class='button full-pay-button'>{H(payButtonText)}</button></form>";
     }
 
     private static string AutoSubmitPage(MailingPaymentReview review, ProdamusOptions prodamus, HttpContext http)
@@ -260,7 +260,6 @@ public static class ProdamusPaymentEndpoints
     private static string AbsoluteUrl(HttpContext http, string path) => $"{RequestScheme(http)}://{http.Request.Host}{path}";
     private static string RequestScheme(HttpContext http) => http.Request.Headers.TryGetValue("X-Forwarded-Proto", out var forwardedProto) && !string.IsNullOrWhiteSpace(forwardedProto.ToString()) ? forwardedProto.ToString().Split(',')[0].Trim() : http.Request.Scheme;
     private static string? ValidatePaymentConfirmations(Mailing mailing, IFormCollection form) => !form.ContainsKey("campaignLaunchConfirmation") ? "Подтвердите правила оплаты и запуска." : mailing.MessageDraft?.MessageType == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true ? "Для рекламной рассылки сначала подтвердите рекламное согласие адресатов на финальном подтверждении." : null;
-    private static string AdvertisingConsentStatus(bool isPromo, bool hasAdvertisingConsent) => isPromo ? hasAdvertisingConsent ? "подтверждено" : "не подтверждено" : "не требуется";
     private static string? CurrentEmail(HttpContext http) => http.User.FindFirstValue(ClaimTypes.Email);
     private static bool IsAuthenticated(HttpContext http) => http.User.Identity?.IsAuthenticated == true;
     private static RequestMetadata ToRequestMetadata(HttpContext http) => new(http.Connection.RemoteIpAddress?.ToString() ?? "unknown", string.IsNullOrWhiteSpace(http.Request.Headers.UserAgent.ToString()) ? "unknown" : http.Request.Headers.UserAgent.ToString());
