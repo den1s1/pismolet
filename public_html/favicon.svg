@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Письмолёт">
-  <rect x="8" y="8" width="48" height="48" rx="14" fill="#2563EB"/>
-  <path d="M16 31L50 16L39 48L30 34L16 31Z" fill="#FFFFFF"/>
-  <path d="M30 34L39 48L37 35.5" fill="#BFDBFE"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Письмолёт">
+  <rect x="28" y="28" width="200" height="200" rx="52" fill="#2563EB"/>
+  <path d="M68 126L190 70L149 188L120 139L68 126Z" fill="#FFFFFF"/>
+  <path d="M120 139L149 188L143 145" fill="#BFDBFE"/>
 </svg>
