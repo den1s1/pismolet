@@ -112,27 +112,27 @@ public static class MailingRecipientStepEndpoints
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         var sourceOptions = ExistingListOptions(sourceMailings);
         var emptyNote = sourceMailings.Count == 0 ? "<p class='muted'>Сохранённых списков пока нет. Загрузите файл или вставьте адреса вручную.</p>" : string.Empty;
-        var existingListBlock = $"<label>Выбрать уже существующий список <select name='sourceMailingId'><option value=''>Не использовать</option>{sourceOptions}</select></label>{emptyNote}";
+        var existingListBlock = $"<label>Выбрать уже существующий список <select name='sourceMailingId' style='font-weight:400'><option value=''>Не использовать</option>{sourceOptions}</select></label>{emptyNote}";
 
         return $@"
-<section class='wizard-shell address-step'>
-  {WizardSteps(2)}
-  <section class='panel'>
-    <p class='eyebrow'>Шаг 2 из 5</p>
-    <h1>2. Добавьте адресатов</h1>
-    {alert}
-    <form method='post' action='/mailings/{mailing.Id}/recipients' enctype='multipart/form-data' class='simple-recipient-form'>
-      <section class='address-block address-upload-block'>
-        <div class='wizard-grid address-upload-grid'>
-          <label class='dropzone'><span>Загрузить excel-таблицу адресов</span><input type='file' name='file' accept='.xlsx,.csv'></label>
-          <label class='manual-addresses'><span>Ввести вручную</span><small>Каждый адрес — с новой строки.</small><textarea name='manualAddresses' rows='12' placeholder='anna@example.ru&#10;club@example.ru&#10;ivan@example.ru'></textarea></label>
-        </div>
-        <div class='box'>{existingListBlock}</div>
-      </section>
-      <div class='actions wizard-actions'><button class='button'>Загрузить и посмотреть список</button><a class='btn secondary' href='/mailings/{mailing.Id}/message'>Назад к письму</a></div>
-    </form>
-  </section>
-</section>";
+ <section class='wizard-shell address-step'>
+   {WizardSteps(2)}
+   <section class='panel' style='gap:0'>
+     <p class='eyebrow'>Шаг 2 из 5</p>
+     <h1>2. Добавьте адресатов</h1>
+     {alert}
+     <form method='post' action='/mailings/{mailing.Id}/recipients' enctype='multipart/form-data' class='simple-recipient-form'>
+       <section class='address-block address-upload-block'>
+         <div class='wizard-grid address-upload-grid'>
+           <label class='dropzone'><span>Загрузить excel-таблицу адресов</span><input type='file' name='file' accept='.xlsx,.csv'></label>
+           <label class='manual-addresses'><span>Ввести вручную</span><small>Каждый адрес — с новой строки.</small><textarea name='manualAddresses' rows='12' placeholder='anna@example.ru&#10;club@example.ru&#10;ivan@example.ru'></textarea></label>
+         </div>
+         <div class='box'>{existingListBlock}</div>
+       </section>
+       <div class='actions wizard-actions' style='margin-top:18px'><button class='button'>Загрузить и посмотреть список</button><a class='btn secondary' href='/mailings/{mailing.Id}/message'>Назад к письму</a></div>
+     </form>
+   </section>
+ </section>";
     }
 
     private static string RecipientReviewPage(Mailing mailing, string query, string? error = null)
@@ -140,38 +140,38 @@ public static class MailingRecipientStepEndpoints
         var rows = RecipientRows(mailing, query);
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         return $@"
-<section class='wizard-shell address-step'>
-  {WizardSteps(3)}
-  <section class='panel'>
-    <p class='eyebrow'>Шаг 3 из 5</p>
-    <h1>3. Проверьте список адресатов</h1>
-    <p class='muted'>К оплате попадут только адреса со статусом «Принят к отправке».</p>
-    {alert}
-    <section class='address-block address-summary-block'>
-      <div class='address-block-head'><div><h2>Сводка импорта</h2><p class='muted'>Ошибки, дубли и отписавшиеся адреса исключаются из оплаты и отправки.</p></div></div>
-      {Stats(mailing)}
-      {WarningsBlock(mailing)}
-    </section>
-    <section class='address-block address-list-block'>
-      <div class='address-block-head'><div><h2>Адресаты</h2><p class='muted'>Можно найти адрес, добавить новый вручную или удалить строку из текущего списка.</p></div></div>
-      <form method='get' action='/mailings/{mailing.Id}/recipients' class='address-inline-form address-search-form'>
-        <label class='address-inline-field'>Поиск по списку<input name='q' value='{H(query)}' placeholder='email или статус'></label>
-        <button class='btn secondary compact'>Найти</button>
-        <a class='control-link' href='/mailings/{mailing.Id}/recipients'>Сбросить</a>
-      </form>
-      <form method='post' action='/mailings/{mailing.Id}/recipients/add' class='address-inline-form address-add-form'>
-        <label class='address-inline-field'>Добавить адрес вручную<input name='email' type='email' placeholder='new@example.ru' required></label>
-        <button class='button compact'>Добавить</button>
-      </form>
-      {rows}
-    </section>
-    <div class='actions wizard-actions'>
-      <a class='button' href='/mailings/{mailing.Id}/confirmation'>Перейти к финальному подтверждению</a>
-      <a class='btn secondary' href='/mailings/{mailing.Id}/recipients?mode=replace'>Заменить список адресов</a>
-      <a class='btn ghost' href='/mailings/{mailing.Id}/message'>Назад к письму</a>
-    </div>
-  </section>
-</section>";
+ <section class='wizard-shell address-step'>
+   {WizardSteps(3)}
+   <section class='panel'>
+     <p class='eyebrow'>Шаг 3 из 5</p>
+     <h1>3. Проверьте список адресатов</h1>
+     <p class='muted'>К оплате попадут только адреса со статусом «Принят к отправке».</p>
+     {alert}
+     <section class='address-block address-summary-block'>
+       <div class='address-block-head'><div><h2>Сводка импорта</h2><p class='muted'>Ошибки, дубли и отписавшиеся адреса исключаются из оплаты и отправки.</p></div></div>
+       {Stats(mailing)}
+       {WarningsBlock(mailing)}
+     </section>
+     <section class='address-block address-list-block'>
+       <div class='address-block-head'><div><h2>Адресаты</h2><p class='muted'>Можно найти адрес, добавить новый вручную или удалить строку из текущего списка.</p></div></div>
+       <form method='get' action='/mailings/{mailing.Id}/recipients' class='address-inline-form address-search-form'>
+         <label class='address-inline-field'>Поиск по списку<input name='q' value='{H(query)}' placeholder='email или статус'></label>
+         <button class='btn secondary compact'>Найти</button>
+         <a class='control-link' href='/mailings/{mailing.Id}/recipients'>Сбросить</a>
+       </form>
+       <form method='post' action='/mailings/{mailing.Id}/recipients/add' class='address-inline-form address-add-form'>
+         <label class='address-inline-field'>Добавить адрес вручную<input name='email' type='email' placeholder='new@example.ru' required></label>
+         <button class='button compact'>Добавить</button>
+       </form>
+       {rows}
+     </section>
+     <div class='actions wizard-actions'>
+       <a class='button' href='/mailings/{mailing.Id}/confirmation'>Перейти к финальному подтверждению</a>
+       <a class='btn secondary' href='/mailings/{mailing.Id}/recipients?mode=replace'>Заменить список адресов</a>
+       <a class='btn ghost' href='/mailings/{mailing.Id}/message'>Назад к письму</a>
+     </div>
+   </section>
+ </section>";
     }
 
     private static string ConfirmationPage(Mailing mailing)
@@ -185,27 +185,27 @@ public static class MailingRecipientStepEndpoints
         var advertisingChecked = mailing.Declaration?.IsAdvertisingConsentConfirmed == true ? " checked" : string.Empty;
 
         return $@"
-<section class='wizard-shell confirmation-step'>
-  {WizardSteps(4)}
-  <section class='panel'>
-    <p class='eyebrow'>Шаг 4 из 5</p>
-    <h1>4. Финальное подтверждение</h1>
-    <p class='muted'>Здесь фиксируются источник базы, тип письма и юридически значимые подтверждения. Рассылка будет запущена автоматически после успешной модерации.</p>
-    <section class='box'><h2>Письмо</h2><p><b>{H(draft?.Subject ?? "Письмо ещё не заполнено")}</b></p><p class='muted'>Отправитель: {H(draft?.SenderName ?? string.Empty)}</p></section>
-    <section class='box'><h2>Адресаты</h2>{Stats(mailing)}</section>
-    <form method='post' action='/mailings/{mailing.Id}/confirmation' class='compact-base-form address-declaration-form'>
-      <div class='compact-base-fields'>
-        <label class='compact-base-field'><span>Источник базы</span><select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label>
-        <label class='compact-base-field'><span>Тип письма</span><select name='messageType' id='messageTypeSelect'><option value='Transactional'{transactionalSelected}>Информационное</option><option value='Advertising'{advertisingSelected}>Рекламное</option></select></label>
-      </div>
-      <label class='compact-base-check'><input type='checkbox' name='baseLegality'{baseChecked}><span>подтверждаю правомерность использования базы и <a href='/legal/data-processing?returnUrl=/mailings/{mailing.Id}/confirmation'>поручаю техническую обработку email-адресов</a></span></label>
-      <p class='muted'><a href='/legal/base-lawfulness?returnUrl=/mailings/{mailing.Id}/confirmation'>Подробнее о законности базы</a></p>
-      <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'{advertisingChecked}><span><a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/confirmation'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
-      <label class='check'><input type='checkbox' name='campaignLaunchConfirmation' required><span>Я проверил письмо и список адресатов, понимаю, что после оплаты рассылка уйдёт на проверку и будет запущена автоматически после успешной модерации.</span></label>
-      <div class='actions'><button class='button'>Подтвердить и перейти к оплате</button><a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Назад к адресатам</a></div>
-    </form>
-  </section>
-</section>";
+ <section class='wizard-shell confirmation-step'>
+   {WizardSteps(4)}
+   <section class='panel'>
+     <p class='eyebrow'>Шаг 4 из 5</p>
+     <h1>4. Финальное подтверждение</h1>
+     <p class='muted'>Здесь фиксируются источник базы, тип письма и юридически значимые подтверждения. Рассылка будет запущена автоматически после успешной модерации.</p>
+     <section class='box'><h2>Письмо</h2><p><b>{H(draft?.Subject ?? "Письмо ещё не заполнено")}</b></p><p class='muted'>Отправитель: {H(draft?.SenderName ?? string.Empty)}</p></section>
+     <section class='box'><h2>Адресаты</h2>{Stats(mailing)}</section>
+     <form method='post' action='/mailings/{mailing.Id}/confirmation' class='compact-base-form address-declaration-form'>
+       <div class='compact-base-fields'>
+         <label class='compact-base-field'><span>Источник базы</span><select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label>
+         <label class='compact-base-field'><span>Тип письма</span><select name='messageType' id='messageTypeSelect'><option value='Transactional'{transactionalSelected}>Информационное</option><option value='Advertising'{advertisingSelected}>Рекламное</option></select></label>
+       </div>
+       <label class='compact-base-check'><input type='checkbox' name='baseLegality'{baseChecked}><span>подтверждаю правомерность использования базы и <a href='/legal/data-processing?returnUrl=/mailings/{mailing.Id}/confirmation'>поручаю техническую обработку email-адресов</a></span></label>
+       <p class='muted'><a href='/legal/base-lawfulness?returnUrl=/mailings/{mailing.Id}/confirmation'>Подробнее о законности базы</a></p>
+       <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'{advertisingChecked}><span><a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/confirmation'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
+       <label class='check'><input type='checkbox' name='campaignLaunchConfirmation' required><span>Я проверил письмо и список адресатов, понимаю, что после оплаты рассылка уйдёт на проверку и будет запущена автоматически после успешной модерации.</span></label>
+       <div class='actions'><button class='button'>Подтвердить и перейти к оплате</button><a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Назад к адресатам</a></div>
+     </form>
+   </section>
+ </section>";
     }
 
     private static string Stats(Mailing mailing)
