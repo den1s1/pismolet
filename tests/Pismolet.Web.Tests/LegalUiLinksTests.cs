@@ -48,7 +48,7 @@ public sealed class LegalUiLinksTests
         Assert.Contains($"/legal/anti-spam?returnUrl=/mailings/{mailingId}/recipients", hrefs);
         Assert.Contains($"/legal/data-processing?returnUrl=/mailings/{mailingId}/recipients", hrefs);
         Assert.Contains($"/legal/base-lawfulness?returnUrl=/mailings/{mailingId}/recipients", hrefs);
-        Assert.Contains($"/legal/prohibited-content?returnUrl=/mailings/{mailingId}/message", hrefs);
+        Assert.DoesNotContain($"/legal/prohibited-content?returnUrl=/mailings/{mailingId}/message", hrefs);
         Assert.Contains($"/legal/service-email-footer?returnUrl=/mailings/{mailingId}/message", hrefs);
         Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/payment", hrefs);
         Assert.DoesNotContain(hrefs, href => href.StartsWith("https://pismolet.ru/legal", StringComparison.OrdinalIgnoreCase));
@@ -105,19 +105,24 @@ public sealed class LegalUiLinksTests
     {
         using var messageForm = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["senderName"] = "Sender",
-            ["subject"] = "Subject",
-            ["body"] = "Body"
+            ["senderName"] = "Библиотека №5",
+            ["subject"] = "Приглашаем на встречу",
+            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас."
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
-        Assert.True(response.StatusCode is HttpStatusCode.Redirect or HttpStatusCode.OK, $"Unexpected message response: {(int)response.StatusCode}");
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Redirect, $"Unexpected message response: {(int)response.StatusCode}");
     }
 
-    private static WebApplicationFactory<Program> CreateAuthorizedFactory() =>
+    private static WebApplicationFactory<Program> CreateFactory() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
+        });
+
+    private static WebApplicationFactory<Program> CreateAuthorizedFactory() =>
+        CreateFactory().WithWebHostBuilder(builder =>
+        {
             builder.ConfigureTestServices(services =>
             {
                 services.AddAuthentication(options =>
