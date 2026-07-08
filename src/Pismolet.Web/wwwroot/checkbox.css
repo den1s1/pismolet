@@ -79,3 +79,54 @@ label.check a,
 .confirmation-list label.check {
   padding: 12px 14px !important;
 }
+
+.message-editor-form label.write-field,
+.message-editor-form .write-field {
+  font-weight: 700 !important;
+}
+
+.message-editor-form .field-title {
+  font-weight: 700 !important;
+}
+
+.message-editor-form .field-hint,
+.message-editor-form input,
+.message-editor-form textarea,
+.message-editor-form select,
+.message-editor-form input::placeholder,
+.message-editor-form textarea::placeholder,
+.message-editor-form input[type="file"] {
+  font-weight: 400 !important;
+}
+
+.message-body-editor {
+  display: grid !important;
+  gap: 12px !important;
+}
+
+.message-body-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+}
+
+.message-format-toggle {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+
+.message-service-hint {
+  display: block !important;
+  margin-top: 8px !important;
+  color: var(--muted) !important;
+}
+
+.message-service-hint a {
+  font-weight: 400 !important;
+  text-underline-offset: 3px;
+}
