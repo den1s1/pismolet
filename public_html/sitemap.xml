@@ -76,6 +76,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://pismolet.ru/articles/rassylka-v-yandex-pochte/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://pismolet.ru/articles/bez-skrytyh-kopiy/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
