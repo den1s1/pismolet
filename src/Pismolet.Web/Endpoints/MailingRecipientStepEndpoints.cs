@@ -111,7 +111,7 @@ public static class MailingRecipientStepEndpoints
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         var sourceOptions = ExistingListOptions(sourceMailings);
         var emptyNote = sourceMailings.Count == 0 ? "<p class='muted'>Сохранённых списков пока нет. Загрузите файл или вставьте адреса вручную.</p>" : string.Empty;
-        var existingListBlock = $"<label>Выбрать уже существующий список <select name='sourceMailingId'><option value=''>Не использовать</option>{sourceOptions}</select><span class='field-hint'>Адреса будут скопированы в эту рассылку как snapshot.</span></label>{emptyNote}";
+        var existingListBlock = $"<label>Выбрать уже существующий список <select name='sourceMailingId'><option value=''>Не использовать</option>{sourceOptions}</select></label>{emptyNote}";
 
         return $@"
 <section class='wizard-shell address-step'>
@@ -119,14 +119,11 @@ public static class MailingRecipientStepEndpoints
   <section class='panel'>
     <p class='eyebrow'>Шаг 2 из 5</p>
     <h1>2. Добавьте адресатов</h1>
-    <p class='muted'>На этом шаге только формируем список. Подтверждение базы и тип письма будут на финальном экране.</p>
-    <p class='muted'>Не используйте купленные или чужие базы. <a href='/legal/anti-spam?returnUrl=/mailings/{mailing.Id}/recipients'>Антиспам-политика</a>. <a href='/legal/data-processing?returnUrl=/mailings/{mailing.Id}/recipients'>Техническая обработка email-адресов</a>. <a href='/legal/base-lawfulness?returnUrl=/mailings/{mailing.Id}/recipients'>Декларация законности базы</a>.</p>
     {alert}
     <form method='post' action='/mailings/{mailing.Id}/recipients' enctype='multipart/form-data' class='simple-recipient-form'>
       <section class='address-block address-upload-block'>
-        <div class='address-block-head'><div><h2>Источник адресатов</h2><p class='muted'>Загрузите файл, вставьте адреса вручную или выберите уже существующий список.</p></div></div>
         <div class='wizard-grid address-upload-grid'>
-          <label class='dropzone'><span>Загрузить CSV/XLSX</span><small>Файл с колонкой email.</small><input type='file' name='file' accept='.csv,.xlsx'></label>
+          <label class='dropzone'><span>Загрузить excel-таблицу адресов</span><input type='file' name='file' accept='.xlsx,.csv'></label>
           <label class='manual-addresses'><span>Ввести вручную</span><small>Каждый адрес — с новой строки.</small><textarea name='manualAddresses' rows='12' placeholder='anna@example.ru&#10;club@example.ru&#10;ivan@example.ru'></textarea></label>
         </div>
         <div class='box'>{existingListBlock}</div>
