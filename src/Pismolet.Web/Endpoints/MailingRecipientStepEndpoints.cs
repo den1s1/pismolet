@@ -112,12 +112,12 @@ public static class MailingRecipientStepEndpoints
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         var sourceOptions = ExistingListOptions(sourceMailings);
         var emptyNote = sourceMailings.Count == 0 ? "<p class='muted'>Сохранённых списков пока нет. Загрузите файл или вставьте адреса вручную.</p>" : string.Empty;
-        var existingListBlock = $"<label>Выбрать уже существующий список <select name='sourceMailingId' style='font-weight:400'><option value=''>Не использовать</option>{sourceOptions}</select></label>{emptyNote}";
+        var existingListBlock = $"<label>Выбрать уже существующий список <select name='sourceMailingId' class='existing-recipient-select'><option value=''>Не использовать</option>{sourceOptions}</select></label>{emptyNote}";
 
         return $@"
  <section class='wizard-shell address-step'>
    {WizardSteps(2)}
-   <section class='panel' style='gap:0'>
+   <section class='panel address-upload-panel'>
      <p class='eyebrow'>Шаг 2 из 5</p>
      <h1>2. Добавьте адресатов</h1>
      {alert}
@@ -129,7 +129,7 @@ public static class MailingRecipientStepEndpoints
          </div>
          <div class='box'>{existingListBlock}</div>
        </section>
-       <div class='actions wizard-actions' style='margin-top:18px'><button class='button'>Загрузить и посмотреть список</button><a class='btn secondary' href='/mailings/{mailing.Id}/message'>Назад к письму</a></div>
+       <div class='actions wizard-actions recipient-upload-actions'><button class='button'>Загрузить и посмотреть список</button><a class='btn secondary' href='/mailings/{mailing.Id}/message'>Назад к письму</a></div>
      </form>
    </section>
  </section>";
