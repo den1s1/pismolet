@@ -14,6 +14,7 @@ public static class MailingRecipientStepEndpoints
 {
     private const int RecipientListLimit = 100;
     private const int MaxUploadBytes = 1024 * 1024;
+    private const decimal ProvisionalPricePerRecipient = 1m;
 
     public static IEndpointRouteBuilder MapMailingRecipientStepEndpoints(this IEndpointRouteBuilder app)
     {
@@ -191,9 +192,9 @@ public static class MailingRecipientStepEndpoints
         var review = payment.Review;
         var stats = review?.Mailing.LastImportStats ?? mailing.LastImportStats;
         var excluded = Math.Max(0, stats.TotalRows - stats.Accepted);
-        var total = review?.TotalAmount ?? 0m;
-        var price = review?.PricePerRecipient ?? 0m;
-        var buttonText = review is null ? "Оплатить" : $"Оплатить {total:0.##} ₽";
+        var price = review?.PricePerRecipient ?? ProvisionalPricePerRecipient;
+        var total = review?.TotalAmount ?? stats.Accepted * price;
+        var buttonText = review is null ? $"Оплатить {total:0.##} ₽" : $"Оплатить {total:0.##} ₽";
         var advertisingWarning = type == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true
             ? "<p class='notice warn'>Нужно подтвердить рекламное согласие</p>"
             : string.Empty;
