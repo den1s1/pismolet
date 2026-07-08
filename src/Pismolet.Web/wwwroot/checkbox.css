@@ -5,39 +5,54 @@
 
 .checkbox-row,
 .compact-base-check,
+label.check,
 .confirmation-list label.check {
   display: flex !important;
   align-items: flex-start !important;
+  justify-content: flex-start !important;
   gap: 10px !important;
   font-weight: 400 !important;
   line-height: 1.4 !important;
 }
 
+input[type="checkbox"],
 .checkbox-control,
 input[type="checkbox"].checkbox-control,
+.checkbox-row input[type="checkbox"],
 .compact-base-check input[type="checkbox"],
+label.check input[type="checkbox"],
 .confirmation-list label.check input[type="checkbox"] {
+  display: inline-block !important;
   width: 18px !important;
   height: 18px !important;
   min-width: 18px !important;
   max-width: 18px !important;
   flex: 0 0 18px !important;
-  margin: 2px 0 0 !important;
+  margin: 4px 0 0 !important;
   padding: 0 !important;
+  border-radius: 4px !important;
   appearance: auto !important;
+  accent-color: var(--accent);
 }
 
 .checkbox-text,
+.checkbox-row span,
 .compact-base-check .checkbox-text,
+label.check .checkbox-text,
 .confirmation-list label.check .checkbox-text,
 .compact-base-check span,
+label.check span,
 .confirmation-list label.check span {
+  display: inline !important;
+  min-width: 0 !important;
   font-weight: 400 !important;
   line-height: 1.4;
 }
 
 .checkbox-text a,
+.checkbox-row a,
 .compact-base-check a,
+label.check a,
 .confirmation-list label.check a {
   font-weight: 500;
 }
