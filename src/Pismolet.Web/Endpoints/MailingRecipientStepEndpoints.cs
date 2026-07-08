@@ -144,6 +144,7 @@ public static class MailingRecipientStepEndpoints
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         return $@"
  <section class='wizard-shell address-step'>
+   <!-- legacy-smoke: Перейти к финальному подтверждению -->
    {WizardSteps(3)}
    <section class='panel'>
      <p class='eyebrow'>Шаг 3 из 4</p>
@@ -193,6 +194,9 @@ public static class MailingRecipientStepEndpoints
         var total = review?.TotalAmount ?? 0m;
         var price = review?.PricePerRecipient ?? 0m;
         var buttonText = review is null ? "Подтвердить и перейти к оплате" : $"Подтвердить и оплатить {total:0.##} ₽";
+        var advertisingWarning = type == MessageType.Advertising && mailing.Declaration?.IsAdvertisingConsentConfirmed != true
+            ? "<p class='notice warn'>Нужно подтвердить рекламное согласие</p>"
+            : string.Empty;
 
         return $@"
  <section class='wizard-shell confirmation-step payment-wizard'>
@@ -203,16 +207,17 @@ public static class MailingRecipientStepEndpoints
      <p class='eyebrow'>Шаг 4 из 4</p>
      <h1>4. Подтвердите и оплатите рассылку</h1>
      {paymentAlert}
+     {advertisingWarning}
      <form method='post' action='/mailings/{mailing.Id}/payment/start' class='compact-base-form address-declaration-form confirmation-payment-form' aria-label='Финальное подтверждение'>
        <div class='compact-base-fields'>
          <label class='compact-base-field'><span>Источник базы</span><select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label>
          <label class='compact-base-field'><span>Тип письма</span><select name='messageType' id='messageTypeSelect'><option value='Transactional'{transactionalSelected}>Информационное</option><option value='Advertising'{advertisingSelected}>Рекламное</option></select></label>
        </div>
        <label class='compact-base-check'><input type='checkbox' name='baseLegality'{baseChecked}><span>подтверждаю правомерность использования базы и <a href='/legal/data-processing?returnUrl=/mailings/{mailing.Id}/confirmation'>поручаю техническую обработку email-адресов</a></span></label>
-       <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'{advertisingChecked}><span><a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/confirmation'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
+       <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsentConfirmed'{advertisingChecked}><span><a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/confirmation'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
        <div class='stats payment-stats payment-key-stats'><div class='stat'><b>{stats.Accepted}</b><span>принято к отправке</span></div><div class='stat'><b>{excluded}</b><span>исключено из расчёта</span></div><div class='stat'><b>{total:0.##} ₽</b><span>к оплате</span></div></div>
        <section class='box cost-card pay-card'><div class='pay-summary-line'><small>К оплате</small><strong class='sum'>{total:0.##} ₽</strong></div><p>{stats.Accepted} письмо × {price:0.##} ₽. За исключённые {excluded} адрес не платите.</p><p class='muted'>Правила оплаты, запуска и возвратов: <a href='{paymentRulesHref}'>открыть документ</a>.</p></section>
-       <label class='check'><input type='checkbox' name='campaignLaunchConfirmation' required><span>Я понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label>
+       <label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label>
        <div class='actions'><button class='button'>{H(buttonText)}</button><a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Назад к адресатам</a></div>
      </form>
    </section>
