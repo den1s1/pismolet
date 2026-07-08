@@ -28,10 +28,12 @@ public static class ProdamusPaymentEndpoints
         return app;
     }
 
-    private static IResult ShowPayment(Guid id, HttpContext http)
+    private static IResult ShowPayment(Guid id, HttpContext http, IMailingPaymentService payments)
     {
         var email = CurrentEmail(http);
-        return email is null ? Results.Redirect("/account/login") : Results.Redirect($"/mailings/{id}/confirmation");
+        if (email is null) return Results.Redirect("/account/login");
+        var result = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Оплата", PaymentPage(result), authenticated: true));
     }
 
     private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, ProdamusOptions prodamus, IMailingReviewService reviews, IMailingDeclarationService declarations, IMailingMessageService messages)
