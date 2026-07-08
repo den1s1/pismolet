@@ -542,6 +542,6 @@ public static class MailingRecipientStepEndpoints
     private sealed record ImportSource(bool Success, string Error, string FileName, MemoryStream? Content)
     {
         public static ImportSource Pass(string fileName, MemoryStream content) => new(true, string.Empty, fileName, content);
-        public static ImportSource Fail(string error) => new(false, string.Empty, string.Empty, null);
+        public static ImportSource Fail(string error) => new(false, error, string.Empty, null);
     }
 }
