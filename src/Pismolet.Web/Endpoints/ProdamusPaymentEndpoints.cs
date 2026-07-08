@@ -36,19 +36,23 @@ public static class ProdamusPaymentEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Оплата", PaymentPage(result), authenticated: true));
     }
 
-    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, ProdamusOptions prodamus, IMailingReviewService reviews, IMailingDeclarationService declarations, IMailingMessageService messages)
+    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingService mailings, IMailingPaymentService payments, ProdamusOptions prodamus, IMailingReviewService reviews, IMailingDeclarationService declarations, IMailingMessageService messages)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
 
         var form = await http.Request.ReadFormAsync();
+        var mailing = mailings.GetForOwner(id, email);
+        if (mailing is null) return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена."), authenticated: true));
+
+        var declarationError = SaveDeclarationIfPosted(email, id, http, form, mailing, declarations, messages);
+        if (declarationError is not null)
+        {
+            var failedReview = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение и оплата", PaymentPage(failedReview, declarationError), authenticated: true));
+        }
+
         var review = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
-        if (!review.Ok || review.Review is null) return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение и оплата", PaymentPage(review), authenticated: true));
-
-        var declarationError = SaveDeclarationIfPosted(email, id, http, form, review.Review.Mailing, declarations, messages);
-        if (declarationError is not null) return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение и оплата", PaymentPage(review, declarationError), authenticated: true));
-
-        review = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
         if (!review.Ok || review.Review is null) return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение и оплата", PaymentPage(review), authenticated: true));
 
         var confirmationError = ValidatePaymentConfirmations(review.Review.Mailing, form) ?? ValidatePaymentPage(prodamus);
@@ -158,7 +162,8 @@ public static class ProdamusPaymentEndpoints
         var resultUrl = AbsoluteUrl(http, "/payments/prodamus/result");
         var fields = ProdamusPaymentForm.BuildStartFields(review.Mailing.Id, review.Mailing.PublicId, payment.OwnerEmail, operationId, payment.AcceptedRecipientsCount, payment.ExcludedRecipientsCount, payment.PricePerRecipient, payment.TotalAmount, payment.Currency, prodamus, successUrl, failUrl, resultUrl);
         var payUrl = BuildPaymentUrl(prodamus.PaymentPageUrl, fields);
-        return $"<section class='payment-autosubmit' aria-live='polite'><h1>Переходим на платёжную страницу</h1><p class='muted'>Сейчас откроется платёжная страница Prodamus. Если переход не произошёл автоматически, нажмите кнопку ниже.</p><p><a class='button full-pay-button' href='{H(payUrl)}'>Продолжить оплату</a></p><p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/confirmation'>Вернуться к подтверждению и оплате</a></p></section><script>window.location.replace({JsString(payUrl)});</script>";
+        var redirectScript = "<scr" + "ipt>window.location.replace(" + JsString(payUrl) + ");</scr" + "ipt>";
+        return $"<section class='payment-autosubmit' aria-live='polite'><h1>Переходим на платёжную страницу</h1><p class='muted'>Сейчас откроется платёжная страница Prodamus. Если переход не произошёл автоматически, нажмите кнопку ниже.</p><p><a class='button full-pay-button' href='{H(payUrl)}'>Продолжить оплату</a></p><p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/confirmation'>Вернуться к подтверждению и оплате</a></p></section>{redirectScript}";
     }
 
     private static string SuccessPage(Payment? payment, string operationId, string message, bool authenticated)
