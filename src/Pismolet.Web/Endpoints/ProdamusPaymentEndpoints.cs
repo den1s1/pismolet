@@ -28,27 +28,32 @@ public static class ProdamusPaymentEndpoints
         return app;
     }
 
-    private static IResult ShowPayment(Guid id, HttpContext http, IMailingPaymentService payments)
+    private static IResult ShowPayment(Guid id, HttpContext http)
     {
         var email = CurrentEmail(http);
-        if (email is null) return Results.Redirect("/account/login");
-        var result = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
-        return HtmlRenderer.Html(HtmlRenderer.Page("Оплата", PaymentPage(result), authenticated: true));
+        return email is null ? Results.Redirect("/account/login") : Results.Redirect($"/mailings/{id}/confirmation");
     }
 
-    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, ProdamusOptions prodamus, IMailingReviewService reviews)
+    private static async Task<IResult> StartPayment(Guid id, HttpContext http, IMailingPaymentService payments, ProdamusOptions prodamus, IMailingReviewService reviews, IMailingDeclarationService declarations, IMailingMessageService messages)
     {
         var email = CurrentEmail(http);
         if (email is null) return Results.Redirect("/account/login");
-        var review = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
-        if (!review.Ok || review.Review is null) return HtmlRenderer.Html(HtmlRenderer.Page("Оплата", PaymentPage(review), authenticated: true));
 
         var form = await http.Request.ReadFormAsync();
+        var review = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
+        if (!review.Ok || review.Review is null) return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение и оплата", PaymentPage(review), authenticated: true));
+
+        var declarationError = SaveDeclarationIfPosted(email, id, http, form, review.Review.Mailing, declarations, messages);
+        if (declarationError is not null) return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение и оплата", PaymentPage(review, declarationError), authenticated: true));
+
+        review = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
+        if (!review.Ok || review.Review is null) return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение и оплата", PaymentPage(review), authenticated: true));
+
         var confirmationError = ValidatePaymentConfirmations(review.Review.Mailing, form) ?? ValidatePaymentPage(prodamus);
-        if (confirmationError is not null) return HtmlRenderer.Html(HtmlRenderer.Page("Оплата", PaymentPage(review, confirmationError), authenticated: true));
+        if (confirmationError is not null) return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение и оплата", PaymentPage(review, confirmationError), authenticated: true));
 
         var result = payments.StartPayment(email, id, ToRequestMetadata(http));
-        if (!result.Ok || result.Review?.Payment is null) return HtmlRenderer.Html(HtmlRenderer.Page("Оплата", PaymentPage(result), authenticated: true));
+        if (!result.Ok || result.Review?.Payment is null) return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение и оплата", PaymentPage(result), authenticated: true));
         if (result.Review.Payment.Status == PaymentStatus.Paid)
         {
             reviews.StartChecks(result.Review.Mailing.OwnerEmail, id, ToRequestMetadata(http));
@@ -121,9 +126,9 @@ public static class ProdamusPaymentEndpoints
 <section class='wizard-shell payment-wizard'>
   <!-- legacy-smoke: 3. Проверьте расчёт и оплатите -->
   <!-- legacy-ui: payment-legal-summary Подтверждения базы Источник базы Тип письма Правомерность базы Рекламное согласие -->
-  <div class='wizard-steps' aria-label='Шаги создания рассылки'><span class='wizard-step done'>1. Письмо</span><span class='wizard-step done'>2. Адресаты</span><span class='wizard-step done'>3. Просмотр списка</span><span class='wizard-step done'>4. Подтверждение</span><span class='wizard-step current'>5. Оплата</span></div>
+  <div class='wizard-steps' aria-label='Шаги создания рассылки'><span class='wizard-step done'>1. Письмо</span><span class='wizard-step done'>2. Адресаты</span><span class='wizard-step done'>3. Просмотр списка</span><span class='wizard-step current'>4. Подтверждение и оплата</span></div>
   <section class='panel'>
-    <div class='topline'><div><p class='eyebrow'>Шаг 5 из 5</p><h1>5. Оплатите рассылку</h1></div><span class='badge warn'>{H(mailing.StatusRu)}</span></div>
+    <div class='topline'><div><p class='eyebrow'>Шаг 4 из 4</p><h1>4. Подтвердите и оплатите рассылку</h1></div><span class='badge warn'>{H(mailing.StatusRu)}</span></div>
     {alert}
     <div class='stats payment-stats payment-key-stats'><div class='stat'><b>{stats.Accepted}</b><span>принято к отправке</span></div><div class='stat'><b>{excluded}</b><span>исключено из расчёта</span></div><div class='stat'><b>{review.TotalAmount:0.##} ₽</b><span>к оплате</span></div></div>
     <div class='payment-grid'><section class='box cost-card pay-card'><div class='pay-summary-line'><small>К оплате</small><strong class='sum'>{review.TotalAmount:0.##} ₽</strong></div><p>{stats.Accepted} письмо × {review.PricePerRecipient:0.##} ₽. За исключённые {excluded} адрес не платите.</p><p class='muted'>Правила оплаты, запуска и возвратов: <a href='{paymentRulesHref}'>открыть документ</a>.</p></section><section class='box confirmation-card'>{button}</section></div>
@@ -151,7 +156,7 @@ public static class ProdamusPaymentEndpoints
         var resultUrl = AbsoluteUrl(http, "/payments/prodamus/result");
         var fields = ProdamusPaymentForm.BuildStartFields(review.Mailing.Id, review.Mailing.PublicId, payment.OwnerEmail, operationId, payment.AcceptedRecipientsCount, payment.ExcludedRecipientsCount, payment.PricePerRecipient, payment.TotalAmount, payment.Currency, prodamus, successUrl, failUrl, resultUrl);
         var payUrl = BuildPaymentUrl(prodamus.PaymentPageUrl, fields);
-        return $"<section class='payment-autosubmit' aria-live='polite'><h1>Переходим на платёжную страницу</h1><p class='muted'>Сейчас откроется платёжная страница Prodamus. Если переход не произошёл автоматически, нажмите кнопку ниже.</p><p><a class='button full-pay-button' href='{H(payUrl)}'>Продолжить оплату</a></p><p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/payment'>Вернуться к расчёту</a></p></section><script>window.location.replace({JsString(payUrl)});</script>";
+        return $"<section class='payment-autosubmit' aria-live='polite'><h1>Переходим на платёжную страницу</h1><p class='muted'>Сейчас откроется платёжная страница Prodamus. Если переход не произошёл автоматически, нажмите кнопку ниже.</p><p><a class='button full-pay-button' href='{H(payUrl)}'>Продолжить оплату</a></p><p><a class='btn secondary' href='/mailings/{review.Mailing.Id}/confirmation'>Вернуться к подтверждению и оплате</a></p></section><script>window.location.replace({JsString(payUrl)});</script>";
     }
 
     private static string SuccessPage(Payment? payment, string operationId, string message, bool authenticated)
@@ -164,10 +169,60 @@ public static class ProdamusPaymentEndpoints
 
     private static string FailPage(Payment? payment, string operationId)
     {
-        var retry = payment is null ? "<p><a class='btn secondary' href='/dashboard'>В личный кабинет</a></p>" : $"<p><a class='btn' href='/mailings/{payment.MailingId}/payment'>Повторить оплату</a></p>";
+        var retry = payment is null ? "<p><a class='btn secondary' href='/dashboard'>В личный кабинет</a></p>" : $"<p><a class='btn' href='/mailings/{payment.MailingId}/confirmation'>Повторить оплату</a></p>";
         var operation = string.IsNullOrWhiteSpace(operationId) ? string.Empty : $"<p class='muted'>Заказ: {H(operationId)}</p>";
         return $"<section class='panel'><h1>Оплата не завершена</h1><p>Платёжная страница вернула пользователя без успешного платежа. Статус рассылки не менялся.</p>{operation}{retry}</section>";
     }
+
+    private static string? SaveDeclarationIfPosted(string email, Guid mailingId, HttpContext http, IFormCollection form, Mailing mailing, IMailingDeclarationService declarations, IMailingMessageService messages)
+    {
+        if (!HasDeclarationFields(form))
+        {
+            return null;
+        }
+
+        var messageType = ParseMessageType(form["messageType"].ToString());
+        var declaration = declarations.Confirm(new ConfirmMailingDeclarationCommand(
+            email,
+            mailingId,
+            ParseBaseSource(form["baseSource"].ToString()),
+            form.ContainsKey("baseLegality"),
+            form.ContainsKey("advertisingConsent"),
+            messageType,
+            ToRequestMetadata(http)));
+
+        if (!declaration.Ok || declaration.Mailing is null)
+        {
+            return declaration.Error;
+        }
+
+        var updated = declaration.Mailing;
+        if (updated.MessageDraft is not null && updated.MessageDraft.MessageType != messageType)
+        {
+            var save = messages.Save(new SaveMailingMessageCommand(
+                email,
+                mailingId,
+                updated.MessageDraft.SenderName,
+                updated.MessageDraft.Subject,
+                updated.MessageDraft.Body,
+                messageType,
+                ToRequestMetadata(http),
+                updated.MessageDraft.Attachments,
+                updated.MessageDraft.BodyFormat));
+            if (!save.Ok)
+            {
+                return save.Error;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool HasDeclarationFields(IFormCollection form) => form.ContainsKey("baseSource") || form.ContainsKey("messageType") || form.ContainsKey("baseLegality") || form.ContainsKey("advertisingConsent");
+
+    private static BaseSource? ParseBaseSource(string? value) => Enum.TryParse<BaseSource>(value, out var source) ? source : null;
+
+    private static MessageType ParseMessageType(string? value) => Enum.TryParse<MessageType>(value, out var type) ? type : MessageType.Transactional;
 
     private static async Task<Dictionary<string, string>> ReadFields(HttpContext http)
     {
