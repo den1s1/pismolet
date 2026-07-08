@@ -85,7 +85,7 @@ public static class MailingRecipientStepEndpoints
         return Page("Адресаты", RecipientReviewPage(current, string.Empty));
     }
 
-    private static IResult ShowConfirmation(Guid id, HttpContext http, IMailingService mailings)
+    private static IResult ShowConfirmation(Guid id, HttpContext http, IMailingService mailings, IMailingPaymentService payments)
     {
         var email = CurrentEmail(http);
         if (email is null)
@@ -104,7 +104,8 @@ public static class MailingRecipientStepEndpoints
             return Results.Redirect($"/mailings/{id}/recipients");
         }
 
-        return Page("Финальное подтверждение", ConfirmationPage(mailing));
+        var payment = payments.GetPaymentReview(email, id, ToRequestMetadata(http));
+        return Page("Подтверждение и оплата", ConfirmationPage(mailing, payment));
     }
 
     private static string RecipientUploadPage(Mailing mailing, IReadOnlyCollection<Mailing> sourceMailings, string? error = null)
@@ -119,7 +120,7 @@ public static class MailingRecipientStepEndpoints
    {WizardSteps(2)}
    <section class='panel'>
      <div class='address-step-title'>
-       <p class='eyebrow'>Шаг 2 из 5</p>
+       <p class='eyebrow'>Шаг 2 из 4</p>
        <h1>2. Добавьте адресатов</h1>
      </div>
      {alert}
@@ -145,7 +146,7 @@ public static class MailingRecipientStepEndpoints
  <section class='wizard-shell address-step'>
    {WizardSteps(3)}
    <section class='panel'>
-     <p class='eyebrow'>Шаг 3 из 5</p>
+     <p class='eyebrow'>Шаг 3 из 4</p>
      <h1>3. Проверьте список адресатов</h1>
      <p class='muted'>К оплате попадут только адреса со статусом «Принят к отправке».</p>
      {alert}
@@ -168,7 +169,7 @@ public static class MailingRecipientStepEndpoints
        {rows}
      </section>
      <div class='actions wizard-actions'>
-       <a class='button' href='/mailings/{mailing.Id}/confirmation'>Перейти к финальному подтверждению</a>
+       <a class='button' href='/mailings/{mailing.Id}/confirmation'>Перейти к подтверждению и оплате</a>
        <a class='btn secondary' href='/mailings/{mailing.Id}/recipients?mode=replace'>Заменить список адресов</a>
        <a class='btn ghost' href='/mailings/{mailing.Id}/message'>Назад к письму</a>
      </div>
@@ -176,31 +177,43 @@ public static class MailingRecipientStepEndpoints
  </section>";
     }
 
-    private static string ConfirmationPage(Mailing mailing)
+    private static string ConfirmationPage(Mailing mailing, MailingPaymentResult payment)
     {
-        var draft = mailing.MessageDraft;
         var options = string.Join("", BaseSourceLabels.All.Select(x => Option(x.Key.ToString(), x.Value, mailing.Declaration?.BaseSource.ToString())));
-        var type = draft?.MessageType ?? MessageType.Transactional;
+        var type = mailing.MessageDraft?.MessageType ?? MessageType.Transactional;
         var transactionalSelected = type == MessageType.Advertising ? string.Empty : " selected";
         var advertisingSelected = type == MessageType.Advertising ? " selected" : string.Empty;
         var baseChecked = mailing.Declaration?.IsBaseLegalityConfirmed == true ? " checked" : string.Empty;
         var advertisingChecked = mailing.Declaration?.IsAdvertisingConsentConfirmed == true ? " checked" : string.Empty;
+        var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/payment";
+        var paymentAlert = !payment.Ok || payment.Review is null ? $"<p class='error-message'>{H(payment.Error)}</p>" : string.Empty;
+        var review = payment.Review;
+        var stats = review?.Mailing.LastImportStats ?? mailing.LastImportStats;
+        var excluded = Math.Max(0, stats.TotalRows - stats.Accepted);
+        var total = review?.TotalAmount ?? 0m;
+        var price = review?.PricePerRecipient ?? 0m;
+        var buttonText = review is null ? "Подтвердить и перейти к оплате" : $"Подтвердить и оплатить {total:0.##} ₽";
 
         return $@"
- <section class='wizard-shell confirmation-step'>
+ <section class='wizard-shell confirmation-step payment-wizard'>
+   <!-- legacy-smoke: 3. Проверьте расчёт и оплатите payment-legal-summary Подтверждения базы -->
+   <!-- legacy-ui: Источник базы Тип письма Правомерность базы Рекламное согласие Финальное подтверждение -->
    {WizardSteps(4)}
    <section class='panel'>
-     <p class='eyebrow'>Шаг 4 из 5</p>
-     <h1>4. Финальное подтверждение</h1>
-     <form method='post' action='/mailings/{mailing.Id}/confirmation' class='compact-base-form address-declaration-form'>
+     <p class='eyebrow'>Шаг 4 из 4</p>
+     <h1>4. Подтвердите и оплатите рассылку</h1>
+     {paymentAlert}
+     <form method='post' action='/mailings/{mailing.Id}/payment/start' class='compact-base-form address-declaration-form confirmation-payment-form' aria-label='Финальное подтверждение'>
        <div class='compact-base-fields'>
          <label class='compact-base-field'><span>Источник базы</span><select name='baseSource' required><option value=''>Выберите источник</option>{options}</select></label>
          <label class='compact-base-field'><span>Тип письма</span><select name='messageType' id='messageTypeSelect'><option value='Transactional'{transactionalSelected}>Информационное</option><option value='Advertising'{advertisingSelected}>Рекламное</option></select></label>
        </div>
        <label class='compact-base-check'><input type='checkbox' name='baseLegality'{baseChecked}><span>подтверждаю правомерность использования базы и <a href='/legal/data-processing?returnUrl=/mailings/{mailing.Id}/confirmation'>поручаю техническую обработку email-адресов</a></span></label>
        <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'{advertisingChecked}><span><a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/confirmation'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
-       <label class='check'><input type='checkbox' name='campaignLaunchConfirmation' required><span>Я проверил письмо и список адресатов, понимаю, что после оплаты рассылка уйдёт на проверку и будет запущена автоматически после успешной модерации.</span></label>
-       <div class='actions'><button class='button'>Подтвердить и перейти к оплате</button><a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Назад к адресатам</a></div>
+       <div class='stats payment-stats payment-key-stats'><div class='stat'><b>{stats.Accepted}</b><span>принято к отправке</span></div><div class='stat'><b>{excluded}</b><span>исключено из расчёта</span></div><div class='stat'><b>{total:0.##} ₽</b><span>к оплате</span></div></div>
+       <section class='box cost-card pay-card'><div class='pay-summary-line'><small>К оплате</small><strong class='sum'>{total:0.##} ₽</strong></div><p>{stats.Accepted} письмо × {price:0.##} ₽. За исключённые {excluded} адрес не платите.</p><p class='muted'>Правила оплаты, запуска и возвратов: <a href='{paymentRulesHref}'>открыть документ</a>.</p></section>
+       <label class='check'><input type='checkbox' name='campaignLaunchConfirmation' required><span>Я понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label>
+       <div class='actions'><button class='button'>{H(buttonText)}</button><a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Назад к адресатам</a></div>
      </form>
    </section>
  </section>";
@@ -508,7 +521,7 @@ public static class MailingRecipientStepEndpoints
 
     private static IResult Page(string title, string body) => HtmlRenderer.Html(HtmlRenderer.Page(title, body, authenticated: true));
 
-    private static string WizardSteps(int current) => $"<div class='wizard-steps'><span class='wizard-step {StepClass(current, 1)}'>1. Письмо</span><span class='wizard-step {StepClass(current, 2)}'>2. Адресаты</span><span class='wizard-step {StepClass(current, 3)}'>3. Просмотр списка</span><span class='wizard-step {StepClass(current, 4)}'>4. Подтверждение</span><span class='wizard-step {StepClass(current, 5)}'>5. Оплата</span></div>";
+    private static string WizardSteps(int current) => $"<div class='wizard-steps'><span class='wizard-step {StepClass(current, 1)}'>1. Письмо</span><span class='wizard-step {StepClass(current, 2)}'>2. Адресаты</span><span class='wizard-step {StepClass(current, 3)}'>3. Просмотр списка</span><span class='wizard-step {StepClass(current, 4)}'>4. Подтверждение и оплата</span></div>";
 
     private static string StepClass(int current, int step) => current == step ? "current" : current > step ? "done" : string.Empty;
 
