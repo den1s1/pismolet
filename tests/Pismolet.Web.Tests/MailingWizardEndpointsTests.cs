@@ -374,7 +374,9 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("name='plainBody'", html);
         Assert.Contains("name='htmlBody'", html);
         Assert.Contains("Письмолёт автоматически добавит", html);
-        Assert.Contains("Сохранить письмо и перейти к адресатам", html);
+        Assert.Contains(">Далее</button>", html);
+        Assert.DoesNotContain("Сохранить письмо и перейти к адресатам", html);
+        Assert.DoesNotContain("Политика запрещённого контента", html);
         Assert.DoesNotContain("<div class='mail-preview-body'>", html);
         Assert.DoesNotContain("name='messageType'", html);
         Assert.DoesNotContain("Тип письма", html);
