@@ -187,7 +187,7 @@ public static class ProdamusPaymentEndpoints
             mailingId,
             ParseBaseSource(form["baseSource"].ToString()),
             form.ContainsKey("baseLegality"),
-            form.ContainsKey("advertisingConsent"),
+            form.ContainsKey("advertisingConsentConfirmed") || form.ContainsKey("advertisingConsent"),
             messageType,
             ToRequestMetadata(http)));
 
@@ -218,7 +218,7 @@ public static class ProdamusPaymentEndpoints
         return null;
     }
 
-    private static bool HasDeclarationFields(IFormCollection form) => form.ContainsKey("baseSource") || form.ContainsKey("messageType") || form.ContainsKey("baseLegality") || form.ContainsKey("advertisingConsent");
+    private static bool HasDeclarationFields(IFormCollection form) => form.ContainsKey("baseSource") || form.ContainsKey("messageType") || form.ContainsKey("baseLegality") || form.ContainsKey("advertisingConsentConfirmed") || form.ContainsKey("advertisingConsent");
 
     private static BaseSource? ParseBaseSource(string? value) => Enum.TryParse<BaseSource>(value, out var source) ? source : null;
 
