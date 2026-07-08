@@ -45,9 +45,9 @@ public sealed class LegalUiLinksTests
 
         Assert.Contains("/legal/offer?returnUrl=/account/register", hrefs);
         Assert.Contains("/legal/privacy?returnUrl=/account/register", hrefs);
-        Assert.Contains($"/legal/anti-spam?returnUrl=/mailings/{mailingId}/recipients", hrefs);
-        Assert.Contains($"/legal/data-processing?returnUrl=/mailings/{mailingId}/recipients", hrefs);
-        Assert.Contains($"/legal/base-lawfulness?returnUrl=/mailings/{mailingId}/recipients", hrefs);
+        Assert.DoesNotContain($"/legal/anti-spam?returnUrl=/mailings/{mailingId}/recipients", hrefs);
+        Assert.DoesNotContain($"/legal/data-processing?returnUrl=/mailings/{mailingId}/recipients", hrefs);
+        Assert.DoesNotContain($"/legal/base-lawfulness?returnUrl=/mailings/{mailingId}/recipients", hrefs);
         Assert.DoesNotContain($"/legal/prohibited-content?returnUrl=/mailings/{mailingId}/message", hrefs);
         Assert.Contains($"/legal/service-email-footer?returnUrl=/mailings/{mailingId}/message", hrefs);
         Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/payment", hrefs);
