@@ -49,13 +49,18 @@ public sealed class MailingWizardEndpointsTests
         var html = await client.GetStringAsync($"/mailings/{mailingId}/recipients");
 
         Assert.Contains("2. Добавьте адресатов", html);
-        Assert.Contains("Загрузить CSV/XLSX", html);
+        Assert.Contains("Загрузить excel-таблицу адресов", html);
         Assert.Contains("name='manualAddresses'", html);
         Assert.Contains("dropzone", html);
         Assert.Contains("address-upload-block", html);
         Assert.Contains("уже существующий список", html);
         Assert.Contains("name='sourceMailingId'", html);
         Assert.Contains("Загрузить и посмотреть список", html);
+        Assert.DoesNotContain("Загрузить CSV/XLSX", html);
+        Assert.DoesNotContain("Файл с колонкой email", html);
+        Assert.DoesNotContain("Источник адресатов", html);
+        Assert.DoesNotContain("На этом шаге только формируем список", html);
+        Assert.DoesNotContain("Антиспам-политика", html);
         Assert.DoesNotContain("name='baseSource'", html);
         Assert.DoesNotContain("name='baseLegality'", html);
         Assert.DoesNotContain("name='messageType'", html);
@@ -270,7 +275,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.Equal(1, mailingAfterAdd.LastImportStats.Duplicates);
         Assert.Equal(5, mailingAfterAdd.Recipients.Count);
         Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Invalid && x.SourceEmail == "wrong-email");
-        Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Duplicate && x.SourceEmail == "FIRST@example.test");
+        Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Duplicate && x.Email == "FIRST@example.test");
 
         var secondRecipient = Assert.Single(mailingAfterAdd.Recipients, x => x.Email == "second@example.test" && x.Status == RecipientStatus.Accepted);
         using var removeForm = new FormUrlEncodedContent(new Dictionary<string, string>
