@@ -187,7 +187,7 @@ public static class MailingRecipientStepEndpoints
         var baseChecked = mailing.Declaration?.IsBaseLegalityConfirmed == true ? " checked" : string.Empty;
         var advertisingChecked = mailing.Declaration?.IsAdvertisingConsentConfirmed == true ? " checked" : string.Empty;
         var paymentRulesHref = $"/legal/payment-and-refund?returnUrl=/mailings/{mailing.Id}/payment";
-        var paymentAlert = !payment.Ok || payment.Review is null ? $"<p class='error-message'>{H(payment.Error)}</p>" : string.Empty;
+        var paymentAlert = (!payment.Ok || payment.Review is null) && !IsPreConfirmationPaymentError(payment.Error) ? $"<p class='error-message'>{H(payment.Error)}</p>" : string.Empty;
         var review = payment.Review;
         var stats = review?.Mailing.LastImportStats ?? mailing.LastImportStats;
         var excluded = Math.Max(0, stats.TotalRows - stats.Accepted);
@@ -230,6 +230,8 @@ public static class MailingRecipientStepEndpoints
         var blocked = stats.Invalid + stats.Duplicates + stats.GloballySuppressed + stats.ClientSuppressed;
         return $"<div class='stats import-summary'><div class='stat'><b>{stats.TotalRows}</b><span>Строк в файле</span></div><div class='stat'><b>{stats.Accepted}</b><span>Принято к отправке</span></div><div class='stat'><b>{stats.Duplicates + stats.Invalid}</b><span>Дублей и ошибок</span></div><div class='stat'><b>{blocked}</b><span>Не сможем отправить</span></div><div class='stat'><b>{stats.GloballySuppressed}</b><span>Ранее отписались</span></div></div>";
     }
+
+    private static bool IsPreConfirmationPaymentError(string? error) => !string.IsNullOrWhiteSpace(error) && error.Contains("подтвердите базу", StringComparison.OrdinalIgnoreCase);
 
     private static string WarningsBlock(Mailing mailing)
     {
