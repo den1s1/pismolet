@@ -112,14 +112,16 @@ public static class MailingRecipientStepEndpoints
         var alert = string.IsNullOrWhiteSpace(error) ? string.Empty : $"<p class='error-message'>{H(error)}</p>";
         var sourceOptions = ExistingListOptions(sourceMailings);
         var emptyNote = sourceMailings.Count == 0 ? "<p class='muted'>Сохранённых списков пока нет. Загрузите файл или вставьте адреса вручную.</p>" : string.Empty;
-        var existingListBlock = $"<label>Выбрать уже существующий список <select name='sourceMailingId' class='existing-recipient-select'><option value=''>Не использовать</option>{sourceOptions}</select></label>{emptyNote}";
+        var existingListBlock = $"<div class='existing-list-field'><label for='sourceMailingId'>Выбрать уже существующий список</label><select id='sourceMailingId' name='sourceMailingId'><option value=''>Не использовать</option>{sourceOptions}</select></div>{emptyNote}";
 
         return $@"
  <section class='wizard-shell address-step'>
    {WizardSteps(2)}
-   <section class='panel address-upload-panel'>
-     <p class='eyebrow'>Шаг 2 из 5</p>
-     <h1>2. Добавьте адресатов</h1>
+   <section class='panel'>
+     <div class='address-step-title'>
+       <p class='eyebrow'>Шаг 2 из 5</p>
+       <h1>2. Добавьте адресатов</h1>
+     </div>
      {alert}
      <form method='post' action='/mailings/{mailing.Id}/recipients' enctype='multipart/form-data' class='simple-recipient-form'>
        <section class='address-block address-upload-block'>
@@ -129,7 +131,7 @@ public static class MailingRecipientStepEndpoints
          </div>
          <div class='box'>{existingListBlock}</div>
        </section>
-       <div class='actions wizard-actions recipient-upload-actions'><button class='button'>Загрузить и посмотреть список</button><a class='btn secondary' href='/mailings/{mailing.Id}/message'>Назад к письму</a></div>
+       <div class='actions'><button class='button'>Загрузить и посмотреть список</button><a class='btn secondary' href='/mailings/{mailing.Id}/message'>Назад к письму</a></div>
      </form>
    </section>
  </section>";
