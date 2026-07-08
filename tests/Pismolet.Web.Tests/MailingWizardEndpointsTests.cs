@@ -275,7 +275,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.Equal(1, mailingAfterAdd.LastImportStats.Duplicates);
         Assert.Equal(5, mailingAfterAdd.Recipients.Count);
         Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Invalid && x.SourceEmail == "wrong-email");
-        Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Duplicate && x.Email == "FIRST@example.test");
+        Assert.Contains(mailingAfterAdd.Recipients, x => x.Status == RecipientStatus.Duplicate && x.SourceEmail == "FIRST@example.test");
 
         var secondRecipient = Assert.Single(mailingAfterAdd.Recipients, x => x.Email == "second@example.test" && x.Status == RecipientStatus.Accepted);
         using var removeForm = new FormUrlEncodedContent(new Dictionary<string, string>
