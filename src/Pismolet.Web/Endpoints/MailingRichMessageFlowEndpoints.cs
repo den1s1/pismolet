@@ -218,8 +218,8 @@ public static class MailingRichMessageFlowEndpoints
         var visualTabClass = activeTab == BodyTabVisual ? "button compact" : "btn secondary compact";
         var htmlTabClass = activeTab == BodyTabHtml ? "button compact" : "btn secondary compact";
         var attachmentsBlock = AttachmentsBlock(draft?.Attachments ?? Array.Empty<MailingAttachment>());
-        var prohibitedContentHref = $"/legal/prohibited-content?returnUrl=/mailings/{mailing.Id}/message";
         var serviceFooterHref = $"/legal/service-email-footer?returnUrl=/mailings/{mailing.Id}/message";
+        var serviceFooterHint = $"Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки. <a href='{serviceFooterHref}'>Служебный блок письма</a>.";
 
         return $@"
 <section class='wizard-shell'>
@@ -228,7 +228,6 @@ public static class MailingRichMessageFlowEndpoints
     <p class='eyebrow'>Шаг 1 из 5</p>
     <h1>1. Напишите письмо</h1>
     <!-- legacy-smoke: 2. Напишите письмо Проверить и оплатить Предпросмотр Обычный текст HTML name='plainBody' name='htmlBody' -->
-    <p class='muted'>Сначала подготовьте текст письма. Адресатов, юридические подтверждения и оплату выберем дальше.</p>
     {alert}
     <form method='post' action='/mailings/{mailing.Id}/message' enctype='multipart/form-data' class='form-grid message-editor-form'>
       <label class='write-field'>
@@ -236,22 +235,22 @@ public static class MailingRichMessageFlowEndpoints
         <input name='senderName' maxlength='{MailingMessageDraft.MaxSenderNameLength}' required value='{senderName}' placeholder='Например: Библиотека №5'>
         <span class='field-hint'>Получатели увидят это имя в письме.</span>
       </label>
-      <label>Тема письма
+      <label class='write-field'>
+        <span class='field-title'>Тема письма <span class='required'>*</span></span>
         <input name='subject' maxlength='{MailingMessageDraft.MaxSubjectLength}' required value='{messageSubject}' placeholder='Например: Приглашаем на встречу в субботу'>
       </label>
-      <section data-body-editor class='message-body-editor' style='display:grid;gap:12px'>
-        <div>
+      <section data-body-editor class='message-body-editor'>
+        <div class='message-body-head'>
           <div class='field-title'>Текст письма</div>
-          <div class='field-hint'>Выберите формат. Обычное письмо подходит для простого оформления; HTML — для письма с собственной вёрсткой.</div>
+          <div class='message-format-toggle' aria-label='Формат письма'>
+            <button type='button' class='{visualTabClass}' data-body-tab='visual'>Обычный текст</button>
+            <button type='button' class='{htmlTabClass}' data-body-tab='html'>HTML</button>
+          </div>
         </div>
         <input type='hidden' name='bodyTab' value='{activeTab}'>
         <input type='hidden' name='bodyFormat' value='{BodyFormatHtml}'>
         <textarea name='body' data-body-fallback hidden></textarea>
         <textarea name='plainBody' hidden>{H(plainBody)}</textarea>
-        <div class='actions' style='margin-top:0'>
-          <button type='button' class='{visualTabClass}' data-body-tab='visual'>Обычный текст</button>
-          <button type='button' class='{htmlTabClass}' data-body-tab='html'>HTML</button>
-        </div>
         <div data-body-panel='visual'{visualPanelStyle}>
           <div class='rich-editor' data-rich-text-editor>
             <div class='rich-toolbar' aria-label='Форматирование обычного письма'>
@@ -264,24 +263,24 @@ public static class MailingRichMessageFlowEndpoints
             <div class='rich-editable' contenteditable='true' data-rich-editable aria-label='Текст обычного письма' data-placeholder='Здравствуйте! Расскажите, почему вы пишете и что нужно сделать получателю.' style='display:block;min-height:260px;border:1px solid #dbe4ef;border-radius:0 0 16px 16px;background:#fff;padding:16px;line-height:1.55;outline:none;overflow-wrap:anywhere'></div>
             <textarea name='visualBody' data-rich-html-source hidden>{H(visualBody)}</textarea>
           </div>
-          <span class='field-hint'>Письмолёт сохранит оформление безопасным HTML и перед отправкой удалит скрипты, опасные ссылки и небезопасные стили.</span>
+          <span class='field-hint message-service-hint'>{serviceFooterHint}</span>
         </div>
         <div data-body-panel='html'{htmlPanelStyle}>
-          <label>HTML-код письма
+          <label class='write-field'>
+            <span class='field-title'>HTML-код письма</span>
             <textarea name='htmlBody' rows='18' spellcheck='false' placeholder='&lt;h1&gt;Заголовок&lt;/h1&gt;&#10;&lt;p&gt;Текст письма&lt;/p&gt;'>{H(htmlBody)}</textarea>
           </label>
-          <span class='field-hint'>Вставьте HTML-код тела письма. Скрипты, обработчики событий, опасные ссылки и небезопасные стили будут заблокированы перед сохранением.</span>
+          <span class='field-hint message-service-hint'>{serviceFooterHint}</span>
         </div>
       </section>
-      <label>Вложения
+      <label class='write-field'>
+        <span class='field-title'>Вложения</span>
         <input type='file' name='attachments' multiple>
         <span class='field-hint'>Можно добавить один или несколько файлов. Общий размер вложений — до 10 МБ.</span>
       </label>
       {attachmentsBlock}
-      <div class='notice warn'>Не отправляйте мошенничество, фишинг, вредоносные ссылки, незаконные товары или услуги и контент, вводящий получателей в заблуждение. <a href='{prohibitedContentHref}'>Политика запрещённого контента</a></div>
-      <div class='notice warn'>Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки. <a href='{serviceFooterHref}'>Служебный блок письма</a>.</div>
       <div class='actions'>
-        <button class='button' name='action' value='continue'>Сохранить письмо и перейти к адресатам</button>
+        <button class='button' name='action' value='continue'>Далее</button>
         <button class='btn secondary' name='action' value='preview'>Предпросмотр</button>
         <a class='btn ghost' href='/dashboard'>Вернуться в ЛК</a>
       </div>
