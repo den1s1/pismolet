@@ -31,7 +31,7 @@ public sealed class RecipientImportService(
         if (format is null)
         {
             Log(command, userEmail, "recipients_import_failed", "format");
-            return ImportRecipientsResult.Failure("Загрузите CSV или XLSX-файл с адресами.");
+            return ImportRecipientsResult.Failure("Загрузите CSV или XLSX-файл с колонкой email.");
         }
 
         Log(command, userEmail, "recipients_import_started", "started");
@@ -46,7 +46,7 @@ public sealed class RecipientImportService(
         catch
         {
             Log(command, userEmail, "recipients_import_failed", "parse_error");
-            return ImportRecipientsResult.Failure("Не удалось прочитать файл. Проверьте формат таблицы.");
+            return ImportRecipientsResult.Failure("Не удалось прочитать файл. Проверьте формат и колонку email.");
         }
 
         if (rows.Count == 0)
@@ -56,20 +56,11 @@ public sealed class RecipientImportService(
         }
 
         var header = rows[0];
-        var emailIndex = FindEmailColumnIndex(header);
-        var dataRows = rows.Skip(1);
-        var rowNumberOffset = 1;
+        var emailIndex = Array.FindIndex(header, x => string.Equals(x.Trim('\uFEFF'), "email", StringComparison.OrdinalIgnoreCase));
         if (emailIndex < 0)
         {
-            emailIndex = FindBestEmailColumnIndex(rows);
-            dataRows = rows;
-            rowNumberOffset = 0;
-        }
-
-        if (emailIndex < 0)
-        {
-            Log(command, userEmail, "recipients_import_failed", "no_email_column_or_values");
-            return ImportRecipientsResult.Failure("В файле не найдены email-адреса.");
+            Log(command, userEmail, "recipients_import_failed", "no_email_column");
+            return ImportRecipientsResult.Failure("В файле должна быть колонка email.");
         }
 
         var accepted = new List<Recipient>();
@@ -80,7 +71,7 @@ public sealed class RecipientImportService(
         var optedOut = 0;
         var issues = new List<RecipientImportIssue>();
 
-        foreach (var cells in dataRows)
+        foreach (var cells in rows.Skip(1))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -98,22 +89,21 @@ public sealed class RecipientImportService(
 
             var rawEmail = emailIndex < cells.Length ? cells[emailIndex] : string.Empty;
             var email = normalizer.Normalize(rawEmail);
-            var rowNumber = total + rowNumberOffset;
 
             if (!validator.IsValid(email))
             {
                 invalid++;
-                issues.Add(new RecipientImportIssue(rowNumber, rawEmail, "Невалидный email"));
+                issues.Add(new RecipientImportIssue(total + 1, rawEmail, "Невалидный email"));
             }
             else if (!seen.Add(email))
             {
                 duplicates++;
-                issues.Add(new RecipientImportIssue(rowNumber, email, "Дубль в файле"));
+                issues.Add(new RecipientImportIssue(total + 1, email, "Дубль в файле"));
             }
             else if (optOuts.IsSuppressed(email))
             {
                 optedOut++;
-                issues.Add(new RecipientImportIssue(rowNumber, email, "Глобальная отписка"));
+                issues.Add(new RecipientImportIssue(total + 1, email, "Глобальная отписка"));
             }
             else
             {
@@ -185,32 +175,6 @@ public sealed class RecipientImportService(
         }
 
         return rows;
-    }
-
-    private int FindBestEmailColumnIndex(IReadOnlyList<string[]> rows)
-    {
-        var maxColumns = rows.Max(row => row.Length);
-        var bestIndex = -1;
-        var bestCount = 0;
-        for (var index = 0; index < maxColumns; index++)
-        {
-            var count = rows.Count(row => index < row.Length && validator.IsValid(normalizer.Normalize(row[index])));
-            if (count > bestCount)
-            {
-                bestIndex = index;
-                bestCount = count;
-            }
-        }
-
-        return bestCount > 0 ? bestIndex : -1;
-    }
-
-    private static int FindEmailColumnIndex(string[] header) => Array.FindIndex(header, IsEmailColumnName);
-
-    private static bool IsEmailColumnName(string value)
-    {
-        var normalized = value.Trim('\uFEFF').Trim().ToLowerInvariant();
-        return normalized is "email" or "e-mail" or "e mail" or "mail";
     }
 
     private static string[] SplitCsv(string line) => line.Split(',').Select(x => x.Trim().Trim('"')).ToArray();
