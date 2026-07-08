@@ -41,7 +41,8 @@ public sealed class MailingWizardSimplificationTests
         Assert.Contains("3. Просмотр списка", page);
         Assert.Contains("4. Подтверждение", page);
         Assert.Contains("5. Оплата", page);
-        Assert.Contains("Сохранить письмо и перейти к адресатам", page);
+        Assert.Contains(">Далее</button>", page);
+        Assert.DoesNotContain("Сохранить письмо и перейти к адресатам", page);
         Assert.DoesNotContain("Создайте черновик рассылки", page);
         Assert.DoesNotContain("Название рассылки", page);
         Assert.DoesNotContain(">Черновик<", page);
@@ -101,6 +102,7 @@ public sealed class MailingWizardSimplificationTests
             var identity = new ClaimsIdentity(claims, SchemeName);
             var principal = new ClaimsPrincipal(identity);
             var ticket = new AuthenticationTicket(principal, SchemeName);
+
             return Task.FromResult(AuthenticateResult.Success(ticket));
         }
     }
