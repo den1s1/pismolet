@@ -218,7 +218,7 @@ public static class MailingRecipientStepEndpoints
        <label class='compact-base-check compact-ad-consent' id='advertisingConsentBlock'><input type='checkbox' name='advertisingConsent'{advertisingChecked}><span><a href='/legal/advertising-consent?returnUrl=/mailings/{mailing.Id}/confirmation'>подтверждаю наличие рекламного согласия адресатов</a></span></label>
        <div class='stats payment-stats payment-key-stats'><div class='stat'><b>{stats.Accepted}</b><span>принято к отправке</span></div><div class='stat'><b>{excluded}</b><span>исключено из расчёта</span></div><div class='stat'><b>{total:0.##} ₽</b><span>к оплате</span></div></div>
        <section class='box cost-card pay-card'><div class='pay-summary-line'><small>К оплате</small><strong class='sum'>{total:0.##} ₽</strong></div><p>{stats.Accepted} письмо × {price:0.##} ₽. За исключённые {excluded} адрес не платите.</p><p class='muted'>Правила оплаты, запуска и возвратов: <a href='{paymentRulesHref}'>открыть документ</a>.</p></section>
-       <label class='check'><input type='checkbox' name='campaignLaunchConfirmation'><span>Я понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label>
+       <label class='check'><input type='checkbox' name='campaignLaunchConfirmation' required><span>Я понимаю сумму к оплате и условия запуска после оплаты и проверок. <a href='{paymentRulesHref}'>Правила оплаты, запуска и возвратов</a>.</span></label>
        <div class='actions'><button class='button'>{H(buttonText)}</button><a class='btn secondary' href='/mailings/{mailing.Id}/recipients'>Назад к адресатам</a></div>
      </form>
    </section>
@@ -542,6 +542,6 @@ public static class MailingRecipientStepEndpoints
     private sealed record ImportSource(bool Success, string Error, string FileName, MemoryStream? Content)
     {
         public static ImportSource Pass(string fileName, MemoryStream content) => new(true, string.Empty, fileName, content);
-        public static ImportSource Fail(string error) => new(false, error, string.Empty, null);
+        public static ImportSource Fail(string error) => new(false, string.Empty, string.Empty, null);
     }
 }
