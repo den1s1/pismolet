@@ -47,14 +47,31 @@ public sealed class MailruPostmasterDbContextFactory : IDesignTimeDbContextFacto
 {
     public MailruPostmasterDbContext CreateDbContext(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable("PISMOLET_CONNECTION_STRING")
-            ?? "Host=localhost;Port=5432;Database=pismolet;Username=pismolet;Password=pismolet";
+        var connectionString = ResolveConnectionString(
+            Environment.GetEnvironmentVariable("ConnectionStrings__PismoletDb"),
+            Environment.GetEnvironmentVariable("PISMOLET_CONNECTION_STRING"));
 
         var options = new DbContextOptionsBuilder<MailruPostmasterDbContext>()
             .UseNpgsql(connectionString)
             .Options;
 
         return new MailruPostmasterDbContext(options);
+    }
+
+    public static string ResolveConnectionString(string? configuredConnectionString, string? legacyConnectionString)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredConnectionString))
+        {
+            return configuredConnectionString;
+        }
+
+        if (!string.IsNullOrWhiteSpace(legacyConnectionString))
+        {
+            return legacyConnectionString;
+        }
+
+        throw new InvalidOperationException(
+            "Для design-time операций Mail.ru Postmaster задайте ConnectionStrings__PismoletDb.");
     }
 }
 
