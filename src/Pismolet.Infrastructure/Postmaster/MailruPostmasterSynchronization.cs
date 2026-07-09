@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Pismolet.Web.Infrastructure.Postmaster;
@@ -63,6 +64,50 @@ public sealed record MailruPostmasterSyncOptions(
         return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
             ? Math.Clamp(parsed, min, max)
             : fallback;
+    }
+}
+
+public static class MailruPostmasterSyncSchedule
+{
+    private static readonly TimeZoneInfo MoscowTimeZone = ResolveMoscowTimeZone();
+
+    public static DateOnly GetMoscowDate(DateTimeOffset utcNow)
+    {
+        var moscowNow = TimeZoneInfo.ConvertTime(utcNow, MoscowTimeZone);
+        return DateOnly.FromDateTime(moscowNow.Date);
+    }
+
+    public static DateTimeOffset GetNextRunAtUtc(DateTimeOffset utcNow, int syncHourMoscow)
+    {
+        var hour = Math.Clamp(
+            syncHourMoscow,
+            MailruPostmasterSyncOptions.MinSyncHourMoscow,
+            MailruPostmasterSyncOptions.MaxSyncHourMoscow);
+        var moscowNow = TimeZoneInfo.ConvertTime(utcNow, MoscowTimeZone);
+        var nextMoscowLocal = DateTime.SpecifyKind(
+            moscowNow.Date.AddHours(hour),
+            DateTimeKind.Unspecified);
+        var nextUtc = TimeZoneInfo.ConvertTimeToUtc(nextMoscowLocal, MoscowTimeZone);
+
+        if (nextUtc <= utcNow.UtcDateTime)
+        {
+            nextMoscowLocal = nextMoscowLocal.AddDays(1);
+            nextUtc = TimeZoneInfo.ConvertTimeToUtc(nextMoscowLocal, MoscowTimeZone);
+        }
+
+        return new DateTimeOffset(nextUtc, TimeSpan.Zero);
+    }
+
+    private static TimeZoneInfo ResolveMoscowTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time");
+        }
     }
 }
 
@@ -134,7 +179,6 @@ public sealed class MailruPostmasterSynchronizer(
     TimeProvider timeProvider,
     ILogger<MailruPostmasterSynchronizer> logger) : IMailruPostmasterSynchronizer
 {
-    private static readonly TimeZoneInfo MoscowTimeZone = ResolveMoscowTimeZone();
     private readonly SemaphoreSlim runLock = new(1, 1);
 
     public async Task<MailruPostmasterSyncRunResult> RunOnceAsync(CancellationToken cancellationToken = default)
@@ -177,8 +221,7 @@ public sealed class MailruPostmasterSynchronizer(
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        var moscowNow = TimeZoneInfo.ConvertTime(nowUtc, MoscowTimeZone);
-        var moscowToday = DateOnly.FromDateTime(moscowNow.Date);
+        var moscowToday = MailruPostmasterSyncSchedule.GetMoscowDate(nowUtc);
         var dateTo = moscowToday.AddDays(-1);
 
         if (lastDomainDate is null)
@@ -391,16 +434,89 @@ public sealed class MailruPostmasterSynchronizer(
 
     private static string NormalizeDomain(string domain) =>
         domain.Trim().TrimEnd('.').ToLowerInvariant();
+}
 
-    private static TimeZoneInfo ResolveMoscowTimeZone()
+public sealed class MailruPostmasterSyncHostedService(
+    IMailruPostmasterSynchronizer synchronizer,
+    MailruPostmasterOptions integrationOptions,
+    MailruPostmasterSyncOptions syncOptions,
+    TimeProvider timeProvider,
+    ILogger<MailruPostmasterSyncHostedService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        if (!integrationOptions.Enabled)
+        {
+            logger.LogInformation("Mail.ru Postmaster background synchronization is disabled.");
+            return;
+        }
+
+        if (!integrationOptions.IsConfigured)
+        {
+            logger.LogWarning(
+                "Mail.ru Postmaster background synchronization is not configured. domain={Domain}",
+                integrationOptions.Domain);
+            return;
+        }
+
+        logger.LogInformation(
+            "Mail.ru Postmaster background synchronization started. domain={Domain} syncHourMoscow={SyncHourMoscow} backfillDays={BackfillDays} resyncRecentDays={ResyncRecentDays}",
+            integrationOptions.Domain,
+            syncOptions.SyncHourMoscow,
+            syncOptions.BackfillDays,
+            syncOptions.ResyncRecentDays);
+
+        if (!await RunOnceSafelyAsync(stoppingToken))
+        {
+            return;
+        }
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            var now = timeProvider.GetUtcNow();
+            var nextRunAt = MailruPostmasterSyncSchedule.GetNextRunAtUtc(now, syncOptions.SyncHourMoscow);
+            var delay = nextRunAt - now;
+
+            logger.LogInformation(
+                "Mail.ru Postmaster next synchronization scheduled. domain={Domain} nextRunAtUtc={NextRunAtUtc} delaySeconds={DelaySeconds}",
+                integrationOptions.Domain,
+                nextRunAt,
+                Math.Max(0, delay.TotalSeconds));
+
+            try
+            {
+                await Task.Delay(delay, timeProvider, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (!await RunOnceSafelyAsync(stoppingToken))
+            {
+                return;
+            }
+        }
+    }
+
+    private async Task<bool> RunOnceSafelyAsync(CancellationToken stoppingToken)
     {
         try
         {
-            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Moscow");
+            await synchronizer.RunOnceAsync(stoppingToken);
+            return true;
         }
-        catch (TimeZoneNotFoundException)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            return TimeZoneInfo.FindSystemTimeZoneById("Russian Standard Time");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Mail.ru Postmaster background synchronization iteration failed without affecting the application host. domain={Domain}",
+                integrationOptions.Domain);
+            return true;
         }
     }
 }
