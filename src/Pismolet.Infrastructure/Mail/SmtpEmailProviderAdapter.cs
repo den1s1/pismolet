@@ -33,6 +33,7 @@ public sealed class SmtpEmailProviderAdapter(
 {
     private const string FallbackPublicBaseUrl = "https://app.pismolet.ru";
     private const string ServiceFooterLinkText = "Отписаться от писем через Письмолёт";
+    private const string ServiceIdentifierPrefix = "Служебный идентификатор рассылки:";
 
     public string ProviderName => GetTransportName();
 
@@ -175,6 +176,7 @@ public sealed class SmtpEmailProviderAdapter(
         var plainTextBody = ReplaceRelativeUrl(message.PlainTextBody, message.UnsubscribeUrl, unsubscribeUrl);
         plainTextBody = ReplaceVisibleRelativeUnsubscribeLinks(plainTextBody);
         plainTextBody = KeepSingleVisibleUnsubscribeLink(plainTextBody, unsubscribeUrl);
+        plainTextBody = RemoveVisibleServiceIdentifier(plainTextBody);
         var metadata = new Dictionary<string, string>(message.Metadata, StringComparer.OrdinalIgnoreCase)
         {
             ["listUnsubscribe"] = $"<{unsubscribeUrl}>",
@@ -197,6 +199,7 @@ public sealed class SmtpEmailProviderAdapter(
         var textBody = ReplaceRelativeUrl(message.PlainTextBody, message.UnsubscribeUrl, unsubscribeUrl);
         textBody = ReplaceVisibleRelativeUnsubscribeLinks(textBody);
         textBody = KeepSingleVisibleUnsubscribeLink(textBody, unsubscribeUrl);
+        textBody = RemoveVisibleServiceIdentifier(textBody);
         var trackingPixelUrl = BuildTrackingPixelUrl(message);
         var clickTrackingUrlFactory = BuildClickTrackingUrlFactory(message);
         var isHtmlBody = message.BodyFormat == MessageBodyFormat.Html;
@@ -435,6 +438,19 @@ public sealed class SmtpEmailProviderAdapter(
         return second < 0 ? text : text.Remove(second, unsubscribeUrl.Length).Insert(second, "ссылку выше");
     }
 
+    private static string RemoveVisibleServiceIdentifier(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return text;
+        }
+
+        var paragraphs = text
+            .Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.None)
+            .Where(paragraph => !paragraph.TrimStart().StartsWith(ServiceIdentifierPrefix, StringComparison.OrdinalIgnoreCase));
+        return string.Join("\n\n", paragraphs).TrimEnd();
+    }
+
     private string BuildTrackingPixelUrl(EmailMessage message)
     {
         var token = SendEvent.BuildTrackingToken(message.MailingId, message.Recipient.Email);
@@ -545,6 +561,7 @@ public sealed class SmtpEmailProviderAdapter(
             .Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.RemoveEmptyEntries)
             .Select(paragraph => paragraph.Trim())
             .Where(paragraph => !string.IsNullOrWhiteSpace(paragraph))
+            .Where(paragraph => !paragraph.StartsWith(ServiceIdentifierPrefix, StringComparison.OrdinalIgnoreCase))
             .ToArray();
         if (paragraphs.Length == 0)
         {
