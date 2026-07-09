@@ -106,6 +106,7 @@ app.UseAuthorization();
 app.UseAdminMenuVisibility();
 app.UseAdminSettingsMenuLink();
 app.UseUnifiedAdminSidebar();
+app.UseAdminModerationMessagePreview();
 app.UseDashboardHeroRemoval();
 app.UseRecipientManagementAjax();
 app.UseLegalDeclarationEvidenceCapture();
