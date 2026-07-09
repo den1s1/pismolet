@@ -11,11 +11,11 @@ public static class MailingServiceEmailFooter
     }
 
     public static string UnsubscribeLine(string unsubscribeUrl) =>
-        $"Отписаться от писем через Письмолёт:\n{unsubscribeUrl}";
+        $"Отписаться от всех рассылок через сервис: {unsubscribeUrl}";
 
     public static string ServiceIdentifier(string publicId) =>
         $"Служебный идентификатор рассылки: {publicId}";
 
     public static string PlainText(string body, string senderName, string unsubscribeUrl, string serviceIdentifier) =>
-        string.Join("\n\n", body.TrimEnd(), Reason(senderName), UnsubscribeLine(unsubscribeUrl));
+        string.Join("\n\n", body, Reason(senderName), UnsubscribeLine(unsubscribeUrl), serviceIdentifier);
 }
