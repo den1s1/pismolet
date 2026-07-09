@@ -206,11 +206,11 @@ public sealed class MailruPostmasterSynchronizer(
         var stage = "storage_initialization";
         MailruPostmasterSyncDateRange? range = null;
 
-        using var scope = scopeFactory.CreateScope();
-        var storage = scope.ServiceProvider.GetRequiredService<IMailruPostmasterStorage>();
-
         try
         {
+            using var scope = scopeFactory.CreateScope();
+            var storage = scope.ServiceProvider.GetRequiredService<IMailruPostmasterStorage>();
+
             var state = await storage.GetSyncStateAsync(domain, cancellationToken);
             range = CalculateDateRange(startedAt, state?.LastDomainDate, syncOptions);
             await storage.MarkAttemptAsync(domain, startedAt, cancellationToken);
@@ -299,7 +299,7 @@ public sealed class MailruPostmasterSynchronizer(
             stage = "metric_storage";
             await storage.UpsertDomainDailyMetricsAsync(metrics, observedAt, cancellationToken);
 
-            stage = "sync_state_success";
+            stage = "sync_state_storage";
             await storage.MarkSuccessAsync(domain, observedAt, range.DateTo, cancellationToken);
 
             stopwatch.Stop();
