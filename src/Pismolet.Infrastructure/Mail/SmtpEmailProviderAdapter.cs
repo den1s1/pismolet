@@ -223,6 +223,7 @@ public sealed class SmtpEmailProviderAdapter(
         if (message.Metadata.TryGetValue("mailingId", out var mailingId))
         {
             mime.Headers.Replace("X-Pismolet-Mailing-Id", mailingId);
+            mime.Headers.Replace("X-Postmaster-Msgtype", BuildPostmasterMessageType(mailingId));
         }
 
         if (message.Metadata.TryGetValue("recipientKey", out var recipientKey))
@@ -654,6 +655,8 @@ public sealed class SmtpEmailProviderAdapter(
     private static string BuildTrackingPixelHtml(string? trackingPixelUrl) => string.IsNullOrWhiteSpace(trackingPixelUrl)
         ? string.Empty
         : $"<img src=\"{WebUtility.HtmlEncode(trackingPixelUrl)}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none;width:1px;height:1px;opacity:0\" />";
+
+    private static string BuildPostmasterMessageType(string mailingId) => $"mailing-{mailingId.Trim()}";
 
     private static int LastIndexOfOrdinalIgnoreCase(string value, string search) => value.LastIndexOf(search, StringComparison.OrdinalIgnoreCase);
 }
