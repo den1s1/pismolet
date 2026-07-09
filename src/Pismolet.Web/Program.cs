@@ -8,6 +8,7 @@ using Pismolet.Web.BackgroundServices;
 using Pismolet.Web.Endpoints;
 using Pismolet.Web.Infrastructure.DependencyInjection;
 using Pismolet.Web.Infrastructure.Mail;
+using Pismolet.Web.Infrastructure.Postmaster;
 
 var builder = WebApplication.CreateBuilder(args);
 var isRunningUnderTests = builder.Environment.IsEnvironment("Testing") || IsRunningUnderTests();
@@ -52,6 +53,7 @@ builder.Services.AddAuthorization(options =>
         }));
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
+builder.Services.AddMailruPostmasterIntegration(builder.Configuration);
 builder.Services.AddPismoletProdamusPayment(builder.Configuration);
 builder.Services.AddSingleton(ReadInboundReplySpoolOptions(builder.Configuration));
 builder.Services.AddSingleton<IInboundReplyMimeParser, PostfixRawMimeInboundReplyParser>();
@@ -145,6 +147,7 @@ app.MapAdminPostfixDeliveryEndpoints();
 app.MapAdminPostfixDeliverySettingsEndpoints();
 app.MapAdminReplyEndpoints();
 app.MapAdminSprint10Endpoints();
+app.MapMailruPostmasterDiagnosticsEndpoints();
 app.MapUnsubscribeEndpoints();
 app.MapOpenTrackingEndpoints();
 app.MapClickTrackingEndpoints();
