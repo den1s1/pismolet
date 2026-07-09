@@ -54,6 +54,7 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddPismoletWebServices(builder.Configuration);
 builder.Services.AddMailruPostmasterIntegration(builder.Configuration);
+builder.Services.AddMailruPostmasterPersistence(builder.Configuration);
 builder.Services.AddPismoletProdamusPayment(builder.Configuration);
 builder.Services.AddSingleton(ReadInboundReplySpoolOptions(builder.Configuration));
 builder.Services.AddSingleton<IInboundReplyMimeParser, PostfixRawMimeInboundReplyParser>();
