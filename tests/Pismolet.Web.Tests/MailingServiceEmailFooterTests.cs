@@ -46,12 +46,14 @@ public sealed class MailingServiceEmailFooterTests
     }
 
     [Fact]
-    public void Mailru_postmaster_message_type_uses_stable_mailing_identifier()
+    public void Mailru_postmaster_message_type_uses_only_letters_and_digits_and_is_at_most_32_chars()
     {
         var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildPostmasterMessageType", BindingFlags.NonPublic | BindingFlags.Static);
 
-        var messageType = Assert.IsType<string>(method!.Invoke(null, new object?[] { " 64138d5d0123456789abcdef01234567 " }));
+        var messageType = Assert.IsType<string>(method!.Invoke(null, new object?[] { " 64138d5d-0123-4567-89ab-cdef01234567-extra " }));
 
-        Assert.Equal("mailing-64138d5d0123456789abcdef01234567", messageType);
+        Assert.Equal("64138d5d0123456789abcdef01234567", messageType);
+        Assert.Equal(32, messageType.Length);
+        Assert.All(messageType, ch => Assert.True(char.IsAsciiLetterOrDigit(ch)));
     }
 }
