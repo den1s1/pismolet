@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pismolet.Web.Infrastructure.Postmaster;
 
 #nullable disable
@@ -11,7 +12,11 @@ public partial class MailruPostmasterDbContextModelSnapshot : ModelSnapshot
 {
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasAnnotation("ProductVersion", "9.0.17");
+        modelBuilder
+            .HasAnnotation("ProductVersion", "9.0.17")
+            .HasAnnotation("Relational:MaxIdentifierLength", 63);
+
+        NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
         modelBuilder.Entity<MailruPostmasterDomainDailyMetricEntity>(entity =>
         {
