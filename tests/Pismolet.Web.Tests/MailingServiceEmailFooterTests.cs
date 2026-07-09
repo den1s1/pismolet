@@ -8,31 +8,31 @@ namespace Pismolet.Web.Tests;
 public sealed class MailingServiceEmailFooterTests
 {
     [Fact]
-    public void Plain_text_footer_is_separated_and_does_not_expose_service_identifier()
+    public void Internal_footer_keeps_service_identifier_for_preview_and_diagnostics()
     {
         const string unsubscribeUrl = "https://app.pismolet.ru/unsubscribe/test-token";
+        const string serviceIdentifier = "Служебный идентификатор рассылки: PL-TEST123";
 
         var body = MailingServiceEmailFooter.PlainText(
             "Основной текст письма.",
             "Тестовый отправитель",
             unsubscribeUrl,
-            "PL-TEST123");
+            serviceIdentifier);
 
         Assert.Contains("Основной текст письма.\n\nВы получили это письмо от Тестовый отправитель через Письмолёт", body, StringComparison.Ordinal);
-        Assert.Contains($"\n\nОтписаться от писем через Письмолёт:\n{unsubscribeUrl}", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("Служебный идентификатор рассылки", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("PL-TEST123", body, StringComparison.Ordinal);
+        Assert.Contains($"\n\nОтписаться от всех рассылок через сервис: {unsubscribeUrl}", body, StringComparison.Ordinal);
+        Assert.Contains(serviceIdentifier, body, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Html_footer_uses_compact_link_and_separate_visual_block()
+    public void Html_footer_uses_compact_link_and_hides_service_identifier()
     {
         const string unsubscribeUrl = "https://app.pismolet.ru/unsubscribe/test-token";
         var plainText = MailingServiceEmailFooter.PlainText(
             "Основной текст письма.",
             "Тестовый отправитель",
             unsubscribeUrl,
-            "PL-TEST123");
+            "Служебный идентификатор рассылки: PL-TEST123");
         var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildHtmlBody", BindingFlags.NonPublic | BindingFlags.Static);
 
         var html = Assert.IsType<string>(method!.Invoke(null, new object?[] { plainText, unsubscribeUrl, null, null }));
@@ -42,5 +42,6 @@ public sealed class MailingServiceEmailFooterTests
         Assert.Contains(">Отписаться от писем через Письмолёт</a>", html, StringComparison.Ordinal);
         Assert.DoesNotContain($">{unsubscribeUrl}<", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Служебный идентификатор рассылки", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("PL-TEST123", html, StringComparison.Ordinal);
     }
 }
