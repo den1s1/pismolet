@@ -6,6 +6,7 @@
 
 - `docs/mailru_postmaster_api_integration_plan.md`
 - `docs/mailru_postmaster_api_sprints.md`
+- `docs/mailru_postmaster_sync_architecture.md`
 
 ## 1. Принцип хранения секрета
 
@@ -25,8 +26,27 @@
 MailruPostmaster__Enabled=true
 MailruPostmaster__Domain=pismolet.ru
 MailruPostmaster__RefreshToken=<реальный refresh_token>
+MailruPostmaster__SyncHourMoscow=6
+MailruPostmaster__BackfillDays=30
+MailruPostmaster__ResyncRecentDays=3
 MailruPostmaster__RequestTimeoutSeconds=15
 MailruPostmaster__MaxRateLimitDelaySeconds=10
+```
+
+Значения параметров фоновой синхронизации по умолчанию:
+
+```text
+SyncHourMoscow=6
+BackfillDays=30
+ResyncRecentDays=3
+```
+
+Допустимые пределы:
+
+```text
+SyncHourMoscow: 0..23
+BackfillDays: 1..365
+ResyncRecentDays: 1..30
 ```
 
 Дополнительные URL имеют безопасные значения по умолчанию и обычно не задаются:
@@ -60,6 +80,8 @@ sudo chmod 640 /путь/к/файлу
 ```
 
 Имя группы необходимо заменить на фактическую группу сервиса.
+
+Перед изменением production EnvironmentFile обязательно создать резервную копию.
 
 ## 4. Включение
 
@@ -100,7 +122,7 @@ Endpoint доступен только авторизованному админ
 
 ## 6. Отключение
 
-Для аварийного отключения API-интеграции установить:
+Для аварийного отключения API-интеграции и фоновой синхронизации установить:
 
 ```text
 MailruPostmaster__Enabled=false
@@ -111,6 +133,8 @@ MailruPostmaster__Enabled=false
 ```bash
 sudo systemctl restart pismolet
 ```
+
+При `Enabled=false` фоновый сервис не обращается ни к Mail.ru API, ни к Postmaster storage.
 
 Отключение интеграции не меняет SMTP-отправку и не удаляет заголовки `X-Postmaster-Msgtype` и `Precedence: bulk`.
 
@@ -189,7 +213,15 @@ OversignHeaders         From
 
 Хранилище Postmaster использует отдельный `MailruPostmasterDbContext` и отдельный снимок модели, но ту же production-базу PostgreSQL.
 
-Перед включением фоновой синхронизации применить миграцию:
+Миграция `20260709201409_InitialMailruPostmasterStorage` применена в production 2026-07-09. Проверено наличие трёх таблиц:
+
+```text
+mailru_postmaster_domain_daily_metrics
+mailru_postmaster_sync_states
+mailru_postmaster_trouble_snapshots
+```
+
+Для нового контура или восстановления БД миграция применяется штатной EF-командой для `MailruPostmasterDbContext`:
 
 ```bash
 cd /opt/pismolet
@@ -204,3 +236,81 @@ dotnet ef database update \
 ```
 
 Команду выполнять только после зелёной сборки и тестов актуального HEAD. Не выводить значение строки подключения или токена в журнал терминала.
+
+## 11. Поведение фоновой синхронизации PM-2
+
+Если интеграция включена и настроена, `MailruPostmasterSyncHostedService`:
+
+1. Выполняет один запуск сразу после старта приложения.
+2. После завершения итерации вычисляет следующий запуск по московскому времени.
+3. Запускается далее один раз в сутки в час `SyncHourMoscow`.
+4. При первом запуске загружает `BackfillDays` завершённых календарных дней.
+5. При следующих запусках повторно синхронизирует последние `ResyncRecentDays` и одновременно догружает пропуски после простоя.
+6. Не запрашивает текущий незавершённый день по Москве.
+7. Обновляет метрики идемпотентно по ключу `Domain + Date`.
+8. Использует persistent sync state для хранения последней попытки, успеха, ошибки и последней обработанной даты.
+9. Не допускает параллельных запусков внутри текущего экземпляра приложения.
+10. Корректно отменяет ожидание и активную итерацию при остановке приложения.
+
+Первый запуск после каждого перезапуска выполняется намеренно. Повторная обработка безопасна благодаря идемпотентному upsert и повторной синхронизации свежего диапазона.
+
+Ошибки Mail.ru API и ошибки Postmaster storage:
+
+- фиксируются структурированными логами;
+- завершают только текущую итерацию;
+- не должны останавливать application host;
+- не должны влиять на SMTP-отправку, оплату, модерацию или пользовательский кабинет.
+
+Неожиданное исключение, вышедшее из orchestrator, дополнительно перехватывается hosted service и также не завершает host.
+
+## 12. Ожидаемые журнальные события PM-2
+
+При запуске фонового сервиса ожидается запись:
+
+```text
+Mail.ru Postmaster background synchronization started.
+```
+
+Для каждой итерации ожидаются записи начала и результата:
+
+```text
+Mail.ru Postmaster synchronization started.
+Mail.ru Postmaster synchronization completed.
+```
+
+После итерации ожидается запись следующего времени запуска:
+
+```text
+Mail.ru Postmaster next synchronization scheduled.
+```
+
+При ошибке API ожидается структурированная запись:
+
+```text
+Mail.ru Postmaster synchronization failed.
+```
+
+В журналах не должны присутствовать:
+
+- `refresh_token`;
+- `access_token`;
+- значение заголовка `Authorization`;
+- значение заголовка `Bearer`;
+- полный сырой ответ OAuth или Postmaster API.
+
+## 13. Production smoke-проверка фоновой синхронизации PM-2
+
+После выкладки проверить по одному действию за раз:
+
+- [ ] Перед изменением EnvironmentFile создана резервная копия.
+- [ ] В EnvironmentFile заданы безопасные значения расписания, backfill и свежего диапазона.
+- [ ] `pismolet.service` остаётся активным.
+- [ ] Пользовательские страницы и `/health` доступны.
+- [ ] В журнале есть старт фоновой синхронизации.
+- [ ] В журнале есть успешное завершение первой итерации либо безопасно обработанная ошибка внешнего API.
+- [ ] В журнале указано следующее время запуска.
+- [ ] В `mailru_postmaster_sync_states` обновлено состояние домена.
+- [ ] В таблице ежедневных метрик нет дублей по `Domain + Date`.
+- [ ] Повторный запуск обновляет существующие дни, а не создаёт дубли.
+- [ ] В журнале нет ошибок, завершающих host, ошибок отправки писем или утечки токенов.
+- [ ] SMTP-отправка продолжает работать независимо от результата Postmaster API.
