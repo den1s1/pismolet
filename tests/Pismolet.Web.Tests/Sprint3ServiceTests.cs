@@ -8,7 +8,7 @@ namespace Pismolet.Web.Tests;
 public sealed class Sprint3ServiceTests
 {
     [Fact]
-    public void Message_rendering_adds_unsubscribe_reason_without_visible_service_identifier()
+    public void Message_rendering_adds_unsubscribe_reason_and_service_identifier()
     {
         var mailing = Mailing
             .Draft("client@test.local", "Новости")
@@ -29,8 +29,7 @@ public sealed class Sprint3ServiceTests
 
         Assert.Contains("/unsubscribe/", preview.PlainText);
         Assert.Contains("Вы получили это письмо от Письмолёт через Письмолёт", preview.PlainText);
-        Assert.Contains("Отписаться от писем через Письмолёт:", preview.PlainText);
-        Assert.DoesNotContain("Служебный идентификатор рассылки", preview.PlainText);
+        Assert.Contains("Служебный идентификатор рассылки", preview.PlainText);
         Assert.DoesNotContain("Почему вы получили это письмо", preview.PlainText);
         Assert.DoesNotContain("Отписка действует глобально", preview.PlainText);
     }
@@ -47,9 +46,8 @@ public sealed class Sprint3ServiceTests
 
         Assert.Equal("Вы получили это письмо от Библиотека №5 через Письмолёт, потому что отправитель указал, что у него есть законное основание связаться с вами по этому адресу. Если вы не хотите получать такие письма через Письмолёт, вы можете отписаться от всех рассылок через сервис.", reason);
         Assert.Contains(reason, plain);
-        Assert.Contains("Отписаться от писем через Письмолёт:\n/unsubscribe/example-token", plain);
-        Assert.DoesNotContain("Служебный идентификатор рассылки", plain);
-        Assert.DoesNotContain("PL-TEST", plain);
+        Assert.Contains("Отписаться от всех рассылок через сервис: /unsubscribe/example-token", plain);
+        Assert.Contains("Служебный идентификатор рассылки: PL-TEST", plain);
         Assert.DoesNotContain("Почему вы получили это письмо", plain);
         Assert.DoesNotContain("Отписка действует глобально", plain);
     }
