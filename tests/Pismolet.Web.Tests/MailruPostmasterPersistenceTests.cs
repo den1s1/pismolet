@@ -8,6 +8,38 @@ namespace Pismolet.Web.Tests;
 public sealed class MailruPostmasterPersistenceTests
 {
     [Fact]
+    public void DesignTimeFactory_PrefersProductionConnectionString()
+    {
+        const string configuredConnectionString = "Host=production;Database=pismolet;Username=pismolet;Password=configured";
+        const string legacyConnectionString = "Host=legacy;Database=pismolet;Username=pismolet;Password=legacy";
+
+        var actual = MailruPostmasterDbContextFactory.ResolveConnectionString(
+            configuredConnectionString,
+            legacyConnectionString);
+
+        Assert.Equal(configuredConnectionString, actual);
+    }
+
+    [Fact]
+    public void DesignTimeFactory_UsesLegacyConnectionStringAsFallback()
+    {
+        const string legacyConnectionString = "Host=legacy;Database=pismolet;Username=pismolet;Password=legacy";
+
+        var actual = MailruPostmasterDbContextFactory.ResolveConnectionString(null, legacyConnectionString);
+
+        Assert.Equal(legacyConnectionString, actual);
+    }
+
+    [Fact]
+    public void DesignTimeFactory_RejectsMissingConnectionString()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            MailruPostmasterDbContextFactory.ResolveConnectionString(null, null));
+
+        Assert.Contains("ConnectionStrings__PismoletDb", exception.Message);
+    }
+
+    [Fact]
     public async Task UpsertDomainDailyMetricsAsync_UpdatesExistingDayWithoutDuplicate()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
