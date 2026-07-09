@@ -55,6 +55,6 @@ public static class AdminModerationMessagePreviewMiddlewareExtensions
         HttpMethods.IsGet(context.Request.Method) &&
         context.Request.Path.StartsWithSegments("/admin/moderation", out var remaining) &&
         remaining.HasValue &&
-        remaining.Value!.StartsWith('/', StringComparison.Ordinal) &&
+        remaining.Value!.StartsWith("/", StringComparison.Ordinal) &&
         context.Response.ContentType?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true;
 }
