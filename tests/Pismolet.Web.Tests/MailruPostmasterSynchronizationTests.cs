@@ -99,8 +99,9 @@ public sealed class MailruPostmasterSynchronizationTests
         Assert.True(trouble.IsActive);
         Assert.Equal(-1, trouble.Code);
 
-        var state = Assert.NotNull(await context.LoadStateAsync());
-        Assert.Equal(new DateOnly(2026, 7, 9), state.LastDomainDate);
+        var state = await context.LoadStateAsync();
+        Assert.NotNull(state);
+        Assert.Equal(new DateOnly(2026, 7, 9), state!.LastDomainDate);
         Assert.Equal(0, state.ConsecutiveFailures);
         Assert.NotNull(state.LastSuccessAt);
     }
@@ -152,18 +153,21 @@ public sealed class MailruPostmasterSynchronizationTests
         await using var context = await SyncTestContext.CreateAsync(client);
 
         var failed = await context.Synchronizer.RunOnceAsync();
-        var failedState = Assert.NotNull(await context.LoadStateAsync());
+        var failedState = await context.LoadStateAsync();
+        Assert.NotNull(failedState);
+
         var recovered = await context.Synchronizer.RunOnceAsync();
-        var recoveredState = Assert.NotNull(await context.LoadStateAsync());
+        var recoveredState = await context.LoadStateAsync();
+        Assert.NotNull(recoveredState);
 
         Assert.Equal(MailruPostmasterSyncRunStatus.Failed, failed.Status);
         Assert.Equal("api_timeout", failed.ErrorCode);
-        Assert.Equal(1, failedState.ConsecutiveFailures);
+        Assert.Equal(1, failedState!.ConsecutiveFailures);
         Assert.Equal("api_timeout", failedState.LastErrorCode);
         Assert.Null(failedState.LastSuccessAt);
 
         Assert.Equal(MailruPostmasterSyncRunStatus.Succeeded, recovered.Status);
-        Assert.Equal(0, recoveredState.ConsecutiveFailures);
+        Assert.Equal(0, recoveredState!.ConsecutiveFailures);
         Assert.Null(recoveredState.LastErrorCode);
         Assert.NotNull(recoveredState.LastSuccessAt);
         Assert.Single(await context.LoadMetricsAsync());
@@ -289,7 +293,7 @@ public sealed class MailruPostmasterSynchronizationTests
         public MailruPostmasterResult<IReadOnlyList<MailruPostmasterDailyStatistics>> DetailedStatisticsResult { get; set; } =
             MailruPostmasterResult<IReadOnlyList<MailruPostmasterDailyStatistics>>.Success([]);
 
-        public Queue<MailruPostmasterResult<IReadOnlyList<MailruPostmasterDailyStatistics>>> DetailedResults { get; } = [];
+        public Queue<MailruPostmasterResult<IReadOnlyList<MailruPostmasterDailyStatistics>>> DetailedResults { get; } = new();
 
         public Func<DateOnly, DateOnly?, string?, CancellationToken, Task<MailruPostmasterResult<IReadOnlyList<MailruPostmasterDailyStatistics>>>>? DetailedHandler { get; set; }
 
