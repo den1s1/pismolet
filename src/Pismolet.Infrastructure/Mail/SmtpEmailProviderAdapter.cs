@@ -32,6 +32,7 @@ public sealed class SmtpEmailProviderAdapter(
     IClickTrackingRepository? clickTracking = null) : IEmailProviderAdapter
 {
     private const string FallbackPublicBaseUrl = "https://app.pismolet.ru";
+    private const string ServiceFooterLinkText = "Отписаться от писем через Письмолёт";
 
     public string ProviderName => GetTransportName();
 
@@ -464,7 +465,8 @@ public sealed class SmtpEmailProviderAdapter(
 
     private static string BuildHtmlBody(string plainText, string unsubscribeUrl, string? trackingPixelUrl, Func<string, string?>? clickTrackingUrlFactory = null)
     {
-        var html = WebUtility.HtmlEncode(plainText).Replace("\n", "<br>\n", StringComparison.Ordinal);
+        var parts = SplitServiceFooter(plainText);
+        var html = WebUtility.HtmlEncode(parts.Body).Replace("\n", "<br>\n", StringComparison.Ordinal);
         if (clickTrackingUrlFactory is not null)
         {
             html = EmailClickTrackingHtmlRewriter.RewriteHtmlEncodedPlainTextLinks(html, unsubscribeUrl, clickTrackingUrlFactory);
@@ -473,24 +475,34 @@ public sealed class SmtpEmailProviderAdapter(
         if (!string.IsNullOrWhiteSpace(unsubscribeUrl))
         {
             var encodedUrl = WebUtility.HtmlEncode(unsubscribeUrl);
-            html = html.Replace(encodedUrl, $"<a href=\"{encodedUrl}\">Отписаться</a>", StringComparison.Ordinal);
+            html = html.Replace(encodedUrl, $"<a href=\"{encodedUrl}\">{ServiceFooterLinkText}</a>", StringComparison.Ordinal);
         }
 
+        var footer = BuildHtmlFooterFromPlainText(parts.Footer, unsubscribeUrl);
         var trackingPixel = BuildTrackingPixelHtml(trackingPixelUrl);
-        return $"<!doctype html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;\"><p>{html}</p>{trackingPixel}</body></html>";
+        return $"<!doctype html><html><head><meta charset=\"utf-8\"></head><body style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#222;\"><div>{html}</div>{footer}{trackingPixel}</body></html>";
     }
 
     private static string BuildHtmlBodyFromHtml(string htmlText, string unsubscribeUrl, string? trackingPixelUrl, Func<string, string?>? clickTrackingUrlFactory = null)
     {
-        var source = RemoveUnsupportedHtml(htmlText.Trim());
-        var documentHtml = source;
-        var footerText = string.Empty;
-        var htmlEnd = LastIndexOfOrdinalIgnoreCase(source, "</html>");
-        if (htmlEnd >= 0)
+        var parts = SplitServiceFooter(htmlText);
+        if (!LooksLikeHtml(parts.Body))
         {
-            var end = htmlEnd + "</html>".Length;
-            documentHtml = source[..end];
-            footerText = source[end..].Trim();
+            return BuildHtmlBody(htmlText, unsubscribeUrl, trackingPixelUrl, clickTrackingUrlFactory);
+        }
+
+        var source = RemoveUnsupportedHtml(parts.Body.Trim());
+        var documentHtml = source;
+        var footerText = parts.Footer;
+        if (string.IsNullOrWhiteSpace(footerText))
+        {
+            var htmlEnd = LastIndexOfOrdinalIgnoreCase(source, "</html>");
+            if (htmlEnd >= 0)
+            {
+                var end = htmlEnd + "</html>".Length;
+                documentHtml = source[..end];
+                footerText = source[end..].Trim();
+            }
         }
 
         if (clickTrackingUrlFactory is not null)
@@ -531,7 +543,7 @@ public sealed class SmtpEmailProviderAdapter(
 
         var paragraphs = footerText
             .Split(new[] { "\r\n\r\n", "\n\n", "\r\r" }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(paragraph => WebUtility.HtmlEncode(paragraph.Trim()).Replace("\n", "<br>\n", StringComparison.Ordinal))
+            .Select(paragraph => paragraph.Trim())
             .Where(paragraph => !string.IsNullOrWhiteSpace(paragraph))
             .ToArray();
         if (paragraphs.Length == 0)
@@ -540,9 +552,41 @@ public sealed class SmtpEmailProviderAdapter(
         }
 
         var encodedUnsubscribeUrl = WebUtility.HtmlEncode(unsubscribeUrl);
-        var htmlParagraphs = string.Join(string.Empty, paragraphs.Select(paragraph => $"<p>{paragraph.Replace(encodedUnsubscribeUrl, $"<a href=\"{encodedUnsubscribeUrl}\">Отписаться</a>", StringComparison.Ordinal)}</p>"));
-        return $"<div style=\"margin-top:24px;padding-top:14px;border-top:1px solid #dbe4ef;color:#64748b;font-size:12px;line-height:1.45;\">{htmlParagraphs}</div>";
+        var htmlParagraphs = string.Join(string.Empty, paragraphs.Select((paragraph, index) =>
+        {
+            var encodedParagraph = WebUtility.HtmlEncode(paragraph).Replace("\n", "<br>\n", StringComparison.Ordinal);
+            var content = !string.IsNullOrWhiteSpace(encodedUnsubscribeUrl) && encodedParagraph.Contains(encodedUnsubscribeUrl, StringComparison.Ordinal)
+                ? $"<a href=\"{encodedUnsubscribeUrl}\" style=\"color:#2563eb;text-decoration:underline;\">{ServiceFooterLinkText}</a>"
+                : encodedParagraph;
+            var margin = index == paragraphs.Length - 1 ? "0" : "0 0 10px";
+            return $"<p style=\"margin:{margin};\">{content}</p>";
+        }));
+        return $"<div style=\"margin-top:28px;padding-top:16px;border-top:1px solid #dbe4ef;color:#64748b;font-size:12px;line-height:1.5;\">{htmlParagraphs}</div>";
     }
+
+    private static (string Body, string Footer) SplitServiceFooter(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return (text, string.Empty);
+        }
+
+        var unixMarker = "\n\n" + MailingServiceEmailFooter.ReasonPrefix;
+        var index = text.LastIndexOf(unixMarker, StringComparison.Ordinal);
+        if (index >= 0)
+        {
+            return (text[..index].TrimEnd(), text[(index + 2)..].Trim());
+        }
+
+        var windowsMarker = "\r\n\r\n" + MailingServiceEmailFooter.ReasonPrefix;
+        index = text.LastIndexOf(windowsMarker, StringComparison.Ordinal);
+        return index >= 0
+            ? (text[..index].TrimEnd(), text[(index + 4)..].Trim())
+            : (text, string.Empty);
+    }
+
+    private static bool LooksLikeHtml(string text) =>
+        Regex.IsMatch(text, @"<\s*(html|body|div|p|table|section|article|h[1-6]|ul|ol|li|br|span|a)\b", RegexOptions.IgnoreCase);
 
     private static string RewriteRawHtmlLinks(string html, string unsubscribeUrl, Func<string, string?> clickTrackingUrlFactory)
     {
