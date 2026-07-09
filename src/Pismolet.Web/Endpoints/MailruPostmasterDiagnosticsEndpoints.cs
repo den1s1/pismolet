@@ -79,8 +79,7 @@ public static class MailruPostmasterDiagnosticsEndpoints
         var domainRegistered = domains.Data?.Any(x => x.Domain.Equals(options.Domain, StringComparison.OrdinalIgnoreCase)) == true;
         var domainTroubles = troubles.Data?
             .Where(x => x.Domain.Equals(options.Domain, StringComparison.OrdinalIgnoreCase))
-            .Select(x => new { x.Code, x.Message })
-            .ToArray() ?? [];
+            .ToArray() ?? Array.Empty<MailruPostmasterTrouble>();
 
         return Results.Ok(new
         {
