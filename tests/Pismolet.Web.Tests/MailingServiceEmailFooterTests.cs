@@ -1,4 +1,7 @@
 using System.Reflection;
+using Microsoft.Extensions.Logging.Abstractions;
+using MimeKit;
+using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Infrastructure.Mail;
 using Xunit;
@@ -55,5 +58,45 @@ public sealed class MailingServiceEmailFooterTests
         Assert.Equal("64138d5d0123456789abcdef01234567", messageType);
         Assert.Equal(32, messageType.Length);
         Assert.All(messageType, ch => Assert.True(char.IsAsciiLetterOrDigit(ch)));
+    }
+
+    [Fact]
+    public void Mailing_mime_message_has_bulk_precedence_and_postmaster_headers()
+    {
+        var mailingId = Guid.Parse("87462f9c-ae73-4d90-aba8-69b980f49452");
+        var adapter = new SmtpEmailProviderAdapter(
+            new SmtpEmailProviderOptions(
+                Host: "127.0.0.1",
+                Port: 25,
+                Username: string.Empty,
+                Password: string.Empty,
+                FromEmail: "info@pismolet.ru",
+                FromName: "Письмолёт",
+                SecureSocketOptions: "None",
+                TimeoutSeconds: 30),
+            new PublicUrlOptions("https://app.pismolet.ru"),
+            NullLogger<SmtpEmailProviderAdapter>.Instance);
+        var message = new EmailMessage(
+            MailingId: mailingId,
+            Recipient: new EmailRecipient("recipient@mail.ru"),
+            SenderName: "Тестовый отправитель",
+            Subject: "Тестовая рассылка",
+            PlainTextBody: "Текст письма",
+            UnsubscribeUrl: "https://app.pismolet.ru/unsubscribe/test-token",
+            ServiceIdentifier: "PL-TEST",
+            ReplyToAddress: "reply@reply.pismolet.ru",
+            ReplyToken: "reply-token",
+            Metadata: new Dictionary<string, string>
+            {
+                ["mailingId"] = mailingId.ToString("N"),
+                ["recipientKey"] = "recipient-key"
+            });
+        var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildMimeMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        var mime = Assert.IsType<MimeMessage>(method!.Invoke(adapter, new object?[] { message }));
+
+        Assert.Equal("bulk", mime.Headers["Precedence"]);
+        Assert.Equal(mailingId.ToString("N"), mime.Headers["X-Pismolet-Mailing-Id"]);
+        Assert.Equal(mailingId.ToString("N"), mime.Headers["X-Postmaster-Msgtype"]);
     }
 }
