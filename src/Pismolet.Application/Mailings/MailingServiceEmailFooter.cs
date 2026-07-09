@@ -7,7 +7,7 @@ public static class MailingServiceEmailFooter
     public static string Reason(string senderName)
     {
         var sender = string.IsNullOrWhiteSpace(senderName) ? "отправителя" : senderName.Trim();
-        return $"{ReasonPrefix}{sender} через Письмолёт, потому что отправитель указал, что у него есть законное основание связаться с вами по этому адресу.";
+        return $"{ReasonPrefix}{sender} через Письмолёт, потому что отправитель указал, что у него есть законное основание связаться с вами по этому адресу. Если вы не хотите получать такие письма через Письмолёт, вы можете отписаться от всех рассылок через сервис.";
     }
 
     public static string UnsubscribeLine(string unsubscribeUrl) =>
