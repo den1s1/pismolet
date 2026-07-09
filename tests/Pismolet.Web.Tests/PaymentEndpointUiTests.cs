@@ -86,7 +86,7 @@ public sealed class PaymentEndpointUiTests
     }
 
     [Fact]
-    public async Task Prodamus_success_return_keeps_authenticated_navigation_when_session_is_present()
+    public async Task Prodamus_success_return_redirects_to_send_page_and_keeps_authenticated_navigation()
     {
         using var factory = CreateAuthorizedFactory();
         SeedUser(factory, OwnerEmail, "Payment UI Owner");
@@ -107,9 +107,12 @@ public sealed class PaymentEndpointUiTests
         var operationId = GetProviderOperationId(factory, mailingId);
         Assert.Contains(WebUtility.UrlEncode($"order_num={operationId}"), startHtml);
 
-        var successHtml = await client.GetStringAsync($"/payments/prodamus/success?order_num={WebUtility.UrlEncode(operationId)}");
+        var success = await client.GetAsync($"/payments/prodamus/success?order_num={WebUtility.UrlEncode(operationId)}");
+        var successHtml = await success.Content.ReadAsStringAsync();
 
-        Assert.Contains("Переход после оплаты получен", successHtml);
+        Assert.Equal(HttpStatusCode.OK, success.StatusCode);
+        Assert.Equal($"/mailings/{mailingId}/send", success.RequestMessage?.RequestUri?.AbsolutePath);
+        Assert.DoesNotContain("Переход после оплаты получен", successHtml);
         Assert.Contains("profile-menu", successHtml);
         Assert.Contains("Профиль", successHtml);
         Assert.DoesNotContain("href='/account/login'>Войти", successHtml);
