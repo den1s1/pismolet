@@ -32,6 +32,7 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         services.AddSingleton(MailruPostmasterSyncOptions.Read(configuration));
         services.AddSingleton<TimeProvider>(TimeProvider.System);
         services.AddSingleton<IMailruPostmasterSynchronizer, MailruPostmasterSynchronizer>();
+        services.AddHostedService<MailruPostmasterSyncHostedService>();
         return services;
     }
 }
