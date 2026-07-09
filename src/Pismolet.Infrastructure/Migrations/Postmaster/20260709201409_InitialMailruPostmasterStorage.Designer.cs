@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pismolet.Web.Infrastructure.Postmaster;
@@ -11,9 +12,11 @@ using Pismolet.Web.Infrastructure.Postmaster;
 namespace Pismolet.Infrastructure.Migrations.Postmaster
 {
     [DbContext(typeof(MailruPostmasterDbContext))]
-    partial class MailruPostmasterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260709201409_InitialMailruPostmasterStorage")]
+    partial class InitialMailruPostmasterStorage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
