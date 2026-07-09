@@ -44,4 +44,14 @@ public sealed class MailingServiceEmailFooterTests
         Assert.DoesNotContain("Служебный идентификатор рассылки", html, StringComparison.Ordinal);
         Assert.DoesNotContain("PL-TEST123", html, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Mailru_postmaster_message_type_uses_stable_mailing_identifier()
+    {
+        var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildPostmasterMessageType", BindingFlags.NonPublic | BindingFlags.Static);
+
+        var messageType = Assert.IsType<string>(method!.Invoke(null, new object?[] { " 64138d5d0123456789abcdef01234567 " }));
+
+        Assert.Equal("mailing-64138d5d0123456789abcdef01234567", messageType);
+    }
 }
