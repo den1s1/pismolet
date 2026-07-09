@@ -169,9 +169,9 @@ public sealed class MailruPostmasterClientTests
         }
     }
 
-    private sealed class QueueHttpMessageHandler(params HttpResponseMessage[] responses) : HttpMessageHandler
+    private sealed class QueueHttpMessageHandler(params HttpResponseMessage[] preparedResponses) : HttpMessageHandler
     {
-        private readonly Queue<HttpResponseMessage> responses = new(responses);
+        private readonly Queue<HttpResponseMessage> responseQueue = new(preparedResponses);
 
         public int CallCount { get; private set; }
         public List<string> RequestBodies { get; } = [];
@@ -192,8 +192,8 @@ public sealed class MailruPostmasterClientTests
                 RequestBodies.Add(await request.Content.ReadAsStringAsync(cancellationToken));
             }
 
-            return responses.Count > 0
-                ? responses.Dequeue()
+            return responseQueue.Count > 0
+                ? responseQueue.Dequeue()
                 : throw new InvalidOperationException("Для тестового HTTP-запроса не подготовлен ответ.");
         }
     }
