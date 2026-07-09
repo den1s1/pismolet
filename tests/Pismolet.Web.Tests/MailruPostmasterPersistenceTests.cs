@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Pismolet.Web.Infrastructure.Postmaster;
+using Xunit;
 
 namespace Pismolet.Web.Tests;
 
