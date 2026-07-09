@@ -29,6 +29,9 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
 
         services.AddDbContext<MailruPostmasterDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IMailruPostmasterStorage, EfMailruPostmasterStorage>();
+        services.AddSingleton(MailruPostmasterSyncOptions.Read(configuration));
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddSingleton<IMailruPostmasterSynchronizer, MailruPostmasterSynchronizer>();
         return services;
     }
 }
