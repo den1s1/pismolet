@@ -222,6 +222,7 @@ public sealed class SmtpEmailProviderAdapter(
 
         if (message.Metadata.TryGetValue("mailingId", out var mailingId))
         {
+            mime.Headers.Replace("Precedence", "bulk");
             mime.Headers.Replace("X-Pismolet-Mailing-Id", mailingId);
             mime.Headers.Replace("X-Postmaster-Msgtype", BuildPostmasterMessageType(mailingId));
         }
