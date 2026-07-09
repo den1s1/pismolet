@@ -656,7 +656,19 @@ public sealed class SmtpEmailProviderAdapter(
         ? string.Empty
         : $"<img src=\"{WebUtility.HtmlEncode(trackingPixelUrl)}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none;width:1px;height:1px;opacity:0\" />";
 
-    private static string BuildPostmasterMessageType(string mailingId) => $"mailing-{mailingId.Trim()}";
+    private static string BuildPostmasterMessageType(string mailingId)
+    {
+        var normalized = new string(mailingId.Where(ch =>
+            (ch >= '0' && ch <= '9') ||
+            (ch >= 'A' && ch <= 'Z') ||
+            (ch >= 'a' && ch <= 'z')).ToArray());
+        if (normalized.Length == 0)
+        {
+            return "mailing";
+        }
+
+        return normalized.Length <= 32 ? normalized : normalized[..32];
+    }
 
     private static int LastIndexOfOrdinalIgnoreCase(string value, string search) => value.LastIndexOf(search, StringComparison.OrdinalIgnoreCase);
 }
