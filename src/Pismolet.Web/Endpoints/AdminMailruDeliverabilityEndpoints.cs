@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Security.Claims;
 using Pismolet.Web.Infrastructure.Postmaster;
 using Pismolet.Web.Rendering;
 
@@ -13,6 +14,8 @@ public static class AdminMailruDeliverabilityEndpoints
     private const string DashboardStyles = """
         <style>
             .mailru-header {display:flex;justify-content:space-between;gap:24px;align-items:flex-start;flex-wrap:wrap}
+            .mailru-header-actions {display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+            .mailru-header-actions form {margin:0}
             .mailru-status {display:inline-flex;align-items:center;padding:7px 12px;border-radius:999px;font-weight:700;font-size:14px}
             .mailru-status.ok {background:#e8f6ee;color:#17653a}
             .mailru-status.warn {background:#fff4d8;color:#7a5200}
@@ -27,6 +30,8 @@ public static class AdminMailruDeliverabilityEndpoints
             .mailru-card b {font-size:24px;line-height:1.1}
             .mailru-card span {display:block;color:#687383;margin-top:6px;font-size:13px}
             .mailru-warning {border:1px solid #efc85a;background:#fff8df;border-radius:12px;padding:14px 16px;margin:16px 0}
+            .mailru-notice {border:1px solid #a7c8b5;background:#edf7f1;border-radius:12px;padding:14px 16px;margin:16px 0}
+            .mailru-notice.error {border-color:#e4aaa4;background:#fdf0ef}
             .mailru-meta {display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}
             .mailru-meta div {border:1px solid #e1e5eb;border-radius:12px;padding:14px;background:#fff}
             .mailru-meta span {display:block;color:#687383;font-size:13px;margin-bottom:6px}
@@ -48,6 +53,8 @@ public static class AdminMailruDeliverabilityEndpoints
     public static IEndpointRouteBuilder MapAdminMailruDeliverabilityEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/admin/deliverability/mailru", ShowDashboard)
+            .RequireAuthorization(AdminEndpoints.AdminPolicyName);
+        endpoints.MapPost("/admin/deliverability/mailru/sync", RunManualSync)
             .RequireAuthorization(AdminEndpoints.AdminPolicyName);
         return endpoints;
     }
@@ -73,9 +80,13 @@ public static class AdminMailruDeliverabilityEndpoints
         var dailyRows = data.Days.Count == 0
             ? "<tr><td colspan='10'>За выбранный период Mail.ru ещё не вернул ежедневные метрики.</td></tr>"
             : string.Join(string.Empty, data.Days.OrderByDescending(x => x.Date).Select(DailyRow));
+        var runRows = data.RecentRuns.Count == 0
+            ? "<tr><td colspan='9'>Журнал запусков пока пуст. Новые фоновые и ручные синхронизации появятся после применения миграции.</td></tr>"
+            : string.Join(string.Empty, data.RecentRuns.Select(RunRow));
         var lowSampleWarning = summary.IsLowSample
             ? $"<div class='mailru-warning'><b>Низкая выборка.</b> За период учтено {N(summary.MessagesSent)} писем. Проценты показываются вместе с абсолютными значениями и пока не должны использоваться для автоматических решений.</div>"
             : string.Empty;
+        var syncNotice = BuildSyncNotice(http);
         var lastError = string.IsNullOrWhiteSpace(data.SyncState?.LastErrorCode) &&
                         string.IsNullOrWhiteSpace(data.SyncState?.LastErrorSummary)
             ? "<span class='admin-muted'>Нет</span>"
@@ -90,8 +101,16 @@ public static class AdminMailruDeliverabilityEndpoints
                         <h1>Доменная доставляемость</h1>
                         <p class='admin-muted'>Локальная история Mail.ru Postmaster по домену <b>{H(data.Domain)}</b>. Открытие страницы не обращается к внешнему API.</p>
                     </div>
-                    <span class='mailru-status {status.CssClass}'>{H(status.Text)}</span>
+                    <div class='mailru-header-actions'>
+                        <span class='mailru-status {status.CssClass}'>{H(status.Text)}</span>
+                        <form method='post' action='/admin/deliverability/mailru/sync'>
+                            <input type='hidden' name='days' value='{days}'>
+                            <button class='admin-button' type='submit'>Синхронизировать сейчас</button>
+                        </form>
+                    </div>
                 </div>
+
+                {syncNotice}
 
                 <div class='mailru-meta'>
                     <div><span>Домен</span><b>{H(data.Domain)}</b></div>
@@ -141,6 +160,14 @@ public static class AdminMailruDeliverabilityEndpoints
                     </table>
                 </div>
 
+                <div class='section-head'><div><p class='eyebrow'>Синхронизация</p><h2>Последние запуски</h2></div><span class='admin-badge'>{data.RecentRuns.Count}</span></div>
+                <div class='admin-table-wrap'>
+                    <table class='admin-table'>
+                        <thead><tr><th>Начало</th><th>Источник</th><th>Статус</th><th>Период</th><th>Дней</th><th>Проблем</th><th>Длительность</th><th>Инициатор</th><th>Ошибка</th></tr></thead>
+                        <tbody>{runRows}</tbody>
+                    </table>
+                </div>
+
                 <div class='section-head'><div><p class='eyebrow'>Ежедневные данные</p><h2>Метрики по дням</h2></div></div>
                 <div class='admin-table-wrap'>
                     <table class='admin-table'>
@@ -156,9 +183,57 @@ public static class AdminMailruDeliverabilityEndpoints
         return HtmlRenderer.Html(HtmlRenderer.Page("Админка - доставляемость Mail.ru", body, authenticated: true));
     }
 
+    private static async Task<IResult> RunManualSync(
+        HttpContext http,
+        IMailruPostmasterManualSyncService manualSync,
+        CancellationToken cancellationToken)
+    {
+        var days = ReadDays(http);
+        var requestedBy = http.User.FindFirstValue(ClaimTypes.Email);
+        var result = await manualSync.RunAsync(requestedBy, cancellationToken);
+        var status = result.Status switch
+        {
+            MailruPostmasterManualSyncStatus.Succeeded => "succeeded",
+            MailruPostmasterManualSyncStatus.Failed => "failed",
+            MailruPostmasterManualSyncStatus.RateLimited => "rate_limited",
+            MailruPostmasterManualSyncStatus.AlreadyRunning => "already_running",
+            MailruPostmasterManualSyncStatus.Disabled => "disabled",
+            MailruPostmasterManualSyncStatus.NotConfigured => "not_configured",
+            _ => "failed"
+        };
+        var retry = result.RetryAfterSeconds is > 0
+            ? $"&retryAfter={result.RetryAfterSeconds.Value.ToString(CultureInfo.InvariantCulture)}"
+            : string.Empty;
+        return Results.Redirect($"/admin/deliverability/mailru?days={days}&sync={status}{retry}");
+    }
+
+    private static string BuildSyncNotice(HttpContext http)
+    {
+        var status = http.Request.Query["sync"].ToString();
+        var retryAfter = int.TryParse(
+            http.Request.Query["retryAfter"].ToString(),
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var parsed)
+            ? Math.Max(1, parsed)
+            : 60;
+        return status switch
+        {
+            "succeeded" => "<div class='mailru-notice'><b>Синхронизация завершена.</b> Данные и журнал обновлены.</div>",
+            "failed" => "<div class='mailru-notice error'><b>Синхронизация завершилась ошибкой.</b> Проверьте последнюю ошибку и журнал запусков.</div>",
+            "rate_limited" => $"<div class='mailru-notice'><b>Повторный ручной запуск временно ограничен.</b> Попробуйте примерно через {retryAfter} сек.</div>",
+            "already_running" => "<div class='mailru-notice'><b>Синхронизация уже выполняется.</b> Параллельный запуск не создан.</div>",
+            "disabled" => "<div class='mailru-notice error'><b>Интеграция отключена.</b> Ручная синхронизация недоступна.</div>",
+            "not_configured" => "<div class='mailru-notice error'><b>Интеграция не настроена.</b> Проверьте серверную конфигурацию.</div>",
+            _ => string.Empty
+        };
+    }
+
     private static int ReadDays(HttpContext http)
     {
-        var raw = http.Request.Query["days"].ToString();
+        var raw = http.Request.HasFormContentType
+            ? http.Request.Form["days"].ToString()
+            : http.Request.Query["days"].ToString();
         return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) &&
                AllowedDays.Contains(parsed)
             ? parsed
@@ -215,6 +290,20 @@ public static class AdminMailruDeliverabilityEndpoints
             <td>{H(row.Message)}</td>
             <td>{FormatDate(row.FirstSeenAt)}</td>
             <td>{FormatDate(row.LastSeenAt)}</td>
+        </tr>
+        """;
+
+    private static string RunRow(MailruPostmasterDashboardRun row) => $"""
+        <tr>
+            <td>{FormatDate(row.StartedAt)}</td>
+            <td>{H(FormatTrigger(row.Trigger))}</td>
+            <td><span class='admin-badge'>{H(FormatRunStatus(row.Status))}</span></td>
+            <td>{FormatRange(row.DateFrom, row.DateTo)}</td>
+            <td>{row.MetricDays}</td>
+            <td>{row.TroubleCount}</td>
+            <td>{FormatDuration(row.DurationMs)}</td>
+            <td>{H(string.IsNullOrWhiteSpace(row.RequestedBy) ? "—" : row.RequestedBy)}</td>
+            <td>{H(string.IsNullOrWhiteSpace(row.ErrorCode) ? "—" : row.ErrorCode)}</td>
         </tr>
         """;
 
@@ -341,6 +430,33 @@ public static class AdminMailruDeliverabilityEndpoints
 
         return "Домен";
     }
+
+    private static string FormatTrigger(string value) => value switch
+    {
+        MailruPostmasterSyncTriggers.Manual => "Ручной",
+        MailruPostmasterSyncTriggers.Scheduled => "Фоновый",
+        _ => value
+    };
+
+    private static string FormatRunStatus(string value) => value switch
+    {
+        "running" => "Выполняется",
+        "succeeded" => "Успешно",
+        "failed" => "Ошибка",
+        "cancelled" => "Отменён",
+        "disabled" => "Отключено",
+        "not_configured" => "Не настроено",
+        "skipped_already_running" => "Пропущен: уже выполняется",
+        _ => value
+    };
+
+    private static string FormatRange(DateOnly? dateFrom, DateOnly? dateTo) =>
+        dateFrom is null || dateTo is null
+            ? "—"
+            : $"{FormatDate(dateFrom.Value)} — {FormatDate(dateTo.Value)}";
+
+    private static string FormatDuration(long? durationMs) =>
+        durationMs is null ? "—" : $"{durationMs.Value.ToString("N0", RussianCulture)} мс";
 
     private static string FormatDate(DateTimeOffset? value) =>
         value is null ? "—" : value.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm", RussianCulture);
