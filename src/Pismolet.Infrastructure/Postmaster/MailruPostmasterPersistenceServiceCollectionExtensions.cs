@@ -11,6 +11,7 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.AddSingleton(MailruPostmasterManualSyncOptions.Read(configuration));
+        services.AddSingleton(MailruPostmasterMailingMetricsOptions.Read(configuration));
 
         var provider = configuration["Persistence:Provider"]
             ?? configuration["Pismolet:Persistence"]
@@ -34,6 +35,7 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
 
         services.AddDbContext<MailruPostmasterDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IMailruPostmasterStorage, EfMailruPostmasterStorage>();
+        services.AddScoped<IMailruPostmasterMailingStorage, EfMailruPostmasterMailingStorage>();
         services.AddScoped<IMailruPostmasterDashboardReader, EfMailruPostmasterDashboardReader>();
         services.AddSingleton<IMailruPostmasterSyncRunJournal, EfMailruPostmasterSyncRunJournal>();
         services.AddSingleton(MailruPostmasterSyncOptions.Read(configuration));
