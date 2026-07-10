@@ -5,6 +5,7 @@ namespace Pismolet.Web.Endpoints;
 public static class AdminMailruDeliverabilityMenuMiddleware
 {
     private const string DeliverabilityUrl = "/admin/deliverability/mailru";
+    private const string DeliverabilityLinkText = ">Доставляемость Mail.ru</a>";
 
     public static IApplicationBuilder UseAdminMailruDeliverabilityMenuLink(this IApplicationBuilder app)
     {
@@ -49,7 +50,7 @@ public static class AdminMailruDeliverabilityMenuMiddleware
 
     public static string AddDeliverabilityLink(string html)
     {
-        if (string.IsNullOrWhiteSpace(html) || html.Contains(DeliverabilityUrl, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(html) || html.Contains(DeliverabilityLinkText, StringComparison.Ordinal))
         {
             return html;
         }
