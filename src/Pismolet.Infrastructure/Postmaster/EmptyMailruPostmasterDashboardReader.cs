@@ -17,6 +17,21 @@ public sealed class EmptyMailruPostmasterDashboardReader : IMailruPostmasterDash
             dateTo,
             SyncState: null,
             ActiveTroubles: Array.Empty<MailruPostmasterDashboardTrouble>(),
-            Days: Array.Empty<MailruPostmasterDashboardDay>()));
+            Days: Array.Empty<MailruPostmasterDashboardDay>(),
+            RecentRuns: Array.Empty<MailruPostmasterDashboardRun>()));
+    }
+}
+
+public sealed class DisabledMailruPostmasterManualSyncService : IMailruPostmasterManualSyncService
+{
+    public Task<MailruPostmasterManualSyncResult> RunAsync(
+        string? requestedBy,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new MailruPostmasterManualSyncResult(
+            MailruPostmasterManualSyncStatus.Disabled,
+            RetryAfterSeconds: null,
+            SyncResult: null));
     }
 }
