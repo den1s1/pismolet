@@ -8,6 +8,7 @@
 
 Связанные документы:
 
+- `docs/production_operations.md`;
 - `docs/mailru_postmaster_api_sprints.md`;
 - `docs/mailru_postmaster_admin_architecture.md`;
 - `docs/mailru_postmaster_api_operations.md`.
@@ -43,6 +44,8 @@ MailruPostmaster__ManualSyncCooldownSeconds=60
 ```
 
 Без явной настройки используется значение 60 секунд. Допустимый диапазон: 10–3600 секунд.
+
+Production EnvironmentFile находится в `/etc/pismolet/pismolet.env`. Его нельзя выполнять через `.` или `source`; правила безопасной работы описаны в `docs/production_operations.md`.
 
 ## 3. Миграция
 
@@ -157,7 +160,7 @@ MailruPostmaster__Enabled=false
 ### Сервис
 
 - [x] Создан архив текущего приложения: `/var/backups/pismolet/pismolet-app-before-pm3-20260710-074737.tar.gz`.
-- [ ] Улучшенные production-скрипты установлены в `/usr/local/bin`.
+- [x] Улучшенные production-скрипты установлены в `/usr/local/bin`, совпадают с версиями из Git и проходят `bash -n`.
 - [ ] Новые бинарники развернуты.
 - [ ] `pismolet.service` активен после перезапуска.
 - [ ] `/health` возвращает `{"status":"ok"}`.
