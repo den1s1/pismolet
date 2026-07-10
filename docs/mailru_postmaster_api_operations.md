@@ -4,6 +4,7 @@
 Контур: production  
 Связанные документы:
 
+- `docs/production_operations.md`
 - `docs/mailru_postmaster_api_integration_plan.md`
 - `docs/mailru_postmaster_api_sprints.md`
 - `docs/mailru_postmaster_sync_architecture.md`
@@ -56,32 +57,38 @@ MailruPostmaster__OAuthBaseUrl=https://o2.mail.ru/
 MailruPostmaster__ApiBaseUrl=https://postmaster.mail.ru/
 ```
 
-## 3. Определение EnvironmentFile
+## 3. Production EnvironmentFile
 
-На сервере:
+Фактический EnvironmentFile сервиса:
+
+```text
+/etc/pismolet/pismolet.env
+```
+
+Проверить подключение файла без вывода его содержимого:
 
 ```bash
 sudo systemctl cat pismolet
 ```
 
-Найти строку вида:
-
-```text
-EnvironmentFile=/путь/к/файлу
-```
-
-Добавить параметры Postmaster именно в этот файл.
-
-После изменения проверить права. Файл должен быть доступен только root и пользователю, под которым работает сервис. Пример:
+Файл должен быть доступен только root и группе сервиса:
 
 ```bash
-sudo chown root:pismolet /путь/к/файлу
-sudo chmod 640 /путь/к/файлу
+sudo chown root:pismolet /etc/pismolet/pismolet.env
+sudo chmod 640 /etc/pismolet/pismolet.env
 ```
 
-Имя группы необходимо заменить на фактическую группу сервиса.
+Перед каждым изменением production EnvironmentFile обязательно создать резервную копию:
 
-Перед изменением production EnvironmentFile обязательно создать резервную копию.
+```bash
+sudo cp -a \
+  /etc/pismolet/pismolet.env \
+  "/etc/pismolet/pismolet.env.backup-$(date -u +%Y%m%d-%H%M%S)"
+```
+
+Не выполнять файл через `. /etc/pismolet/pismolet.env` или `source /etc/pismolet/pismolet.env`. Это systemd EnvironmentFile, а не shell-скрипт. Строка подключения Npgsql содержит `;`; при shell-загрузке она может быть обрезана на первой точке с запятой.
+
+Общие правила безопасного чтения переменных, работы с секретами и EF CLI описаны в `docs/production_operations.md`.
 
 ## 4. Включение
 
@@ -221,25 +228,39 @@ mailru_postmaster_sync_states
 mailru_postmaster_trouble_snapshots
 ```
 
-Для нового контура или восстановления БД миграция применяется штатной EF-командой для `MailruPostmasterDbContext`:
+Для нового контура или восстановления БД миграция применяется штатной EF-командой для `MailruPostmasterDbContext`. Строка подключения извлекается из EnvironmentFile как данные; весь файл не выполняется через shell:
 
 ```bash
 cd /opt/pismolet
-set -a
-. /etc/pismolet/pismolet.env
-set +a
 
-dotnet ef database update \
-  --context MailruPostmasterDbContext \
-  --project src/Pismolet.Infrastructure/Pismolet.Infrastructure.csproj \
-  --startup-project src/Pismolet.Web/Pismolet.Web.csproj
+connection_string="$(
+  sudo awk '
+    index($0, "ConnectionStrings__PismoletDb=") == 1 {
+      print substr($0, index($0, "=") + 1)
+    }
+  ' /etc/pismolet/pismolet.env \
+  | tail -n 1
+)"
+
+test -n "$connection_string" || {
+  echo "ConnectionStrings__PismoletDb не найдена" >&2
+  exit 1
+}
+
+env "ConnectionStrings__PismoletDb=$connection_string" \
+  dotnet ef database update \
+    --context MailruPostmasterDbContext \
+    --project src/Pismolet.Infrastructure/Pismolet.Infrastructure.csproj \
+    --startup-project src/Pismolet.Web/Pismolet.Web.csproj
+
+unset connection_string
 ```
 
-Команду выполнять только после зелёной сборки и тестов актуального HEAD. Не выводить значение строки подключения или токена в журнал терминала.
+Команду выполнять только после зелёной сборки и тестов актуального HEAD и после production backup. Не выводить значение строки подключения или токена в журнал терминала. Не использовать `set -x`.
 
-## 11. Поведение фоновой синхронизации PM-2
+## 11. Поведение фоновой синхронизации PM-2/PM-3
 
-Если интеграция включена и настроена, `MailruPostmasterSyncHostedService`:
+Если интеграция включена и настроена, `MailruPostmasterJournaledSyncHostedService`:
 
 1. Выполняет один запуск сразу после старта приложения.
 2. После завершения итерации вычисляет следующий запуск по московскому времени.
@@ -251,19 +272,20 @@ dotnet ef database update \
 8. Использует persistent sync state для хранения последней попытки, успеха, ошибки и последней обработанной даты.
 9. Не допускает параллельных запусков внутри текущего экземпляра приложения.
 10. Корректно отменяет ожидание и активную итерацию при остановке приложения.
+11. Записывает начало и результат scheduled-запуска в постоянный журнал PM-3.
 
 Первый запуск после каждого перезапуска выполняется намеренно. Повторная обработка безопасна благодаря идемпотентному upsert и повторной синхронизации свежего диапазона.
 
-Ошибки Mail.ru API и ошибки Postmaster storage:
+Ошибки Mail.ru API, Postmaster storage и журнала запусков:
 
 - фиксируются структурированными логами;
-- завершают только текущую итерацию;
+- завершают только текущую итерацию или изолируются на уровне журнала;
 - не должны останавливать application host;
 - не должны влиять на SMTP-отправку, оплату, модерацию или пользовательский кабинет.
 
 Неожиданное исключение, вышедшее из orchestrator, дополнительно перехватывается hosted service и также не завершает host.
 
-## 12. Ожидаемые журнальные события PM-2
+## 12. Ожидаемые журнальные события PM-2/PM-3
 
 При запуске фонового сервиса ожидается запись:
 
