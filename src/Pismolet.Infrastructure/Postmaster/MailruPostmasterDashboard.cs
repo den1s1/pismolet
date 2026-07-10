@@ -118,8 +118,6 @@ public sealed class EfMailruPostmasterDashboardReader(MailruPostmasterDbContext 
         var runEntities = await db.SyncRuns
             .AsNoTracking()
             .Where(x => x.Domain == normalizedDomain)
-            .OrderByDescending(x => x.StartedAt)
-            .Take(RecentRunsLimit)
             .ToListAsync(cancellationToken);
 
         var state = stateEntity is null
@@ -157,6 +155,8 @@ public sealed class EfMailruPostmasterDashboardReader(MailruPostmasterDbContext 
                 x.UpdatedAt))
             .ToArray();
         var runs = runEntities
+            .OrderByDescending(x => x.StartedAt)
+            .Take(RecentRunsLimit)
             .Select(x => new MailruPostmasterDashboardRun(
                 x.Id,
                 x.Trigger,
