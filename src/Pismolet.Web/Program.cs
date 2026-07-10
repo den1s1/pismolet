@@ -217,26 +217,34 @@ static PostfixDeliveryAutomationSettingsOptions ReadPostfixDeliveryAutomationSet
 {
     var settingsPath = configuration["PostfixDelivery:SettingsPath"]
         ?? configuration["PostfixDelivery__SettingsPath"]
-        ?? PostfixDeliveryAutomationSettingsOptions.DefaultPath;
-    return new PostfixDeliveryAutomationSettingsOptions(settingsPath);
-}
-
-static bool ReadBool(IConfiguration configuration, string key, bool fallback)
-{
-    var raw = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
-    return bool.TryParse(raw, out var value) ? value : fallback;
+        ?? configuration["PISMOLET_POSTFIX_DELIVERY_SETTINGS_PATH"]
+        ?? Environment.GetEnvironmentVariable("PISMOLET_POSTFIX_DELIVERY_SETTINGS_PATH")
+        ?? PostfixDeliveryAutomationSettingsOptions.ProductionDefault.SettingsPath;
+    var intervalSeconds = ReadInt(
+        configuration,
+        "PostfixDelivery:ReaderIntervalSeconds",
+        PostfixDeliveryAutomationSettings.DefaultIntervalSeconds,
+        PostfixDeliveryAutomationSettings.MinIntervalSeconds,
+        PostfixDeliveryAutomationSettings.MaxIntervalSeconds);
+    return new PostfixDeliveryAutomationSettingsOptions(settingsPath, intervalSeconds);
 }
 
 static int ReadInt(IConfiguration configuration, string key, int fallback, int min, int max)
 {
-    var raw = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
-    return int.TryParse(raw, out var value) ? Math.Clamp(value, min, max) : fallback;
+    var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
+    return int.TryParse(value, out var parsed) ? Math.Clamp(parsed, min, max) : fallback;
 }
 
 static long ReadLong(IConfiguration configuration, string key, long fallback, long min, long max)
 {
-    var raw = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
-    return long.TryParse(raw, out var value) ? Math.Clamp(value, min, max) : fallback;
+    var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
+    return long.TryParse(value, out var parsed) ? Math.Clamp(parsed, min, max) : fallback;
 }
 
-public partial class Program { }
+static bool ReadBool(IConfiguration configuration, string key, bool fallback)
+{
+    var value = configuration[key] ?? configuration[key.Replace(":", "__", StringComparison.Ordinal)];
+    return bool.TryParse(value, out var parsed) ? parsed : fallback;
+}
+
+public partial class Program;
