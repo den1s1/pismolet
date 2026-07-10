@@ -10,6 +10,40 @@ public static class AdminMailruDeliverabilityEndpoints
     private const int DefaultDays = 30;
     private static readonly int[] AllowedDays = [7, 30, 90];
     private static readonly CultureInfo RussianCulture = CultureInfo.GetCultureInfo("ru-RU");
+    private const string DashboardStyles = """
+        <style>
+            .mailru-header {display:flex;justify-content:space-between;gap:24px;align-items:flex-start;flex-wrap:wrap}
+            .mailru-status {display:inline-flex;align-items:center;padding:7px 12px;border-radius:999px;font-weight:700;font-size:14px}
+            .mailru-status.ok {background:#e8f6ee;color:#17653a}
+            .mailru-status.warn {background:#fff4d8;color:#7a5200}
+            .mailru-status.error {background:#fde9e7;color:#9d2b20}
+            .mailru-status.off {background:#eceff3;color:#4f5b67}
+            .mailru-periods {display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+            .mailru-period {display:inline-flex;padding:8px 12px;border:1px solid #d9dee7;border-radius:9px;text-decoration:none;color:inherit;background:#fff}
+            .mailru-period.active {border-color:#214a3a;background:#edf6f1;font-weight:700}
+            .mailru-summary {display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}
+            .mailru-card {border:1px solid #e1e5eb;border-radius:14px;background:#fff;padding:16px;min-width:0}
+            .mailru-card small {display:block;color:#687383;margin-bottom:8px}
+            .mailru-card b {font-size:24px;line-height:1.1}
+            .mailru-card span {display:block;color:#687383;margin-top:6px;font-size:13px}
+            .mailru-warning {border:1px solid #efc85a;background:#fff8df;border-radius:12px;padding:14px 16px;margin:16px 0}
+            .mailru-meta {display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}
+            .mailru-meta div {border:1px solid #e1e5eb;border-radius:12px;padding:14px;background:#fff}
+            .mailru-meta span {display:block;color:#687383;font-size:13px;margin-bottom:6px}
+            .mailru-chart-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin:18px 0 24px}
+            .mailru-chart {border:1px solid #e1e5eb;border-radius:14px;background:#fff;padding:16px;overflow:hidden}
+            .mailru-chart h3 {margin:0 0 4px}
+            .mailru-chart p {margin:0 0 12px;color:#687383;font-size:13px}
+            .mailru-chart svg {width:100%;height:auto;display:block}
+            .mailru-legend {display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:#687383;font-size:13px}
+            .mailru-legend i {display:inline-block;width:16px;height:3px;border-radius:4px;vertical-align:middle;margin-right:5px}
+            .mailru-legend .sent {background:#315b9d} .mailru-legend .delivered {background:#23835a}
+            .mailru-legend .probably {background:#d49421} .mailru-legend .spam {background:#b84037} .mailru-legend .complaints {background:#7b4bb3}
+            .mailru-empty-chart {min-height:180px;display:grid;place-items:center;color:#687383;background:#f7f8fa;border-radius:10px}
+            .mailru-note {font-size:13px;color:#687383}
+            @media (max-width:700px) {.mailru-chart-grid {grid-template-columns:1fr}}
+        </style>
+        """;
 
     public static IEndpointRouteBuilder MapAdminMailruDeliverabilityEndpoints(this IEndpointRouteBuilder endpoints)
     {
@@ -48,38 +82,7 @@ public static class AdminMailruDeliverabilityEndpoints
             : $"<b>{H(data.SyncState?.LastErrorCode ?? "sync_error")}</b><br><span>{H(data.SyncState?.LastErrorSummary)}</span>";
 
         var body = $"""
-            <style>
-                .mailru-header {{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;flex-wrap:wrap}}
-                .mailru-status {{display:inline-flex;align-items:center;padding:7px 12px;border-radius:999px;font-weight:700;font-size:14px}}
-                .mailru-status.ok {{background:#e8f6ee;color:#17653a}}
-                .mailru-status.warn {{background:#fff4d8;color:#7a5200}}
-                .mailru-status.error {{background:#fde9e7;color:#9d2b20}}
-                .mailru-status.off {{background:#eceff3;color:#4f5b67}}
-                .mailru-periods {{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}}
-                .mailru-period {{display:inline-flex;padding:8px 12px;border:1px solid #d9dee7;border-radius:9px;text-decoration:none;color:inherit;background:#fff}}
-                .mailru-period.active {{border-color:#214a3a;background:#edf6f1;font-weight:700}}
-                .mailru-summary {{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}}
-                .mailru-card {{border:1px solid #e1e5eb;border-radius:14px;background:#fff;padding:16px;min-width:0}}
-                .mailru-card small {{display:block;color:#687383;margin-bottom:8px}}
-                .mailru-card b {{font-size:24px;line-height:1.1}}
-                .mailru-card span {{display:block;color:#687383;margin-top:6px;font-size:13px}}
-                .mailru-warning {{border:1px solid #efc85a;background:#fff8df;border-radius:12px;padding:14px 16px;margin:16px 0}}
-                .mailru-meta {{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}}
-                .mailru-meta div {{border:1px solid #e1e5eb;border-radius:12px;padding:14px;background:#fff}}
-                .mailru-meta span {{display:block;color:#687383;font-size:13px;margin-bottom:6px}}
-                .mailru-chart-grid {{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin:18px 0 24px}}
-                .mailru-chart {{border:1px solid #e1e5eb;border-radius:14px;background:#fff;padding:16px;overflow:hidden}}
-                .mailru-chart h3 {{margin:0 0 4px}}
-                .mailru-chart p {{margin:0 0 12px;color:#687383;font-size:13px}}
-                .mailru-chart svg {{width:100%;height:auto;display:block}}
-                .mailru-legend {{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:#687383;font-size:13px}}
-                .mailru-legend i {{display:inline-block;width:16px;height:3px;border-radius:4px;vertical-align:middle;margin-right:5px}}
-                .mailru-legend .sent {{background:#315b9d}} .mailru-legend .delivered {{background:#23835a}}
-                .mailru-legend .probably {{background:#d49421}} .mailru-legend .spam {{background:#b84037}} .mailru-legend .complaints {{background:#7b4bb3}}
-                .mailru-empty-chart {{min-height:180px;display:grid;place-items:center;color:#687383;background:#f7f8fa;border-radius:10px}}
-                .mailru-note {{font-size:13px;color:#687383}}
-                @media (max-width:700px) {{.mailru-chart-grid {{grid-template-columns:1fr}}}}
-            </style>
+            {DashboardStyles}
             <section class='admin-panel'>
                 <div class='mailru-header'>
                     <div>
