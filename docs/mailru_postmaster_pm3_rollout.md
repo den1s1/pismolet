@@ -76,6 +76,31 @@ mailru_postmaster_sync_runs
 
 Нельзя открывать новую страницу до применения миграции: read-модель журнала ожидает таблицу `mailru_postmaster_sync_runs`.
 
+Канонические имена production-таблиц Postmaster:
+
+```text
+mailru_postmaster_domain_daily_metrics
+mailru_postmaster_sync_states
+mailru_postmaster_trouble_snapshots
+mailru_postmaster_sync_runs
+```
+
+Не использовать предположительные имена вроде `mailru_postmaster_daily_metrics` или `mailru_postmaster_problem_snapshots`: таких таблиц в production нет.
+
+Проверка сохранности PM-2 и числа накопленных строк метрик:
+
+```bash
+sudo -u postgres psql -d pismolet -Atc "
+select
+  to_regclass('public.mailru_postmaster_domain_daily_metrics'),
+  to_regclass('public.mailru_postmaster_sync_states'),
+  to_regclass('public.mailru_postmaster_trouble_snapshots'),
+  (select count(*) from public.mailru_postmaster_domain_daily_metrics);
+"
+```
+
+Перед использованием команды сверить ожидаемое число строк с текущим rollout-контекстом; перед PM-3 ожидается `20`.
+
 ## 4. Штатные production-скрипты
 
 Канонические версии серверных команд хранятся в репозитории:
