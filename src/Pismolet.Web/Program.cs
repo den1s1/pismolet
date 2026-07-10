@@ -117,6 +117,7 @@ app.UseLegalDeclarationEvidenceCapture();
 app.UseMailingLaunchEvidenceCapture();
 app.UseAdminSuppressionDetail();
 app.UseAdminSuppressions();
+app.UseAdminCampaignMailruPostmaster();
 app.UseAdminCampaignDeliveryAnalytics();
 app.UseAdminCampaignOpenAnalytics();
 app.UseAdminCampaignClickAnalytics();
