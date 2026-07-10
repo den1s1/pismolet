@@ -354,7 +354,7 @@ OversignHeaders         From
 - `3132b4e1333b54933cf41b7c61d20f7736abc999` — подключение middleware и endpoint в приложении.
 - `22d2cbb569fb3c02055d5244aa17ba9b9c0df646` — тесты read-only панели.
 - `02964d2de3feb7cc2a80293748d015a3b3307bc1` — исправление идемпотентной вставки пункта меню.
-- `4f38882406d25378f8033c16c4a2f734dc065376` — пустая read-модель для InMemory.
+- `4f38882406d9c38605715ac4e31c9e8d39de81e8` — пустая read-модель для InMemory.
 - `73dd266e06f25378f8033c16c4a2f734dc065376` — регистрация InMemory read-модели.
 - `8ec4bd8fa73b926fcf5c42705e535bb65bd3bbbe` — архитектура PM-3.
 - `348351d71f8774f2c06adf5c77a7ab337855b393` — проверенный кодовый HEAD PM-3.
