@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly APP_DIR="${PISMOLET_APP_DIR:-/opt/pismolet}"
+readonly SOLUTION="${PISMOLET_SOLUTION:-Pismolet.sln}"
+
+cd "$APP_DIR"
+
+echo "==> Tests"
+dotnet test "$SOLUTION" /nr:false -m:1 "$@"
