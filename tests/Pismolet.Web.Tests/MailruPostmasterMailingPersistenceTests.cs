@@ -70,7 +70,7 @@ public sealed class MailruPostmasterMailingPersistenceTests
         var metrics = await db.MailingDailyMetrics.OrderBy(x => x.MailingId).ToListAsync();
         Assert.Equal(2, metrics.Count);
 
-        var first = Assert.Single(metrics.Where(x => x.MailingId == firstMailingId));
+        var first = Assert.Single(metrics, x => x.MailingId == firstMailingId);
         Assert.Equal("pismolet.ru", first.Domain);
         Assert.Equal(MailruPostmasterMessageType.Build(firstMailingId), first.MsgType);
         Assert.Equal(12, first.MessagesSent);
@@ -79,7 +79,7 @@ public sealed class MailruPostmasterMailingPersistenceTests
         Assert.Equal(firstCollectedAt, first.CollectedAt);
         Assert.Equal(secondCollectedAt, first.UpdatedAt);
 
-        var second = Assert.Single(metrics.Where(x => x.MailingId == secondMailingId));
+        var second = Assert.Single(metrics, x => x.MailingId == secondMailingId);
         Assert.Equal(7, second.MessagesSent);
         Assert.Equal(7, second.Delivered);
     }
