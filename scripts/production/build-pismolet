@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly APP_DIR="${PISMOLET_APP_DIR:-/opt/pismolet}"
+readonly DEPLOY_BRANCH="${PISMOLET_DEPLOY_BRANCH:-Development}"
+readonly SOLUTION="${PISMOLET_SOLUTION:-Pismolet.sln}"
+
+cd "$APP_DIR"
+
+current_branch="$(git branch --show-current)"
+if [[ "$current_branch" != "$DEPLOY_BRANCH" ]]; then
+  echo "ERROR: expected branch '$DEPLOY_BRANCH', current branch is '$current_branch'." >&2
+  exit 1
+fi
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "ERROR: working tree is not clean; deployment pull is cancelled." >&2
+  git status --short >&2
+  exit 1
+fi
+
+echo "==> Pull latest $DEPLOY_BRANCH (fast-forward only)"
+git pull --ff-only origin "$DEPLOY_BRANCH"
+
+echo "==> Build"
+dotnet build "$SOLUTION" /nr:false -m:1
