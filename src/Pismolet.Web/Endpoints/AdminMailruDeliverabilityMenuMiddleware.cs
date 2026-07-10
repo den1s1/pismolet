@@ -60,7 +60,7 @@ public static class AdminMailruDeliverabilityMenuMiddleware
             return html;
         }
 
-        if (path.Equals(DeliverabilityUrl, StringComparison.OrdinalIgnoreCase) &&
+        if (string.Equals(path.Value, DeliverabilityUrl, StringComparison.OrdinalIgnoreCase) &&
             !html.Contains("class='admin-shell'", StringComparison.Ordinal))
         {
             return WrapInAdminShell(html, adminEmail);
