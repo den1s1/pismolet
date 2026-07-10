@@ -15,6 +15,7 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
             ?? "Postgres";
         if (provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
         {
+            services.AddSingleton<IMailruPostmasterDashboardReader, EmptyMailruPostmasterDashboardReader>();
             return services;
         }
 
