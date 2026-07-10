@@ -4,6 +4,7 @@ using MimeKit;
 using Pismolet.Web.Application.Common;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Infrastructure.Mail;
+using Pismolet.Web.Infrastructure.Postmaster;
 using Xunit;
 
 namespace Pismolet.Web.Tests;
@@ -49,11 +50,11 @@ public sealed class MailingServiceEmailFooterTests
     }
 
     [Fact]
-    public void Mailru_postmaster_message_type_uses_only_letters_and_digits_and_is_at_most_32_chars()
+    public void Mailru_postmaster_message_type_is_canonical_guid_without_separators()
     {
-        var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildPostmasterMessageType", BindingFlags.NonPublic | BindingFlags.Static);
+        var mailingId = Guid.Parse("64138d5d-0123-4567-89ab-cdef01234567");
 
-        var messageType = Assert.IsType<string>(method!.Invoke(null, new object?[] { " 64138d5d-0123-4567-89ab-cdef01234567-extra " }));
+        var messageType = MailruPostmasterMessageType.Build(mailingId);
 
         Assert.Equal("64138d5d0123456789abcdef01234567", messageType);
         Assert.Equal(32, messageType.Length);
@@ -97,6 +98,6 @@ public sealed class MailingServiceEmailFooterTests
 
         Assert.Equal("bulk", mime.Headers["Precedence"]);
         Assert.Equal(mailingId.ToString("N"), mime.Headers["X-Pismolet-Mailing-Id"]);
-        Assert.Equal(mailingId.ToString("N"), mime.Headers["X-Postmaster-Msgtype"]);
+        Assert.Equal(MailruPostmasterMessageType.Build(mailingId), mime.Headers["X-Postmaster-Msgtype"]);
     }
 }
