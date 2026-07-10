@@ -8,6 +8,7 @@ public sealed class MailruPostmasterDbContext(DbContextOptions<MailruPostmasterD
     public DbSet<MailruPostmasterDomainDailyMetricEntity> DomainDailyMetrics => Set<MailruPostmasterDomainDailyMetricEntity>();
     public DbSet<MailruPostmasterTroubleSnapshotEntity> TroubleSnapshots => Set<MailruPostmasterTroubleSnapshotEntity>();
     public DbSet<MailruPostmasterSyncStateEntity> SyncStates => Set<MailruPostmasterSyncStateEntity>();
+    public DbSet<MailruPostmasterSyncRunEntity> SyncRuns => Set<MailruPostmasterSyncRunEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,6 +40,21 @@ public sealed class MailruPostmasterDbContext(DbContextOptions<MailruPostmasterD
             entity.Property(x => x.LastErrorCode).HasMaxLength(120);
             entity.Property(x => x.LastErrorSummary).HasMaxLength(1000);
             entity.Property(x => x.LastDomainDate).HasColumnType("date");
+        });
+
+        modelBuilder.Entity<MailruPostmasterSyncRunEntity>(entity =>
+        {
+            entity.ToTable("mailru_postmaster_sync_runs");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Domain, x.StartedAt });
+            entity.HasIndex(x => new { x.Domain, x.Trigger, x.StartedAt });
+            entity.Property(x => x.Domain).HasMaxLength(253).IsRequired();
+            entity.Property(x => x.Trigger).HasMaxLength(24).IsRequired();
+            entity.Property(x => x.RequestedBy).HasMaxLength(320);
+            entity.Property(x => x.Status).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.DateFrom).HasColumnType("date");
+            entity.Property(x => x.DateTo).HasColumnType("date");
+            entity.Property(x => x.ErrorCode).HasMaxLength(120);
         });
     }
 }
@@ -119,6 +135,23 @@ public sealed class MailruPostmasterSyncStateEntity
     public DateOnly? LastDomainDate { get; set; }
     public DateTimeOffset? LastMailingSyncAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class MailruPostmasterSyncRunEntity
+{
+    public Guid Id { get; set; }
+    public string Domain { get; set; } = string.Empty;
+    public string Trigger { get; set; } = string.Empty;
+    public string? RequestedBy { get; set; }
+    public DateTimeOffset StartedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public long? DurationMs { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateOnly? DateFrom { get; set; }
+    public DateOnly? DateTo { get; set; }
+    public int MetricDays { get; set; }
+    public int TroubleCount { get; set; }
+    public string? ErrorCode { get; set; }
 }
 
 public interface IMailruPostmasterStorage
