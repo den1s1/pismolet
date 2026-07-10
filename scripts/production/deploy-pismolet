@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly APP_DIR="${PISMOLET_APP_DIR:-/opt/pismolet}"
+readonly PUBLISH_DIR="${PISMOLET_PUBLISH_DIR:-/var/www/pismolet}"
+readonly SERVICE_NAME="${PISMOLET_SERVICE_NAME:-pismolet}"
+readonly APP_USER="${PISMOLET_APP_USER:-pismolet}"
+readonly HEALTH_URL="${PISMOLET_HEALTH_URL:-https://app.pismolet.ru/health}"
+readonly BUILD_COMMAND="${PISMOLET_BUILD_COMMAND:-/usr/local/bin/build-pismolet}"
+readonly TEST_COMMAND="${PISMOLET_TEST_COMMAND:-/usr/local/bin/run-tests-pismolet}"
+readonly TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
+readonly STAGING_DIR="${PUBLISH_DIR}.next-${TIMESTAMP}-$$"
+readonly ROLLBACK_DIR="${PUBLISH_DIR}.rollback-${TIMESTAMP}"
+
+service_stopped=false
+live_backed_up=false
+new_release_activated=false
+
+rollback_on_error() {
+  local exit_code=$?
+  trap - ERR
+
+  echo "ERROR: deployment failed; starting automatic rollback." >&2
+
+  if [[ "$live_backed_up" == true ]]; then
+    sudo systemctl stop "$SERVICE_NAME" >/dev/null 2>&1 || true
+
+    if [[ "$new_release_activated" == true && -d "$PUBLISH_DIR" ]]; then
+      sudo rm -rf "$PUBLISH_DIR" || true
+    fi
+
+    if [[ -d "$ROLLBACK_DIR" ]]; then
+      sudo mv "$ROLLBACK_DIR" "$PUBLISH_DIR" || true
+    fi
+
+    sudo systemctl start "$SERVICE_NAME" || true
+  elif [[ "$service_stopped" == true ]]; then
+    sudo systemctl start "$SERVICE_NAME" || true
+  fi
+
+  if [[ -d "$STAGING_DIR" ]]; then
+    sudo rm -rf "$STAGING_DIR" || true
+  fi
+
+  exit "$exit_code"
+}
+
+trap rollback_on_error ERR
+
+for required_command in git dotnet sudo curl; do
+  if ! command -v "$required_command" >/dev/null 2>&1; then
+    echo "ERROR: required command '$required_command' was not found." >&2
+    exit 1
+  fi
+done
+
+if [[ ! -x "$BUILD_COMMAND" ]]; then
+  echo "ERROR: build command is not executable: $BUILD_COMMAND" >&2
+  exit 1
+fi
+
+if [[ ! -x "$TEST_COMMAND" ]]; then
+  echo "ERROR: test command is not executable: $TEST_COMMAND" >&2
+  exit 1
+fi
+
+sudo systemctl is-active --quiet "$SERVICE_NAME"
+sudo test -d "$PUBLISH_DIR"
+
+"$BUILD_COMMAND"
+"$TEST_COMMAND" --no-build
+
+echo "==> Ensure runtime data permissions"
+sudo mkdir -p /var/lib/pismolet
+sudo touch /var/lib/pismolet/managed-admins.txt
+sudo chown -R "$APP_USER:$APP_USER" /var/lib/pismolet
+sudo chmod 750 /var/lib/pismolet
+sudo chmod 640 /var/lib/pismolet/managed-admins.txt
+
+echo "==> Publish to staging directory"
+sudo rm -rf "$STAGING_DIR"
+sudo dotnet publish "$APP_DIR/src/Pismolet.Web/Pismolet.Web.csproj" \
+  -c Release \
+  -o "$STAGING_DIR" \
+  /nr:false -m:1
+
+echo "==> Stop service"
+sudo systemctl stop "$SERVICE_NAME"
+service_stopped=true
+
+echo "==> Activate release"
+sudo mv "$PUBLISH_DIR" "$ROLLBACK_DIR"
+live_backed_up=true
+sudo mv "$STAGING_DIR" "$PUBLISH_DIR"
+new_release_activated=true
+
+echo "==> Start service"
+sudo systemctl start "$SERVICE_NAME"
+service_stopped=false
+sudo systemctl is-active --quiet "$SERVICE_NAME"
+
+echo "==> Health"
+curl --fail --silent --show-error \
+  --retry 10 \
+  --retry-delay 2 \
+  --retry-connrefused \
+  "$HEALTH_URL"
+printf '\n'
+
+echo "==> Status"
+sudo systemctl status "$SERVICE_NAME" --no-pager
+
+echo "==> Recent logs"
+sudo journalctl -u "$SERVICE_NAME" -n 80 --no-pager
+
+trap - ERR
+
+echo "==> Deployment completed"
+echo "Previous release retained at: $ROLLBACK_DIR"
