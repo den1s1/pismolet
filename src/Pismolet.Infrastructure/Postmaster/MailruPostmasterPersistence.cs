@@ -9,6 +9,8 @@ public sealed class MailruPostmasterDbContext(DbContextOptions<MailruPostmasterD
     public DbSet<MailruPostmasterTroubleSnapshotEntity> TroubleSnapshots => Set<MailruPostmasterTroubleSnapshotEntity>();
     public DbSet<MailruPostmasterSyncStateEntity> SyncStates => Set<MailruPostmasterSyncStateEntity>();
     public DbSet<MailruPostmasterSyncRunEntity> SyncRuns => Set<MailruPostmasterSyncRunEntity>();
+    public DbSet<MailruPostmasterMailingDailyMetricEntity> MailingDailyMetrics => Set<MailruPostmasterMailingDailyMetricEntity>();
+    public DbSet<MailruPostmasterMailingSyncStateEntity> MailingSyncStates => Set<MailruPostmasterMailingSyncStateEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,6 +58,8 @@ public sealed class MailruPostmasterDbContext(DbContextOptions<MailruPostmasterD
             entity.Property(x => x.DateTo).HasColumnType("date");
             entity.Property(x => x.ErrorCode).HasMaxLength(120);
         });
+
+        MailruPostmasterMailingModel.Configure(modelBuilder);
     }
 }
 
