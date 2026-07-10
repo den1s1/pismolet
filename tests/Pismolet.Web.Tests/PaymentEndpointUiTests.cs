@@ -71,7 +71,7 @@ public sealed class PaymentEndpointUiTests
         {
             ["campaignLaunchConfirmation"] = "on"
         });
-        var start = await client.PostAsync($"/mailings/{mailingId}/payment/fake-start", confirmation);
+        var start = await client.PostAsync($"/mailings/{mailingId}/payment/start", confirmation);
         var startHtml = await start.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, start.StatusCode);
@@ -261,7 +261,6 @@ public sealed class PaymentEndpointUiTests
             var identity = new ClaimsIdentity(claims, SchemeName);
             var principal = new ClaimsPrincipal(identity);
             var ticket = new AuthenticationTicket(principal, SchemeName);
-
             return Task.FromResult(AuthenticateResult.Success(ticket));
         }
     }
