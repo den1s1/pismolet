@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Pismolet.Web.Infrastructure.Postmaster;
 
 namespace Pismolet.Web.Tests;
@@ -35,6 +36,39 @@ public sealed class MailruPostmasterSyncRunPersistenceTests
         Assert.Equal("failed", result.RecentRuns[0].Status);
         Assert.Equal("api_error", result.RecentRuns[0].ErrorCode);
         Assert.Equal(MailruPostmasterSyncTriggers.Scheduled, result.RecentRuns[1].Trigger);
+    }
+
+    [Fact]
+    public async Task Journal_ReturnsLatestManualStartInSqlite()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<MailruPostmasterDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using (var db = new MailruPostmasterDbContext(options))
+        {
+            await db.Database.EnsureCreatedAsync();
+            var latestManual = new DateTimeOffset(2026, 7, 10, 7, 10, 0, TimeSpan.Zero);
+            db.SyncRuns.AddRange(
+                Run("pismolet.ru", MailruPostmasterSyncTriggers.Manual, latestManual.AddMinutes(-5), "succeeded"),
+                Run("pismolet.ru", MailruPostmasterSyncTriggers.Manual, latestManual, "succeeded"),
+                Run("pismolet.ru", MailruPostmasterSyncTriggers.Scheduled, latestManual.AddMinutes(1), "succeeded"),
+                Run("other.example", MailruPostmasterSyncTriggers.Manual, latestManual.AddMinutes(2), "succeeded"));
+            await db.SaveChangesAsync();
+        }
+
+        var services = new ServiceCollection();
+        services.AddScoped(_ => new MailruPostmasterDbContext(options));
+        await using var provider = services.BuildServiceProvider();
+        var journal = new EfMailruPostmasterSyncRunJournal(
+            provider.GetRequiredService<IServiceScopeFactory>());
+
+        var result = await journal.GetLatestStartedAtAsync(
+            "PISMOLET.RU.",
+            MailruPostmasterSyncTriggers.Manual);
+
+        Assert.Equal(new DateTimeOffset(2026, 7, 10, 7, 10, 0, TimeSpan.Zero), result);
     }
 
     [Fact]
