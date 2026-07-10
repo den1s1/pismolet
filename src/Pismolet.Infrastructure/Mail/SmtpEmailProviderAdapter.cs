@@ -9,6 +9,7 @@ using MimeKit.Utils;
 using Pismolet.Web.Application.Mailings;
 using Pismolet.Web.Application.Persistence;
 using Pismolet.Web.Domain.Mailings;
+using Pismolet.Web.Infrastructure.Postmaster;
 
 namespace Pismolet.Web.Infrastructure.Mail;
 
@@ -224,7 +225,7 @@ public sealed class SmtpEmailProviderAdapter(
         {
             mime.Headers.Replace("Precedence", "bulk");
             mime.Headers.Replace("X-Pismolet-Mailing-Id", mailingId);
-            mime.Headers.Replace("X-Postmaster-Msgtype", BuildPostmasterMessageType(mailingId));
+            mime.Headers.Replace("X-Postmaster-Msgtype", MailruPostmasterMessageType.Build(message.MailingId));
         }
 
         if (message.Metadata.TryGetValue("recipientKey", out var recipientKey))
@@ -656,20 +657,6 @@ public sealed class SmtpEmailProviderAdapter(
     private static string BuildTrackingPixelHtml(string? trackingPixelUrl) => string.IsNullOrWhiteSpace(trackingPixelUrl)
         ? string.Empty
         : $"<img src=\"{WebUtility.HtmlEncode(trackingPixelUrl)}\" width=\"1\" height=\"1\" alt=\"\" style=\"display:none;width:1px;height:1px;opacity:0\" />";
-
-    private static string BuildPostmasterMessageType(string mailingId)
-    {
-        var normalized = new string(mailingId.Where(ch =>
-            (ch >= '0' && ch <= '9') ||
-            (ch >= 'A' && ch <= 'Z') ||
-            (ch >= 'a' && ch <= 'z')).ToArray());
-        if (normalized.Length == 0)
-        {
-            return "mailing";
-        }
-
-        return normalized.Length <= 32 ? normalized : normalized[..32];
-    }
 
     private static int LastIndexOfOrdinalIgnoreCase(string value, string search) => value.LastIndexOf(search, StringComparison.OrdinalIgnoreCase);
 }
