@@ -101,7 +101,6 @@ public sealed record PaymentAttempt(
     string RawCallback)
 {
     public const string FakeProvider = "Fake";
-    public const string RobokassaFakeProvider = "RobokassaFake";
     public const string AdminFreeProvider = "AdminFree";
 
     public static PaymentAttempt Pending(Guid paymentId, string providerOperationId, string provider = FakeProvider) => new(
