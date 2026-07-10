@@ -19,6 +19,7 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         if (provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton<IMailruPostmasterDashboardReader, EmptyMailruPostmasterDashboardReader>();
+            services.AddSingleton<IMailruPostmasterMailingMetricsReader, EmptyMailruPostmasterMailingMetricsReader>();
             services.AddSingleton<IMailruPostmasterSyncRunJournal, InMemoryMailruPostmasterSyncRunJournal>();
             services.AddSingleton<IMailruPostmasterManualSyncService, DisabledMailruPostmasterManualSyncService>();
             services.AddSingleton<IMailruPostmasterMailingCandidateReader, EmptyMailruPostmasterMailingCandidateReader>();
@@ -38,6 +39,7 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         services.AddDbContext<MailruPostmasterDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IMailruPostmasterStorage, EfMailruPostmasterStorage>();
         services.AddScoped<IMailruPostmasterMailingStorage, EfMailruPostmasterMailingStorage>();
+        services.AddScoped<IMailruPostmasterMailingMetricsReader, EfMailruPostmasterMailingMetricsReader>();
         services.AddScoped<IMailruPostmasterMailingCandidateReader, EfMailruPostmasterMailingCandidateReader>();
         services.AddScoped<IMailruPostmasterMailingStatisticsSynchronizer, MailruPostmasterMailingStatisticsSynchronizer>();
         services.AddScoped<IMailruPostmasterDashboardReader, EfMailruPostmasterDashboardReader>();
