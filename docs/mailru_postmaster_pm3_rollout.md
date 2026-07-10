@@ -1,8 +1,8 @@
 # Production rollout PM-3 — админка доставляемости Mail.ru
 
-Статус: готов к выкладке  
+Статус: выкладка начата; миграция применена, новые бинарники ещё не развернуты  
 Дата подготовки: 2026-07-10  
-Кодовый HEAD: `348351d71f8774f2c06adf5c77a7ab337855b393`  
+Проверенный кодовый HEAD PM-3: `348351d71f8774f2c06adf5c77a7ab337855b393`  
 Контур: production  
 Ответственное направление: техническое
 
@@ -72,11 +72,62 @@ mailru_postmaster_sync_runs
 
 Нельзя открывать новую страницу до применения миграции: read-модель журнала ожидает таблицу `mailru_postmaster_sync_runs`.
 
-## 4. Откат
+## 4. Штатные production-скрипты
+
+Канонические версии серверных команд хранятся в репозитории:
+
+```text
+scripts/production/build-pismolet
+scripts/production/run-tests-pismolet
+scripts/production/deploy-pismolet
+```
+
+На production они устанавливаются как:
+
+```text
+/usr/local/bin/build-pismolet
+/usr/local/bin/run-tests-pismolet
+/usr/local/bin/deploy-pismolet
+```
+
+После обновления исходников установить или обновить команды:
+
+```bash
+cd /opt/pismolet
+
+sudo install -o root -g root -m 0755 \
+  scripts/production/build-pismolet \
+  /usr/local/bin/build-pismolet
+
+sudo install -o root -g root -m 0755 \
+  scripts/production/run-tests-pismolet \
+  /usr/local/bin/run-tests-pismolet
+
+sudo install -o root -g root -m 0755 \
+  scripts/production/deploy-pismolet \
+  /usr/local/bin/deploy-pismolet
+```
+
+Назначение команд:
+
+- `build-pismolet` проверяет ветку `Development`, отказывается работать при незакоммиченных изменениях, выполняет только fast-forward pull и собирает решение;
+- `run-tests-pismolet` запускает тесты и принимает дополнительные аргументы `dotnet test`; без аргументов команда самодостаточна, а deploy передаёт `--no-build` после успешной сборки;
+- `deploy-pismolet` выполняет сборку и тесты до остановки сервиса, публикует релиз во временный каталог, только затем переключает рабочий каталог, проверяет systemd и строгий HTTPS health-check, а при ошибке автоматически возвращает предыдущий релиз.
+
+Успешный deploy сохраняет предыдущую версию в каталоге вида:
+
+```text
+/var/www/pismolet.rollback-YYYYMMDD-HHMMSS
+```
+
+После подтверждённого smoke старые rollback-каталоги удаляются отдельной осознанной операцией. Скрипт не применяет EF-миграции автоматически: backup БД, миграция и проверка схемы остаются отдельными шагами до выкладки бинарников.
+
+## 5. Откат
 
 При проблеме UI или ручной синхронизации:
 
-- вернуть предыдущие бинарники;
+- штатный `deploy-pismolet` автоматически возвращает предыдущий релиз при ошибке запуска или health-check;
+- при ручном откате вернуть предыдущие бинарники;
 - перезапустить `pismolet.service`;
 - не удалять таблицу журнала в аварийном порядке.
 
@@ -90,20 +141,23 @@ MailruPostmaster__Enabled=false
 
 Отключение Postmaster не меняет SMTP-отправку.
 
-## 5. Production smoke-чеклист
+## 6. Production smoke-чеклист
 
 Выполнять по одному действию за раз.
 
 ### Миграция
 
-- [ ] Резервная копия БД создана и путь зафиксирован.
-- [ ] Миграция `20260710071500_AddMailruPostmasterSyncRunJournal` применена.
-- [ ] Миграция присутствует в `__EFMigrationsHistory` соответствующего контекста.
-- [ ] Таблица `mailru_postmaster_sync_runs` существует.
+- [x] Резервная копия БД создана: `/var/backups/pismolet/pismolet-before-pm3-20260710-073441.dump`.
+- [x] Права резервной копии БД ограничены до `600`.
+- [x] Миграция `20260710071500_AddMailruPostmasterSyncRunJournal` применена.
+- [x] Миграция присутствует в `__EFMigrationsHistory` соответствующего контекста.
+- [x] Таблица `mailru_postmaster_sync_runs` существует.
 - [ ] Существующие таблицы PM-2 и 20 накопленных строк метрик сохранены.
 
 ### Сервис
 
+- [x] Создан архив текущего приложения: `/var/backups/pismolet/pismolet-app-before-pm3-20260710-074737.tar.gz`.
+- [ ] Улучшенные production-скрипты установлены в `/usr/local/bin`.
 - [ ] Новые бинарники развернуты.
 - [ ] `pismolet.service` активен после перезапуска.
 - [ ] `/health` возвращает `{"status":"ok"}`.
@@ -134,6 +188,6 @@ MailruPostmaster__Enabled=false
 - [ ] Обычная тестовая рассылка после выкладки успешно отправляется.
 - [ ] Письмо доходит до контролируемого адреса.
 
-## 6. Критерий статуса `внедрён`
+## 7. Критерий статуса `внедрён`
 
 PM-3 переводится в `внедрён` только после успешной миграции, доступности административной страницы, успешного ручного запуска, появления ручной и фоновой записей журнала, чистых логов, рабочего health-check и подтверждённой доставки обычного письма.
