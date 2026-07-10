@@ -10,12 +10,16 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddSingleton(MailruPostmasterManualSyncOptions.Read(configuration));
+
         var provider = configuration["Persistence:Provider"]
             ?? configuration["Pismolet:Persistence"]
             ?? "Postgres";
         if (provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton<IMailruPostmasterDashboardReader, EmptyMailruPostmasterDashboardReader>();
+            services.AddSingleton<IMailruPostmasterSyncRunJournal, InMemoryMailruPostmasterSyncRunJournal>();
+            services.AddSingleton<IMailruPostmasterManualSyncService, DisabledMailruPostmasterManualSyncService>();
             return services;
         }
 
@@ -31,10 +35,13 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         services.AddDbContext<MailruPostmasterDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IMailruPostmasterStorage, EfMailruPostmasterStorage>();
         services.AddScoped<IMailruPostmasterDashboardReader, EfMailruPostmasterDashboardReader>();
+        services.AddSingleton<IMailruPostmasterSyncRunJournal, EfMailruPostmasterSyncRunJournal>();
         services.AddSingleton(MailruPostmasterSyncOptions.Read(configuration));
         services.AddSingleton<TimeProvider>(TimeProvider.System);
         services.AddSingleton<IMailruPostmasterSynchronizer, MailruPostmasterSynchronizer>();
-        services.AddHostedService<MailruPostmasterSyncHostedService>();
+        services.AddSingleton<IMailruPostmasterSyncExecutor, MailruPostmasterSyncExecutor>();
+        services.AddSingleton<IMailruPostmasterManualSyncService, MailruPostmasterManualSyncService>();
+        services.AddHostedService<MailruPostmasterJournaledSyncHostedService>();
         return services;
     }
 }
