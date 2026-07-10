@@ -21,6 +21,8 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
             services.AddSingleton<IMailruPostmasterDashboardReader, EmptyMailruPostmasterDashboardReader>();
             services.AddSingleton<IMailruPostmasterSyncRunJournal, InMemoryMailruPostmasterSyncRunJournal>();
             services.AddSingleton<IMailruPostmasterManualSyncService, DisabledMailruPostmasterManualSyncService>();
+            services.AddSingleton<IMailruPostmasterMailingCandidateReader, EmptyMailruPostmasterMailingCandidateReader>();
+            services.AddSingleton<IMailruPostmasterMailingStatisticsSynchronizer, DisabledMailruPostmasterMailingStatisticsSynchronizer>();
             return services;
         }
 
@@ -36,11 +38,14 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         services.AddDbContext<MailruPostmasterDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IMailruPostmasterStorage, EfMailruPostmasterStorage>();
         services.AddScoped<IMailruPostmasterMailingStorage, EfMailruPostmasterMailingStorage>();
+        services.AddScoped<IMailruPostmasterMailingCandidateReader, EfMailruPostmasterMailingCandidateReader>();
+        services.AddScoped<IMailruPostmasterMailingStatisticsSynchronizer, MailruPostmasterMailingStatisticsSynchronizer>();
         services.AddScoped<IMailruPostmasterDashboardReader, EfMailruPostmasterDashboardReader>();
         services.AddSingleton<IMailruPostmasterSyncRunJournal, EfMailruPostmasterSyncRunJournal>();
         services.AddSingleton(MailruPostmasterSyncOptions.Read(configuration));
         services.AddSingleton<TimeProvider>(TimeProvider.System);
-        services.AddSingleton<IMailruPostmasterSynchronizer, MailruPostmasterSynchronizer>();
+        services.AddSingleton<MailruPostmasterSynchronizer>();
+        services.AddSingleton<IMailruPostmasterSynchronizer, MailruPostmasterCompositeSynchronizer>();
         services.AddSingleton<IMailruPostmasterSyncExecutor, MailruPostmasterSyncExecutor>();
         services.AddSingleton<IMailruPostmasterManualSyncService, MailruPostmasterManualSyncService>();
         services.AddHostedService<MailruPostmasterJournaledSyncHostedService>();
