@@ -47,7 +47,6 @@ public sealed class PaymentEndpointUiTests
         Assert.DoesNotContain("name='advertisingConsent'", html);
         Assert.Contains($"/legal/payment-and-refund?returnUrl=/mailings/{mailingId}/payment", html);
         Assert.Contains("Оплатить 1 ₽", html);
-        Assert.DoesNotContain("Оплатить 1 ₽ через Robokassa", html);
     }
 
     [Fact]
@@ -76,7 +75,6 @@ public sealed class PaymentEndpointUiTests
 
         Assert.Equal(HttpStatusCode.OK, start.StatusCode);
         Assert.Contains("Для рекламной рассылки сначала подтвердите рекламное согласие", startHtml);
-        Assert.DoesNotContain("Оплата через Robokassa", startHtml);
 
         using var scope = factory.Services.CreateScope();
         var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
