@@ -159,7 +159,7 @@ public sealed class MailruPostmasterMailingStatisticsSynchronizer(
                 {
                     failedCount++;
                     var isRateLimited = IsRateLimited(statisticsResult);
-                    var nextAttemptAt = isRateLimited
+                    var failureNextAttemptAt = isRateLimited
                         ? CalculateRateLimitRetryAt(startedAt, statisticsResult.RetryAfter, nextDailyAttemptAt)
                         : nextDailyAttemptAt;
                     var errorCode = NormalizeErrorCode(statisticsResult.ErrorCode);
@@ -172,7 +172,7 @@ public sealed class MailruPostmasterMailingStatisticsSynchronizer(
                         startedAt,
                         errorCode,
                         errorSummary,
-                        nextAttemptAt,
+                        failureNextAttemptAt,
                         cancellationToken);
 
                     if (isRateLimited)
@@ -223,8 +223,8 @@ public sealed class MailruPostmasterMailingStatisticsSynchronizer(
                     candidate.LastSendAt,
                     startedAt,
                     mailingOptions.MaxAgeDays);
-                var completedAt = isMaxAgeReached ? observedAt : null;
-                var nextAttemptAt = completedAt is not null
+                DateTimeOffset? completedAt = isMaxAgeReached ? observedAt : null;
+                DateTimeOffset? nextAttemptAt = completedAt is not null
                     ? null
                     : isStable
                         ? observedAt.AddDays(7)
