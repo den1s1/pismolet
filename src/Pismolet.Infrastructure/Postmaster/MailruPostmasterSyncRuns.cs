@@ -144,12 +144,12 @@ public sealed class EfMailruPostmasterSyncRunJournal(IServiceScopeFactory scopeF
         var db = scope.ServiceProvider.GetRequiredService<MailruPostmasterDbContext>();
         var normalizedDomain = NormalizeDomain(domain);
         var normalizedTrigger = NormalizeRequired(trigger, 24);
-        return await db.SyncRuns
+        var startedAtValues = await db.SyncRuns
             .AsNoTracking()
             .Where(x => x.Domain == normalizedDomain && x.Trigger == normalizedTrigger)
-            .OrderByDescending(x => x.StartedAt)
-            .Select(x => (DateTimeOffset?)x.StartedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+            .Select(x => x.StartedAt)
+            .ToListAsync(cancellationToken);
+        return startedAtValues.Count == 0 ? null : startedAtValues.Max();
     }
 
     private static string NormalizeDomain(string value) => NormalizeRequired(value.Trim().TrimEnd('.').ToLowerInvariant(), 253);
