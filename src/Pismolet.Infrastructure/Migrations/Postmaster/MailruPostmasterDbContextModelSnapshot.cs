@@ -88,6 +88,153 @@ namespace Pismolet.Infrastructure.Migrations.Postmaster
                     b.ToTable("mailru_postmaster_domain_daily_metrics", (string)null);
                 });
 
+            modelBuilder.Entity("Pismolet.Web.Infrastructure.Postmaster.MailruPostmasterMailingDailyMetricEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CollectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Complaints")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<long>("DeletedRead")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("DeletedUnread")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Delivered")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<Guid>("MailingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("MessagesSent")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("MsgType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<long>("ProbablySpam")
+                        .HasColumnType("bigint");
+
+                    b.Property<double>("ProbablySpamPercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<long>("Read")
+                        .HasColumnType("bigint");
+
+                    b.Property<double>("Reputation")
+                        .HasColumnType("double precision");
+
+                    b.Property<long>("Spam")
+                        .HasColumnType("bigint");
+
+                    b.Property<double>("SpamPercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Trend")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MsgType");
+
+                    b.HasIndex("MailingId", "Date");
+
+                    b.HasIndex("Domain", "MailingId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("mailru_postmaster_mailing_daily_metrics", (string)null);
+                });
+
+            modelBuilder.Entity("Pismolet.Web.Infrastructure.Postmaster.MailruPostmasterMailingSyncStateEntity", b =>
+                {
+                    b.Property<string>("Domain")
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<Guid>("MailingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ConsecutiveFailures")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("FirstSendAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("HasData")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsStable")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("LastAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastDataFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateOnly?>("LastDateTo")
+                        .HasColumnType("date");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("LastErrorSummary")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset>("LastSendAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LastSuccessAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MsgType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UnchangedSuccessCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Domain", "MailingId");
+
+                    b.HasIndex("MsgType");
+
+                    b.HasIndex("NextAttemptAt", "CompletedAt");
+
+                    b.ToTable("mailru_postmaster_mailing_sync_states", (string)null);
+                });
+
             modelBuilder.Entity("Pismolet.Web.Infrastructure.Postmaster.MailruPostmasterSyncRunEntity", b =>
                 {
                     b.Property<Guid>("Id")
