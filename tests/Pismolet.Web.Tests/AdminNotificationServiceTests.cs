@@ -121,7 +121,7 @@ public sealed class AdminNotificationServiceTests
         var mailing = ReadyMailing(ClientEmail, "Review campaign");
         mailings.TryAdd(mailing);
         var paidPayment = Payment.Create(mailing.Id, ClientEmail, 1, 0, PriceSettings.DefaultRub());
-        payments.Save(paidPayment.MarkPaid(PaymentAttempt.Succeeded(paidPayment.Id, "paid-review", PaymentAttempt.RobokassaFakeProvider, "test")));
+        payments.Save(paidPayment.MarkPaid(PaymentAttempt.Succeeded(paidPayment.Id, "paid-review", ProdamusPaymentForm.ProviderName, "test")));
         var service = new MailingReviewService(
             mailings,
             payments,
@@ -157,14 +157,14 @@ public sealed class AdminNotificationServiceTests
         var mailing = ReadyMailing(ClientEmail, "Paid campaign");
         mailings.TryAdd(mailing);
         var payment = Payment.Create(mailing.Id, ClientEmail, 1, 0, PriceSettings.DefaultRub());
-        payment = payment.WithAttempt(PaymentAttempt.Pending(payment.Id, "paid-operation", PaymentAttempt.RobokassaFakeProvider));
+        payment = payment.WithAttempt(PaymentAttempt.Pending(payment.Id, "paid-operation", ProdamusPaymentForm.ProviderName));
         payments.Save(payment);
         var service = new MailingPaymentService(
             mailings,
             payments,
             prices,
             new MailingPricingService(prices),
-            new FakeRobokassaPaymentProvider(),
+            new ProdamusPaymentProvider(),
             users,
             new EmailNormalizer(),
             new InMemoryAuditLogger(),
