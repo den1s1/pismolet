@@ -36,24 +36,25 @@ public sealed class MailruPostmasterSyncHostedServiceTests
     [Fact]
     public async Task HostedService_RunsImmediatelyThenStopsDuringScheduledDelay()
     {
-        var synchronizer = new RecordingSynchronizer();
-        using var service = CreateService(synchronizer);
+        var executor = new RecordingExecutor();
+        using var service = CreateService(executor);
 
         await service.StartAsync(CancellationToken.None);
-        await synchronizer.Called.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await executor.Called.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await service.StopAsync(stopTimeout.Token);
 
-        Assert.Equal(1, synchronizer.CallCount);
+        Assert.Equal(1, executor.CallCount);
+        Assert.Equal(MailruPostmasterSyncTriggers.Scheduled, executor.LastTrigger);
     }
 
     [Fact]
-    public async Task HostedService_DisabledIntegrationDoesNotRunSynchronizer()
+    public async Task HostedService_DisabledIntegrationDoesNotRunExecutor()
     {
-        var synchronizer = new RecordingSynchronizer();
+        var executor = new RecordingExecutor();
         using var service = CreateService(
-            synchronizer,
+            executor,
             EnabledIntegrationOptions() with
             {
                 Enabled = false,
@@ -63,42 +64,42 @@ public sealed class MailruPostmasterSyncHostedServiceTests
         await service.StartAsync(CancellationToken.None);
         await service.StopAsync(CancellationToken.None);
 
-        Assert.Equal(0, synchronizer.CallCount);
+        Assert.Equal(0, executor.CallCount);
     }
 
     [Fact]
-    public async Task HostedService_UnexpectedSynchronizerErrorDoesNotFailHost()
+    public async Task HostedService_UnexpectedExecutorErrorDoesNotFailHost()
     {
-        var synchronizer = new ThrowingSynchronizer();
-        using var service = CreateService(synchronizer);
+        var executor = new ThrowingExecutor();
+        using var service = CreateService(executor);
 
         await service.StartAsync(CancellationToken.None);
-        await synchronizer.Called.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await executor.Called.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await service.StopAsync(stopTimeout.Token);
 
-        Assert.Equal(1, synchronizer.CallCount);
+        Assert.Equal(1, executor.CallCount);
     }
 
     [Fact]
     public async Task HostedService_StopCancelsActiveSynchronization()
     {
-        var synchronizer = new CancellableSynchronizer();
-        using var service = CreateService(synchronizer);
+        var executor = new CancellableExecutor();
+        using var service = CreateService(executor);
 
         await service.StartAsync(CancellationToken.None);
-        await synchronizer.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await executor.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await service.StopAsync(stopTimeout.Token);
-        await synchronizer.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await executor.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(1, synchronizer.CallCount);
+        Assert.Equal(1, executor.CallCount);
     }
 
     [Fact]
-    public void PersistenceRegistration_AddsHostedServiceOnlyOutsideInMemoryMode()
+    public void PersistenceRegistration_AddsJournaledHostedServiceOnlyOutsideInMemoryMode()
     {
         var productionServices = new ServiceCollection();
         var productionConfiguration = new ConfigurationBuilder()
@@ -115,7 +116,13 @@ public sealed class MailruPostmasterSyncHostedServiceTests
             productionServices,
             descriptor =>
                 descriptor.ServiceType == typeof(IHostedService) &&
-                descriptor.ImplementationType == typeof(MailruPostmasterSyncHostedService));
+                descriptor.ImplementationType == typeof(MailruPostmasterJournaledSyncHostedService));
+        Assert.Contains(
+            productionServices,
+            descriptor => descriptor.ServiceType == typeof(IMailruPostmasterManualSyncService));
+        Assert.Contains(
+            productionServices,
+            descriptor => descriptor.ServiceType == typeof(IMailruPostmasterSyncRunJournal));
 
         var inMemoryServices = new ServiceCollection();
         var inMemoryConfiguration = new ConfigurationBuilder()
@@ -131,18 +138,21 @@ public sealed class MailruPostmasterSyncHostedServiceTests
             inMemoryServices,
             descriptor =>
                 descriptor.ServiceType == typeof(IHostedService) &&
-                descriptor.ImplementationType == typeof(MailruPostmasterSyncHostedService));
+                descriptor.ImplementationType == typeof(MailruPostmasterJournaledSyncHostedService));
+        Assert.Contains(
+            inMemoryServices,
+            descriptor => descriptor.ServiceType == typeof(IMailruPostmasterManualSyncService));
     }
 
-    private static MailruPostmasterSyncHostedService CreateService(
-        IMailruPostmasterSynchronizer synchronizer,
+    private static MailruPostmasterJournaledSyncHostedService CreateService(
+        IMailruPostmasterSyncExecutor executor,
         MailruPostmasterOptions? integrationOptions = null) =>
         new(
-            synchronizer,
+            executor,
             integrationOptions ?? EnabledIntegrationOptions(),
             MailruPostmasterSyncOptions.Default,
             TimeProvider.System,
-            NullLogger<MailruPostmasterSyncHostedService>.Instance);
+            NullLogger<MailruPostmasterJournaledSyncHostedService>.Instance);
 
     private static MailruPostmasterOptions EnabledIntegrationOptions() => new(
         Enabled: true,
@@ -162,7 +172,7 @@ public sealed class MailruPostmasterSyncHostedServiceTests
             metricDays: 0,
             troubleCount: 0);
 
-    private sealed class RecordingSynchronizer : IMailruPostmasterSynchronizer
+    private sealed class RecordingExecutor : IMailruPostmasterSyncExecutor
     {
         private int callCount;
 
@@ -170,17 +180,21 @@ public sealed class MailruPostmasterSyncHostedServiceTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int CallCount => Volatile.Read(ref callCount);
+        public string? LastTrigger { get; private set; }
 
-        public Task<MailruPostmasterSyncRunResult> RunOnceAsync(
+        public Task<MailruPostmasterSyncRunResult> RunAsync(
+            string trigger,
+            string? requestedBy = null,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref callCount);
+            LastTrigger = trigger;
             Called.TrySetResult(true);
             return Task.FromResult(SuccessfulResult());
         }
     }
 
-    private sealed class ThrowingSynchronizer : IMailruPostmasterSynchronizer
+    private sealed class ThrowingExecutor : IMailruPostmasterSyncExecutor
     {
         private int callCount;
 
@@ -189,7 +203,9 @@ public sealed class MailruPostmasterSyncHostedServiceTests
 
         public int CallCount => Volatile.Read(ref callCount);
 
-        public Task<MailruPostmasterSyncRunResult> RunOnceAsync(
+        public Task<MailruPostmasterSyncRunResult> RunAsync(
+            string trigger,
+            string? requestedBy = null,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref callCount);
@@ -198,7 +214,7 @@ public sealed class MailruPostmasterSyncHostedServiceTests
         }
     }
 
-    private sealed class CancellableSynchronizer : IMailruPostmasterSynchronizer
+    private sealed class CancellableExecutor : IMailruPostmasterSyncExecutor
     {
         private int callCount;
 
@@ -210,7 +226,9 @@ public sealed class MailruPostmasterSyncHostedServiceTests
 
         public int CallCount => Volatile.Read(ref callCount);
 
-        public async Task<MailruPostmasterSyncRunResult> RunOnceAsync(
+        public async Task<MailruPostmasterSyncRunResult> RunAsync(
+            string trigger,
+            string? requestedBy = null,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref callCount);
