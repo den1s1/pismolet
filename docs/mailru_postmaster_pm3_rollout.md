@@ -8,6 +8,7 @@
 
 Связанные документы:
 
+- `docs/mailru_postmaster_api_context.md`;
 - `docs/production_operations.md`;
 - `docs/mailru_postmaster_api_sprints.md`;
 - `docs/mailru_postmaster_admin_architecture.md`;
