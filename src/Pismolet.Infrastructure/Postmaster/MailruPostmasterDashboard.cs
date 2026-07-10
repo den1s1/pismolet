@@ -33,13 +33,28 @@ public sealed record MailruPostmasterDashboardSyncState(
     DateOnly? LastDomainDate,
     DateTimeOffset UpdatedAt);
 
+public sealed record MailruPostmasterDashboardRun(
+    Guid Id,
+    string Trigger,
+    string? RequestedBy,
+    DateTimeOffset StartedAt,
+    DateTimeOffset? CompletedAt,
+    long? DurationMs,
+    string Status,
+    DateOnly? DateFrom,
+    DateOnly? DateTo,
+    int MetricDays,
+    int TroubleCount,
+    string? ErrorCode);
+
 public sealed record MailruPostmasterDashboardData(
     string Domain,
     DateOnly DateFrom,
     DateOnly DateTo,
     MailruPostmasterDashboardSyncState? SyncState,
     IReadOnlyList<MailruPostmasterDashboardTrouble> ActiveTroubles,
-    IReadOnlyList<MailruPostmasterDashboardDay> Days);
+    IReadOnlyList<MailruPostmasterDashboardDay> Days,
+    IReadOnlyList<MailruPostmasterDashboardRun> RecentRuns);
 
 public sealed record MailruPostmasterDashboardSummary(
     int DataDays,
@@ -73,6 +88,8 @@ public interface IMailruPostmasterDashboardReader
 
 public sealed class EfMailruPostmasterDashboardReader(MailruPostmasterDbContext db) : IMailruPostmasterDashboardReader
 {
+    private const int RecentRunsLimit = 20;
+
     public async Task<MailruPostmasterDashboardData> ReadAsync(
         string domain,
         DateOnly dateFrom,
@@ -97,6 +114,12 @@ public sealed class EfMailruPostmasterDashboardReader(MailruPostmasterDbContext 
             .AsNoTracking()
             .Where(x => x.Domain == normalizedDomain && x.Date >= dateFrom && x.Date <= dateTo)
             .OrderBy(x => x.Date)
+            .ToListAsync(cancellationToken);
+        var runEntities = await db.SyncRuns
+            .AsNoTracking()
+            .Where(x => x.Domain == normalizedDomain)
+            .OrderByDescending(x => x.StartedAt)
+            .Take(RecentRunsLimit)
             .ToListAsync(cancellationToken);
 
         var state = stateEntity is null
@@ -133,6 +156,21 @@ public sealed class EfMailruPostmasterDashboardReader(MailruPostmasterDbContext 
                 x.Trend,
                 x.UpdatedAt))
             .ToArray();
+        var runs = runEntities
+            .Select(x => new MailruPostmasterDashboardRun(
+                x.Id,
+                x.Trigger,
+                x.RequestedBy,
+                x.StartedAt,
+                x.CompletedAt,
+                x.DurationMs,
+                x.Status,
+                x.DateFrom,
+                x.DateTo,
+                x.MetricDays,
+                x.TroubleCount,
+                x.ErrorCode))
+            .ToArray();
 
         return new MailruPostmasterDashboardData(
             normalizedDomain,
@@ -140,7 +178,8 @@ public sealed class EfMailruPostmasterDashboardReader(MailruPostmasterDbContext 
             dateTo,
             state,
             troubles,
-            days);
+            days,
+            runs);
     }
 
     private static string NormalizeDomain(string domain)
