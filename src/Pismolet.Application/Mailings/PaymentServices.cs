@@ -61,23 +61,6 @@ public sealed class MailingPricingService(IPriceSettingsRepository prices) : IMa
     }
 }
 
-public sealed class FakeRobokassaPaymentProvider : IPaymentProvider
-{
-    public PaymentAttempt Start(Payment payment)
-    {
-        var operationId = RobokassaPaymentModule.BuildInvId(payment.Id);
-        return payment.Attempts.FirstOrDefault(x => x.ProviderOperationId == operationId)
-            ?? PaymentAttempt.Pending(payment.Id, operationId, PaymentAttempt.RobokassaFakeProvider);
-    }
-
-    public PaymentAttempt ConfirmSuccess(Payment payment, string providerOperationId, string rawCallback = "success")
-    {
-        var attempt = payment.Attempts.FirstOrDefault(x => x.ProviderOperationId == providerOperationId)
-            ?? PaymentAttempt.Pending(payment.Id, providerOperationId, PaymentAttempt.RobokassaFakeProvider);
-        return attempt.Status == PaymentAttemptStatus.Succeeded ? attempt : attempt.MarkSucceeded(rawCallback);
-    }
-}
-
 public sealed class MailingPaymentService(
     IMailingRepository mailings,
     IPaymentRepository payments,
@@ -150,7 +133,7 @@ public sealed class MailingPaymentService(
             payments.Save(payment);
             mailing = mailing.WithStatus(MailingStatus.Paid);
             mailings.Update(mailing);
-            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "robokassa_payment_succeeded", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
+            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "payment_succeeded", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
             adminNotifications?.NotifyMailingPaid(mailing, payment);
         }
 
@@ -173,7 +156,7 @@ public sealed class MailingPaymentService(
             payments.Save(payment);
             mailing = mailing.WithStatus(MailingStatus.Paid);
             mailings.Update(mailing);
-            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "robokassa_result_paid", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
+            auditLogger.Write(new AuditRecord(DateTimeOffset.UtcNow, mailing.OwnerEmail, "provider_payment_confirmed", request.Ip, request.UserAgent, $"mailingId={mailing.Id};paymentId={payment.Id};attemptId={attempt.Id}"));
             adminNotifications?.NotifyMailingPaid(mailing, payment);
         }
 
