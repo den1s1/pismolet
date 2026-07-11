@@ -109,6 +109,7 @@ app.UseAuthorization();
 app.UseAdminMenuVisibility();
 app.UseAdminSettingsMenuLink();
 app.UseAdminMailruDeliverabilityMenuLink();
+app.UseAdminMailruPostmasterAlerts();
 app.UseUnifiedAdminSidebar();
 app.UseAdminModerationMessagePreview();
 app.UseDashboardHeroRemoval();
