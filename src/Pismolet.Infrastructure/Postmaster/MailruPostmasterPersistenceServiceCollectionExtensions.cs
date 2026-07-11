@@ -12,6 +12,8 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
     {
         services.AddSingleton(MailruPostmasterManualSyncOptions.Read(configuration));
         services.AddSingleton(MailruPostmasterMailingMetricsOptions.Read(configuration));
+        services.AddSingleton(MailruPostmasterAlertOptionsReader.Read(configuration));
+        services.AddSingleton<IMailruPostmasterAlertEvaluator, MailruPostmasterAlertEvaluator>();
 
         var provider = configuration["Persistence:Provider"]
             ?? configuration["Pismolet:Persistence"]
