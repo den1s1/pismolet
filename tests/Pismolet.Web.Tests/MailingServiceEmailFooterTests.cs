@@ -16,25 +16,29 @@ public sealed class MailingServiceEmailFooterTests
     {
         const string unsubscribeUrl = "https://app.pismolet.ru/unsubscribe/test-token";
         const string serviceIdentifier = "Служебный идентификатор рассылки: PL-TEST123";
+        const string recipientReason = "Вы зарегистрировались на встречу книжного клуба.";
 
         var body = MailingServiceEmailFooter.PlainText(
             "Основной текст письма.",
-            "Тестовый отправитель",
+            recipientReason,
             unsubscribeUrl,
             serviceIdentifier);
 
-        Assert.Contains("Основной текст письма.\n\nВы получили это письмо от Тестовый отправитель через Письмолёт", body, StringComparison.Ordinal);
+        Assert.Contains($"Основной текст письма.\n\n{recipientReason}", body, StringComparison.Ordinal);
+        Assert.Contains(MailingServiceEmailFooter.UnsubscribeExplanation, body, StringComparison.Ordinal);
         Assert.Contains($"\n\nОтписаться от всех рассылок через сервис: {unsubscribeUrl}", body, StringComparison.Ordinal);
         Assert.Contains(serviceIdentifier, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("потому что отправитель указал", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void Html_footer_uses_compact_link_and_hides_service_identifier()
     {
         const string unsubscribeUrl = "https://app.pismolet.ru/unsubscribe/test-token";
+        const string recipientReason = "Вы зарегистрировались на встречу книжного клуба.";
         var plainText = MailingServiceEmailFooter.PlainText(
             "Основной текст письма.",
-            "Тестовый отправитель",
+            recipientReason,
             unsubscribeUrl,
             "Служебный идентификатор рассылки: PL-TEST123");
         var method = typeof(SmtpEmailProviderAdapter).GetMethod("BuildHtmlBody", BindingFlags.NonPublic | BindingFlags.Static);
@@ -42,6 +46,8 @@ public sealed class MailingServiceEmailFooterTests
         var html = Assert.IsType<string>(method!.Invoke(null, new object?[] { plainText, unsubscribeUrl, null, null }));
 
         Assert.Contains("border-top:1px solid #dbe4ef", html, StringComparison.Ordinal);
+        Assert.Contains(recipientReason, html, StringComparison.Ordinal);
+        Assert.Contains(MailingServiceEmailFooter.UnsubscribeExplanation, html, StringComparison.Ordinal);
         Assert.Contains($"href=\"{unsubscribeUrl}\"", html, StringComparison.Ordinal);
         Assert.Contains(">Отписаться от писем через Письмолёт</a>", html, StringComparison.Ordinal);
         Assert.DoesNotContain($">{unsubscribeUrl}<", html, StringComparison.Ordinal);
