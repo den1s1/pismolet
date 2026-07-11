@@ -50,7 +50,7 @@ public static class MailingRichMessageFlowEndpoints
             return HtmlRenderer.Html(HtmlRenderer.Page("Ошибка", HtmlRenderer.Error("Рассылка не найдена."), authenticated: true));
         }
 
-        if (mailing.MessageDraft is null)
+        if (mailing.MessageDraft is null || string.IsNullOrWhiteSpace(mailing.RecipientReason))
         {
             return Results.Redirect($"/mailings/{id}/message");
         }
@@ -75,6 +75,7 @@ public static class MailingRichMessageFlowEndpoints
         var form = await http.Request.ReadFormAsync();
         var senderName = form["senderName"].ToString();
         var subject = form["subject"].ToString();
+        var recipientReason = form["recipientReason"].ToString();
         var bodyFormat = NormalizeBodyFormat(form["bodyFormat"].ToString());
         var bodyTab = NormalizeBodyTab(form["bodyTab"].ToString());
         var visualBody = form["visualBody"].ToString();
@@ -146,7 +147,7 @@ public static class MailingRichMessageFlowEndpoints
         var attachments = await ReadAttachmentsAsync(form);
         if (!attachments.Ok)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Письмо", MessageForm(existing, attachments.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody, senderName, subject), authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Письмо", MessageForm(existing, attachments.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody, senderName, subject, recipientReason), authenticated: true));
         }
 
         var result = messages.Save(new SaveMailingMessageCommand(
@@ -158,12 +159,13 @@ public static class MailingRichMessageFlowEndpoints
             ResolveMessageType(existing),
             ToRequestMetadata(http),
             attachments.HasFiles ? attachments.Items : existing.MessageDraft?.Attachments,
-            messageBodyFormat));
+            messageBodyFormat,
+            recipientReason));
 
         var mailing = result.Mailing ?? existing;
         if (!result.Ok)
         {
-            return HtmlRenderer.Html(HtmlRenderer.Page("Письмо", MessageForm(mailing, result.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody, senderName, subject), authenticated: true));
+            return HtmlRenderer.Html(HtmlRenderer.Page("Письмо", MessageForm(mailing, result.Error, bodyFormat, plainBody, htmlBody, bodyTab, visualBody, senderName, subject, recipientReason), authenticated: true));
         }
 
         if (string.Equals(form["action"].ToString(), "preview", StringComparison.OrdinalIgnoreCase))
@@ -190,7 +192,8 @@ public static class MailingRichMessageFlowEndpoints
         string? activeTabOverride = null,
         string? visualBodyOverride = null,
         string? senderNameOverride = null,
-        string? subjectOverride = null)
+        string? subjectOverride = null,
+        string? recipientReasonOverride = null)
     {
         if (mailing is null)
         {
@@ -209,6 +212,7 @@ public static class MailingRichMessageFlowEndpoints
 
         var senderName = H(senderNameOverride ?? draft?.SenderName ?? string.Empty);
         var messageSubject = H(subjectOverride ?? draft?.Subject ?? string.Empty);
+        var recipientReason = H(recipientReasonOverride ?? mailing.RecipientReason ?? string.Empty);
         var plainBody = plainBodyOverride ?? (format == BodyFormatText ? savedBody : string.Empty);
         var htmlBody = htmlBodyOverride ?? (format == BodyFormatHtml ? savedBody : string.Empty);
         var visualBody = visualBodyOverride ?? ToVisualEditorHtml(savedBody, savedBodyFormat);
@@ -219,7 +223,7 @@ public static class MailingRichMessageFlowEndpoints
         var htmlTabClass = activeTab == BodyTabHtml ? "button compact" : "btn secondary compact";
         var attachmentsBlock = AttachmentsBlock(draft?.Attachments ?? Array.Empty<MailingAttachment>());
         var serviceFooterHref = $"/legal/service-email-footer?returnUrl=/mailings/{mailing.Id}/message";
-        var serviceFooterHint = $"Письмолёт автоматически добавит причину получения письма, ссылку отписки и служебный идентификатор рассылки. <a href='{serviceFooterHref}'>Служебный блок письма</a>.";
+        var serviceFooterHint = $"Письмолёт добавит введённое вами пояснение, фразу и ссылку для отписки, а также служебный идентификатор рассылки. <a href='{serviceFooterHref}'>Служебный блок письма</a>.";
 
         return $@"
 <section class='wizard-shell'>
@@ -274,6 +278,11 @@ public static class MailingRichMessageFlowEndpoints
         </div>
       </section>
       <label class='write-field'>
+        <span class='field-title'>Почему получатель получает это письмо? <span class='required'>*</span></span>
+        <textarea name='recipientReason' rows='4' maxlength='{Mailing.MaxRecipientReasonLength}' required placeholder='Например: Вы зарегистрировались на конференцию «Название» 5 июля 2026 года'>{recipientReason}</textarea>
+        <span class='field-hint'>Кратко и конкретно объясните, откуда у вас адрес получателя и почему он ожидает это письмо. Этот текст будет добавлен в письмо и проверен при модерации.</span>
+      </label>
+      <label class='write-field'>
         <span class='field-title'>Вложения</span>
         <input type='file' name='attachments' multiple>
         <span class='field-hint'>Можно добавить один или несколько файлов. Общий размер вложений — до 10 МБ.</span>
@@ -303,7 +312,7 @@ public static class MailingRichMessageFlowEndpoints
         var previewSender = string.IsNullOrWhiteSpace(draft.SenderName) ? "Письмолёт" : H(draft.SenderName);
         var previewSubject = string.IsNullOrWhiteSpace(draft.Subject) ? "Тема письма" : H(draft.Subject);
         var reasonBlock = string.IsNullOrWhiteSpace(preview.ReasonBlock)
-            ? "Служебный блок с причиной получения и ссылкой отписки будет добавлен автоматически."
+            ? "Служебный блок с пояснением и ссылкой отписки будет добавлен автоматически."
             : H(preview.ReasonBlock);
         var serviceBlock = string.IsNullOrWhiteSpace(preview.ServiceIdentifier)
             ? H($"Служебный идентификатор рассылки: {mailing.PublicId}")
@@ -334,7 +343,7 @@ public static class MailingRichMessageFlowEndpoints
 
     private static string PlainBodyPreview(string body, string reasonBlock, string unsubscribeUrl, string serviceBlock) => $@"
 <p>{ToHtmlText(body)}</p>
-<p class='service-preview-note'>Письмолёт автоматически добавит причину получения, отписку и служебный номер.</p>
+<p class='service-preview-note'>Письмолёт добавит введённое вами пояснение, отписку и служебный номер.</p>
 <details class='service-preview-details'>
   <summary>Показать служебный блок</summary>
   <div class='unsubscribe service-preview-footer'><p>{reasonBlock}</p><p>Отписаться: <code>{unsubscribeUrl}</code></p><p>{serviceBlock}</p></div>
