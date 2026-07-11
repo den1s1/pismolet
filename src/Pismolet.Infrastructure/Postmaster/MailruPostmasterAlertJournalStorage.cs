@@ -78,12 +78,25 @@ public sealed class EfMailruPostmasterAlertJournalStore(MailruPostmasterDbContex
         CancellationToken cancellationToken = default)
     {
         var normalizedDomain = NormalizeDomain(domain);
-        var entities = await db.AlertEvents
+        var query = db.AlertEvents
             .AsNoTracking()
-            .Where(x => x.Domain == normalizedDomain && x.Status == "active")
-            .OrderByDescending(x => x.UpdatedAt)
-            .ThenBy(x => x.Code)
-            .ToListAsync(cancellationToken);
+            .Where(x => x.Domain == normalizedDomain && x.Status == "active");
+
+        List<MailruPostmasterAlertEventEntity> entities;
+        if (RequiresClientDateTimeOffsetOrdering())
+        {
+            entities = (await query.ToListAsync(cancellationToken))
+                .OrderByDescending(x => x.UpdatedAt)
+                .ThenBy(x => x.Code, StringComparer.Ordinal)
+                .ToList();
+        }
+        else
+        {
+            entities = await query
+                .OrderByDescending(x => x.UpdatedAt)
+                .ThenBy(x => x.Code)
+                .ToListAsync(cancellationToken);
+        }
 
         return entities.Select(ToModel).ToArray();
     }
@@ -112,11 +125,24 @@ public sealed class EfMailruPostmasterAlertJournalStore(MailruPostmasterDbContex
             query = query.Where(x => x.Severity == storedSeverity);
         }
 
-        var entities = await query
-            .OrderByDescending(x => x.UpdatedAt)
-            .ThenByDescending(x => x.LastObservedAt)
-            .Take(Math.Clamp(take, 1, 500))
-            .ToListAsync(cancellationToken);
+        var boundedTake = Math.Clamp(take, 1, 500);
+        List<MailruPostmasterAlertEventEntity> entities;
+        if (RequiresClientDateTimeOffsetOrdering())
+        {
+            entities = (await query.ToListAsync(cancellationToken))
+                .OrderByDescending(x => x.UpdatedAt)
+                .ThenByDescending(x => x.LastObservedAt)
+                .Take(boundedTake)
+                .ToList();
+        }
+        else
+        {
+            entities = await query
+                .OrderByDescending(x => x.UpdatedAt)
+                .ThenByDescending(x => x.LastObservedAt)
+                .Take(boundedTake)
+                .ToListAsync(cancellationToken);
+        }
 
         return entities.Select(ToModel).ToArray();
     }
@@ -162,6 +188,9 @@ public sealed class EfMailruPostmasterAlertJournalStore(MailruPostmasterDbContex
 
         await db.SaveChangesAsync(cancellationToken);
     }
+
+    private bool RequiresClientDateTimeOffsetOrdering() =>
+        db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true;
 
     private static void Copy(
         MailruPostmasterAlertJournalEvent source,
