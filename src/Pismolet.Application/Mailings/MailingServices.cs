@@ -182,7 +182,7 @@ public sealed record SaveMailingMessageCommand(
     RequestMetadata Request,
     IReadOnlyCollection<MailingAttachment>? Attachments = null,
     MessageBodyFormat BodyFormat = MessageBodyFormat.Text,
-    string RecipientReason = "");
+    string? RecipientReason = null);
 
 public sealed record MailingMessageResult(bool Ok, string Error, Mailing? Mailing)
 {
@@ -215,13 +215,13 @@ public sealed class MailingMessageService(
             return MailingMessageResult.Failure("Рекламное письмо нельзя сохранить без подтверждения рекламного согласия.");
         }
 
-        var recipientReason = command.RecipientReason.Trim();
-        if (string.IsNullOrWhiteSpace(recipientReason))
+        var recipientReason = command.RecipientReason?.Trim();
+        if (command.RecipientReason is not null && string.IsNullOrWhiteSpace(recipientReason))
         {
             return MailingMessageResult.Failure("Объясните, почему получатель получает это письмо.");
         }
 
-        if (recipientReason.Length > Mailing.MaxRecipientReasonLength)
+        if (recipientReason?.Length > Mailing.MaxRecipientReasonLength)
         {
             return MailingMessageResult.Failure($"Пояснение должно быть не длиннее {Mailing.MaxRecipientReasonLength} символов.");
         }
@@ -247,7 +247,10 @@ public sealed class MailingMessageService(
             return MailingMessageResult.Failure(ex.Message);
         }
 
-        var updated = mailing.WithMessageDraft(draft) with { RecipientReason = recipientReason };
+        var updated = mailing.WithMessageDraft(draft) with
+        {
+            RecipientReason = command.RecipientReason is null ? mailing.RecipientReason : recipientReason
+        };
         mailings.Update(updated);
 
         auditLogger.Write(new AuditRecord(
@@ -256,7 +259,7 @@ public sealed class MailingMessageService(
             "mailing_message_saved",
             command.Request.Ip,
             command.Request.UserAgent,
-            $"{{\"mailingId\":\"{mailing.Id}\",\"messageType\":\"{draft.MessageType}\",\"attachments\":{draft.Attachments.Count},\"recipientReasonLength\":{recipientReason.Length}}}"));
+            $"{{\"mailingId\":\"{mailing.Id}\",\"messageType\":\"{draft.MessageType}\",\"attachments\":{draft.Attachments.Count},\"recipientReasonLength\":{updated.RecipientReason?.Length ?? 0}}}"));
 
         return MailingMessageResult.Success(updated);
     }
@@ -281,7 +284,9 @@ public sealed class MessageRenderingService : IMessageRenderingService
             return new RenderedMessagePreview(string.Empty, string.Empty, string.Empty, serviceId);
         }
 
-        var recipientReason = mailing.RecipientReason ?? string.Empty;
+        var recipientReason = string.IsNullOrWhiteSpace(mailing.RecipientReason)
+            ? MailingServiceEmailFooter.LegacyRecipientReason(mailing.MessageDraft.SenderName)
+            : mailing.RecipientReason;
         var reason = MailingServiceEmailFooter.Reason(recipientReason);
         var plain = MailingServiceEmailFooter.PlainText(mailing.MessageDraft.Body, recipientReason, PreviewUnsubscribeUrl, serviceId);
 
