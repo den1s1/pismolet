@@ -23,6 +23,7 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         {
             services.AddSingleton<IMailruPostmasterDashboardReader, EmptyMailruPostmasterDashboardReader>();
             services.AddSingleton<IMailruPostmasterMailingMetricsReader, EmptyMailruPostmasterMailingMetricsReader>();
+            services.AddSingleton<IMailruPostmasterAlertJournalStore, EmptyMailruPostmasterAlertJournalStore>();
             services.AddSingleton<IMailruPostmasterSyncRunJournal, InMemoryMailruPostmasterSyncRunJournal>();
             services.AddSingleton<IMailruPostmasterManualSyncService, DisabledMailruPostmasterManualSyncService>();
             services.AddSingleton<IMailruPostmasterMailingCandidateReader, EmptyMailruPostmasterMailingCandidateReader>();
@@ -43,6 +44,7 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         services.AddScoped<IMailruPostmasterStorage, EfMailruPostmasterStorage>();
         services.AddScoped<IMailruPostmasterMailingStorage, EfMailruPostmasterMailingStorage>();
         services.AddScoped<IMailruPostmasterMailingMetricsReader, EfMailruPostmasterMailingMetricsReader>();
+        services.AddScoped<IMailruPostmasterAlertJournalStore, EfMailruPostmasterAlertJournalStore>();
         services.AddScoped<IMailruPostmasterMailingCandidateReader, EfMailruPostmasterMailingCandidateReader>();
         services.AddScoped<IMailruPostmasterMailingStatisticsSynchronizer, MailruPostmasterMailingStatisticsSynchronizer>();
         services.AddScoped<IMailruPostmasterDashboardReader, EfMailruPostmasterDashboardReader>();
