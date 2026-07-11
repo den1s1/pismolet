@@ -404,6 +404,8 @@ public static class MailingStatusLabels
 
 public sealed record Mailing(string Subject, string StatusRu)
 {
+    public const int MaxRecipientReasonLength = 1000;
+
     public Guid Id { get; init; } = Guid.NewGuid();
 
     public string OwnerEmail { get; init; } = string.Empty;
@@ -423,6 +425,8 @@ public sealed record Mailing(string Subject, string StatusRu)
     public MailingDeclaration? Declaration { get; init; }
 
     public MailingMessageDraft? MessageDraft { get; init; }
+
+    public string? RecipientReason { get; init; }
 
     public string PublicId { get; init; } = $"PL-{Guid.NewGuid():N}"[..11].ToUpperInvariant();
 
