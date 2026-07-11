@@ -72,7 +72,10 @@ public static class AdminMailruPostmasterAlertMiddleware
 
                 using var reader = new StreamReader(buffer, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
                 var html = await reader.ReadToEndAsync(context.RequestAborted);
-                var block = await BuildAlertBlockSafelyAsync(context.RequestServices, context.RequestAborted);
+                var block = await BuildAlertBlockSafelyAsync(
+                    context.RequestServices,
+                    context.Request.Query,
+                    context.RequestAborted);
                 var updatedHtml = InjectAlertBlock(html, block);
                 var bytes = Encoding.UTF8.GetBytes(updatedHtml);
                 context.Response.ContentLength = bytes.Length;
@@ -104,7 +107,8 @@ public static class AdminMailruPostmasterAlertMiddleware
         DateOnly currentDateFrom,
         DateOnly currentDateTo,
         DateOnly previousDateFrom,
-        DateOnly previousDateTo)
+        DateOnly previousDateTo,
+        string journalBlock = "")
     {
         ArgumentNullException.ThrowIfNull(evaluation);
         ArgumentNullException.ThrowIfNull(options);
@@ -139,6 +143,7 @@ public static class AdminMailruPostmasterAlertMiddleware
                 {lowSample}
                 <div class='mailru-alert-list'>{signals}</div>
                 <p class='mailru-alert-window'>Текущее окно: {D(currentDateFrom)} — {D(currentDateTo)}. Сравнение: {D(previousDateFrom)} — {D(previousDateTo)}. Начало наблюдения: {H(observationStarted)}.</p>
+                {journalBlock}
             </section>
             """;
     }
@@ -153,18 +158,26 @@ public static class AdminMailruPostmasterAlertMiddleware
 
     private static async Task<string> BuildAlertBlockSafelyAsync(
         IServiceProvider services,
+        IQueryCollection query,
         CancellationToken cancellationToken)
     {
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("MailruPostmasterAlerts");
         try
         {
             var alertOptions = services.GetRequiredService<MailruPostmasterAlertOptions>().Normalize();
+            var integrationOptions = services.GetRequiredService<MailruPostmasterOptions>();
             var nowUtc = DateTimeOffset.UtcNow;
             var (currentDateFrom, currentDateTo) = MailruPostmasterDashboardCalculator.CalculateCompletedMoscowWindow(
                 nowUtc,
                 alertOptions.WindowDays);
             var previousDateTo = currentDateFrom.AddDays(-1);
             var previousDateFrom = previousDateTo.AddDays(-(alertOptions.WindowDays - 1));
+            var journalBlock = await BuildJournalBlockSafelyAsync(
+                services,
+                integrationOptions,
+                query,
+                logger,
+                cancellationToken);
 
             if (!alertOptions.Enabled)
             {
@@ -181,10 +194,10 @@ public static class AdminMailruPostmasterAlertMiddleware
                     currentDateFrom,
                     currentDateTo,
                     previousDateFrom,
-                    previousDateTo);
+                    previousDateTo,
+                    journalBlock);
             }
 
-            var integrationOptions = services.GetRequiredService<MailruPostmasterOptions>();
             MailruPostmasterDashboardData data;
             if (integrationOptions.IsConfigured)
             {
@@ -227,7 +240,8 @@ public static class AdminMailruPostmasterAlertMiddleware
                 currentDateFrom,
                 currentDateTo,
                 previousDateFrom,
-                previousDateTo);
+                previousDateTo,
+                journalBlock);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -237,6 +251,55 @@ public static class AdminMailruPostmasterAlertMiddleware
         {
             logger.LogWarning(ex, "Не удалось построить блок эксплуатационных сигналов Mail.ru Postmaster.");
             return RenderUnavailableBlock();
+        }
+    }
+
+    private static async Task<string> BuildJournalBlockSafelyAsync(
+        IServiceProvider services,
+        MailruPostmasterOptions integrationOptions,
+        IQueryCollection query,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var filter = AdminMailruPostmasterAlertJournalRenderer.ParseFilter(
+            query["pm5Status"].ToString(),
+            query["pm5Severity"].ToString());
+
+        try
+        {
+            var journalStore = services.GetService<IMailruPostmasterAlertJournalStore>();
+            if (journalStore is null || string.IsNullOrWhiteSpace(integrationOptions.Domain))
+            {
+                return AdminMailruPostmasterAlertJournalRenderer.Render(
+                    Array.Empty<MailruPostmasterAlertJournalEvent>(),
+                    filter,
+                    isAvailable: false);
+            }
+
+            var events = await journalStore.ReadRecentAsync(
+                integrationOptions.Domain,
+                filter.Status,
+                filter.Severity,
+                take: 100,
+                cancellationToken);
+            return AdminMailruPostmasterAlertJournalRenderer.Render(
+                events,
+                filter,
+                isAvailable: true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Не удалось прочитать журнал эксплуатационных сигналов Mail.ru Postmaster.");
+            return AdminMailruPostmasterAlertJournalRenderer.Render(
+                Array.Empty<MailruPostmasterAlertJournalEvent>(),
+                filter,
+                isAvailable: false);
         }
     }
 
