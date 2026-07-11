@@ -74,7 +74,8 @@ public sealed class RiskCheckServiceTests
                 DateTimeOffset.UtcNow,
                 "127.0.0.1",
                 "test"),
-            MessageDraft = MailingMessageDraft.Create(senderName, "Тема письма", body, MessageType.Transactional, DateTimeOffset.UtcNow)
+            MessageDraft = MailingMessageDraft.Create(senderName, "Тема письма", body, MessageType.Transactional, DateTimeOffset.UtcNow),
+            RecipientReason = "Вы оставили адрес при регистрации в сервисе."
         };
     }
 
