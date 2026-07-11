@@ -217,7 +217,7 @@ public sealed class AdminEndpointsTests
         Assert.Contains("Списки пользователей", html);
         Assert.Contains(OwnerEmail, html);
         Assert.Contains("Lead campaign", html);
-        Assert.Contains("Добавить глобальную отписку", html);
+        Assert.Contains("Исключить из рассылок через сервис", html);
 
         var response = await client.PostAsync("/admin/recipients/" + Uri.EscapeDataString("lead@example.test") + "/suppress", new StringContent(string.Empty));
         response.EnsureSuccessStatusCode();
