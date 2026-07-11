@@ -181,7 +181,8 @@ public sealed record SaveMailingMessageCommand(
     MessageType MessageType,
     RequestMetadata Request,
     IReadOnlyCollection<MailingAttachment>? Attachments = null,
-    MessageBodyFormat BodyFormat = MessageBodyFormat.Text);
+    MessageBodyFormat BodyFormat = MessageBodyFormat.Text,
+    string RecipientReason = "");
 
 public sealed record MailingMessageResult(bool Ok, string Error, Mailing? Mailing)
 {
@@ -214,6 +215,17 @@ public sealed class MailingMessageService(
             return MailingMessageResult.Failure("Рекламное письмо нельзя сохранить без подтверждения рекламного согласия.");
         }
 
+        var recipientReason = command.RecipientReason.Trim();
+        if (string.IsNullOrWhiteSpace(recipientReason))
+        {
+            return MailingMessageResult.Failure("Объясните, почему получатель получает это письмо.");
+        }
+
+        if (recipientReason.Length > Mailing.MaxRecipientReasonLength)
+        {
+            return MailingMessageResult.Failure($"Пояснение должно быть не длиннее {Mailing.MaxRecipientReasonLength} символов.");
+        }
+
         MailingMessageDraft draft;
         try
         {
@@ -235,7 +247,7 @@ public sealed class MailingMessageService(
             return MailingMessageResult.Failure(ex.Message);
         }
 
-        var updated = mailing.WithMessageDraft(draft);
+        var updated = mailing.WithMessageDraft(draft) with { RecipientReason = recipientReason };
         mailings.Update(updated);
 
         auditLogger.Write(new AuditRecord(
@@ -244,7 +256,7 @@ public sealed class MailingMessageService(
             "mailing_message_saved",
             command.Request.Ip,
             command.Request.UserAgent,
-            $"{{\"mailingId\":\"{mailing.Id}\",\"messageType\":\"{draft.MessageType}\",\"attachments\":{draft.Attachments.Count}}}"));
+            $"{{\"mailingId\":\"{mailing.Id}\",\"messageType\":\"{draft.MessageType}\",\"attachments\":{draft.Attachments.Count},\"recipientReasonLength\":{recipientReason.Length}}}"));
 
         return MailingMessageResult.Success(updated);
     }
@@ -269,8 +281,9 @@ public sealed class MessageRenderingService : IMessageRenderingService
             return new RenderedMessagePreview(string.Empty, string.Empty, string.Empty, serviceId);
         }
 
-        var reason = MailingServiceEmailFooter.Reason(mailing.MessageDraft.SenderName);
-        var plain = MailingServiceEmailFooter.PlainText(mailing.MessageDraft.Body, mailing.MessageDraft.SenderName, PreviewUnsubscribeUrl, serviceId);
+        var recipientReason = mailing.RecipientReason ?? string.Empty;
+        var reason = MailingServiceEmailFooter.Reason(recipientReason);
+        var plain = MailingServiceEmailFooter.PlainText(mailing.MessageDraft.Body, recipientReason, PreviewUnsubscribeUrl, serviceId);
 
         return new RenderedMessagePreview(plain, PreviewUnsubscribeUrl, reason, serviceId);
     }
