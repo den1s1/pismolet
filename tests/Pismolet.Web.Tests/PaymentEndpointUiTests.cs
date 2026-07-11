@@ -151,7 +151,8 @@ public sealed class PaymentEndpointUiTests
         {
             ["senderName"] = "Библиотека №5",
             ["subject"] = "Приглашаем на встречу",
-            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас."
+            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас.",
+            ["recipientReason"] = "Вы записались на мероприятие библиотеки."
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -173,7 +174,10 @@ public sealed class PaymentEndpointUiTests
             "Рекламный текст",
             MessageType.Advertising,
             DateTimeOffset.UtcNow);
-        repository.Update(mailing.WithDeclaration(declaration).WithMessageDraft(draft));
+        repository.Update(mailing.WithDeclaration(declaration).WithMessageDraft(draft) with
+        {
+            RecipientReason = "Вы оставили адрес при оформлении заказа."
+        });
     }
 
     private static WebApplicationFactory<Program> CreateFactory() =>
