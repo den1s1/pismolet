@@ -204,7 +204,8 @@ public sealed class MailingWizardEndpointsTests
         {
             ["senderName"] = "Книжный клуб",
             ["subject"] = "Скидка на встречу клуба",
-            ["body"] = "Приходите на рекламную встречу клуба."
+            ["body"] = "Приходите на рекламную встречу клуба.",
+            ["recipientReason"] = "Вы оставили адрес при регистрации в книжном клубе."
         });
         var saveResponse = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
         Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
@@ -227,6 +228,7 @@ public sealed class MailingWizardEndpointsTests
         var mailing = mailings.GetForOwner(mailingId, OwnerEmail);
         Assert.NotNull(mailing?.MessageDraft);
         Assert.Equal(MessageType.Advertising, mailing.MessageDraft.MessageType);
+        Assert.Equal("Вы оставили адрес при регистрации в книжном клубе.", mailing.RecipientReason);
         Assert.NotNull(mailing.Declaration);
         Assert.Equal(BaseSource.Customers, mailing.Declaration.BaseSource);
         Assert.True(mailing.Declaration.IsBaseLegalityConfirmed);
@@ -378,7 +380,9 @@ public sealed class MailingWizardEndpointsTests
         Assert.Contains("name='senderName'", html);
         Assert.Contains("name='plainBody'", html);
         Assert.Contains("name='htmlBody'", html);
-        Assert.Contains("Письмолёт автоматически добавит", html);
+        Assert.Contains("name='recipientReason'", html);
+        Assert.Contains("Почему получатель получает это письмо?", html);
+        Assert.Contains("Письмолёт добавит введённое вами пояснение", html);
         Assert.Contains(">Далее</button>", html);
         Assert.DoesNotContain("Сохранить письмо и перейти к адресатам", html);
         Assert.DoesNotContain("Политика запрещённого контента", html);
@@ -405,7 +409,8 @@ public sealed class MailingWizardEndpointsTests
         {
             ["senderName"] = "Библиотека №5",
             ["subject"] = "Приглашаем на встречу",
-            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас."
+            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас.",
+            ["recipientReason"] = "Вы записались на встречу в библиотеке."
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -421,6 +426,7 @@ public sealed class MailingWizardEndpointsTests
         Assert.Equal("Приглашаем на встречу", mailing.MessageDraft.Subject);
         Assert.Equal("Здравствуйте!\n\nБудем рады видеть вас.", mailing.MessageDraft.Body);
         Assert.Equal(MessageType.Transactional, mailing.MessageDraft.MessageType);
+        Assert.Equal("Вы записались на встречу в библиотеке.", mailing.RecipientReason);
     }
 
     private static async Task ImportAcceptedAddress(HttpClient client, Guid mailingId)
