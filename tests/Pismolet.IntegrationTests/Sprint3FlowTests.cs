@@ -28,7 +28,8 @@ public sealed class Sprint3FlowTests
         {
             ["senderName"] = "Письмолёт",
             ["subject"] = "Новости",
-            ["body"] = "Текст письма"
+            ["body"] = "Текст письма",
+            ["recipientReason"] = "Вы оставили адрес при регистрации на новости проекта."
         }));
 
         Assert.Equal(HttpStatusCode.Redirect, message.StatusCode);
