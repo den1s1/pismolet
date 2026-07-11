@@ -213,7 +213,7 @@ public sealed class FakeEmailProviderAdapter(IFakeMailer fakeMailer) : IEmailPro
             var to = ReadString(root, "to");
             if (string.IsNullOrWhiteSpace(providerInboundEventId) || string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
             {
-                return Task.FromResult(EmailProviderInboundParseResult.Failure("Некорректный fake inbound payload."));
+                return Task.FromResult(EmailProviderInboundParseResult.Failure("Некорректный JSON inbound payload."));
             }
 
             var receivedAt = DateTimeOffset.UtcNow;
@@ -644,6 +644,11 @@ public sealed class MailingSendService(
             return "Сначала сохраните письмо.";
         }
 
+        if (string.IsNullOrWhiteSpace(mailing.RecipientReason))
+        {
+            return "Сначала объясните, почему получатель получает это письмо.";
+        }
+
         if (mailing.Recipients.All(x => x.Status != RecipientStatus.Accepted))
         {
             return "Нет принятых адресов для отправки.";
@@ -661,7 +666,10 @@ public sealed class MailingSendService(
         var replyToAddress = BuildReplyToAddress(replyAlias.Alias);
         var messageId = BuildOutboundMessageId(mailing, sendEvent);
         var serviceId = MailingServiceEmailFooter.ServiceIdentifier(mailing.PublicId);
-        var plain = MailingServiceEmailFooter.PlainText(draft.Body, draft.SenderName, unsubscribeUrl, serviceId);
+        var recipientReason = string.IsNullOrWhiteSpace(mailing.RecipientReason)
+            ? MailingServiceEmailFooter.LegacyRecipientReason(draft.SenderName)
+            : mailing.RecipientReason;
+        var plain = MailingServiceEmailFooter.PlainText(draft.Body, recipientReason, unsubscribeUrl, serviceId);
         var attachments = draft.Attachments
             .Select(x => new EmailAttachment(x.FileName, x.ContentType, x.Content, x.Size))
             .ToArray();
