@@ -18,6 +18,7 @@ namespace Pismolet.Web.Tests;
 public sealed class MessagePreviewUiTests
 {
     private const string OwnerEmail = "message-preview@example.test";
+    private const string DefaultRecipientReason = "Вы записались на мероприятие библиотеки.";
 
     [Fact]
     public async Task Message_preview_is_opened_on_separate_page_and_keeps_service_footer_collapsed()
@@ -44,12 +45,14 @@ public sealed class MessagePreviewUiTests
         var mainPreview = html[previewStart..detailsStart];
         Assert.Contains("Приглашаем на встречу", mainPreview);
         Assert.Contains("Здравствуйте!", mainPreview);
-        Assert.Contains("Письмолёт автоматически добавит причину получения, отписку и служебный номер.", mainPreview);
+        Assert.Contains("Письмолёт добавит введённое вами пояснение, отписку и служебный номер.", mainPreview);
         Assert.DoesNotContain("/unsubscribe/example-token", mainPreview);
         Assert.DoesNotContain("Служебный идентификатор рассылки", mainPreview);
 
         var collapsedPreview = html[detailsStart..];
         Assert.Contains("Показать служебный блок", collapsedPreview);
+        Assert.Contains(DefaultRecipientReason, collapsedPreview);
+        Assert.Contains(MailingServiceEmailFooter.UnsubscribeExplanation, collapsedPreview);
         Assert.Contains("/unsubscribe/example-token", collapsedPreview);
         Assert.Contains("Служебный идентификатор рассылки", collapsedPreview);
     }
@@ -63,9 +66,14 @@ public sealed class MessagePreviewUiTests
                 "Приглашаем на встречу",
                 "Здравствуйте!",
                 MessageType.Transactional,
-                DateTimeOffset.UtcNow));
+                DateTimeOffset.UtcNow)) with
+        {
+            RecipientReason = DefaultRecipientReason
+        };
         var preview = new MessageRenderingService().RenderPreview(mailing);
 
+        Assert.Contains(DefaultRecipientReason, preview.PlainText);
+        Assert.Contains(MailingServiceEmailFooter.UnsubscribeExplanation, preview.PlainText);
         Assert.Contains("/unsubscribe/example-token", preview.UnsubscribeUrl);
         Assert.Contains("Служебный идентификатор рассылки", preview.ServiceIdentifier);
         Assert.Contains(preview.UnsubscribeUrl, preview.PlainText);
@@ -96,6 +104,7 @@ public sealed class MessagePreviewUiTests
         var mailing = GetMailing(factory, mailingId);
         Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
         Assert.Equal("<h1>Акция</h1><p>HTML body</p>", mailing.MessageDraft?.Body);
+        Assert.Equal(DefaultRecipientReason, mailing.RecipientReason);
     }
 
     [Fact]
@@ -121,6 +130,7 @@ public sealed class MessagePreviewUiTests
         Assert.DoesNotContain("Wrong HTML body", html);
         var mailing = GetMailing(factory, mailingId);
         Assert.Equal(MessageBodyFormat.Text, mailing.MessageDraft?.BodyFormat);
+        Assert.Equal(DefaultRecipientReason, mailing.RecipientReason);
     }
 
     [Fact]
@@ -148,6 +158,8 @@ public sealed class MessagePreviewUiTests
         Assert.Contains("data-rich-link-input", html);
         Assert.Contains("name='visualBody'", html);
         Assert.Contains("name='htmlBody'", html);
+        Assert.Contains("name='recipientReason'", html);
+        Assert.Contains("Почему получатель получает это письмо?", html);
         Assert.Contains("data-body-fallback", html);
         Assert.DoesNotContain("disabled = tab", html);
         var htmlPanelEnd = html.IndexOf("</section>", htmlPanelStart, StringComparison.Ordinal);
@@ -177,6 +189,7 @@ public sealed class MessagePreviewUiTests
         var mailing = GetMailing(factory, mailingId);
         Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
         Assert.Equal("<p><strong>Важное</strong> <em>сообщение</em> <span style=\"color:#3366ff;font-size:18px\">синим</span> <a href=\"https://example.ru/news\">читать</a></p>", mailing.MessageDraft?.Body);
+        Assert.Equal(DefaultRecipientReason, mailing.RecipientReason);
     }
 
     [Fact]
@@ -196,7 +209,8 @@ public sealed class MessagePreviewUiTests
             ["bodyTab"] = "visual",
             ["bodyFormat"] = "html",
             ["visualBody"] = "<p onclick=\"alert(1)\"><strong>Привет</strong><script>alert('x')</script></p><a href=\"javascript:alert(1)\">плохая ссылка</a><a href=\"https://example.ru\">хорошая ссылка</a>",
-            ["htmlBody"] = "<h1>Raw HTML body should not be saved</h1>"
+            ["htmlBody"] = "<h1>Raw HTML body should not be saved</h1>",
+            ["recipientReason"] = DefaultRecipientReason
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -224,7 +238,8 @@ public sealed class MessagePreviewUiTests
             ["bodyTab"] = "visual",
             ["bodyFormat"] = "html",
             ["visualBody"] = string.Empty,
-            ["htmlBody"] = "<h1>Готовый HTML</h1><p>Текст письма</p>"
+            ["htmlBody"] = "<h1>Готовый HTML</h1><p>Текст письма</p>",
+            ["recipientReason"] = DefaultRecipientReason
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -233,6 +248,7 @@ public sealed class MessagePreviewUiTests
         var mailing = GetMailing(factory, mailingId);
         Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
         Assert.Equal("<h1>Готовый HTML</h1><p>Текст письма</p>", mailing.MessageDraft?.Body);
+        Assert.Equal(DefaultRecipientReason, mailing.RecipientReason);
     }
 
     [Fact]
@@ -252,7 +268,8 @@ public sealed class MessagePreviewUiTests
             ["bodyTab"] = "html",
             ["bodyFormat"] = "html",
             ["visualBody"] = string.Empty,
-            ["body"] = "<h1>Fallback HTML</h1><p>Текст письма</p>"
+            ["body"] = "<h1>Fallback HTML</h1><p>Текст письма</p>",
+            ["recipientReason"] = DefaultRecipientReason
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -261,6 +278,7 @@ public sealed class MessagePreviewUiTests
         var mailing = GetMailing(factory, mailingId);
         Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
         Assert.Equal("<h1>Fallback HTML</h1><p>Текст письма</p>", mailing.MessageDraft?.Body);
+        Assert.Equal(DefaultRecipientReason, mailing.RecipientReason);
     }
 
     [Fact]
@@ -285,7 +303,8 @@ public sealed class MessagePreviewUiTests
             ["subject"] = "HTML письмо",
             ["bodyTab"] = "html",
             ["bodyFormat"] = "html",
-            ["htmlBody"] = emailHtml
+            ["htmlBody"] = emailHtml,
+            ["recipientReason"] = DefaultRecipientReason
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -294,6 +313,7 @@ public sealed class MessagePreviewUiTests
         var mailing = GetMailing(factory, mailingId);
         Assert.Equal(MessageBodyFormat.Html, mailing.MessageDraft?.BodyFormat);
         Assert.Equal(emailHtml, mailing.MessageDraft?.Body);
+        Assert.Equal(DefaultRecipientReason, mailing.RecipientReason);
     }
 
     [Fact]
@@ -313,7 +333,8 @@ public sealed class MessagePreviewUiTests
             ["bodyTab"] = "html",
             ["bodyFormat"] = "html",
             ["visualBody"] = string.Empty,
-            ["htmlBody"] = string.Empty
+            ["htmlBody"] = string.Empty,
+            ["recipientReason"] = DefaultRecipientReason
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -323,6 +344,7 @@ public sealed class MessagePreviewUiTests
         Assert.Contains("Напишите текст письма.", html);
         Assert.Contains("value='Отправитель после ошибки'", html);
         Assert.Contains("value='Тема после ошибки'", html);
+        Assert.Contains(DefaultRecipientReason, html);
         var htmlPanelStart = html.IndexOf("data-body-panel='html'", StringComparison.Ordinal);
         Assert.True(htmlPanelStart >= 0, "HTML panel was not found.");
         var htmlPanelEnd = html.IndexOf("</section>", htmlPanelStart, StringComparison.Ordinal);
@@ -353,7 +375,8 @@ public sealed class MessagePreviewUiTests
             ["subject"] = "Опасный HTML",
             ["bodyTab"] = "html",
             ["bodyFormat"] = "html",
-            ["htmlBody"] = dangerousHtml
+            ["htmlBody"] = dangerousHtml,
+            ["recipientReason"] = DefaultRecipientReason
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -364,6 +387,7 @@ public sealed class MessagePreviewUiTests
         Assert.Contains("value='Библиотека №5'", html);
         Assert.Contains("value='Опасный HTML'", html);
         Assert.Contains("onclick=&quot;alert(1)&quot;", html);
+        Assert.Contains(DefaultRecipientReason, html);
         Assert.Null(GetMailing(factory, mailingId).MessageDraft);
     }
 
@@ -397,7 +421,8 @@ public sealed class MessagePreviewUiTests
         {
             ["senderName"] = "Библиотека №5",
             ["subject"] = "Приглашаем на встречу",
-            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас."
+            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас.",
+            ["recipientReason"] = DefaultRecipientReason
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -412,7 +437,8 @@ public sealed class MessagePreviewUiTests
             ["subject"] = "Приглашаем на встречу",
             ["bodyFormat"] = bodyFormat,
             ["plainBody"] = plainBody,
-            ["htmlBody"] = htmlBody
+            ["htmlBody"] = htmlBody,
+            ["recipientReason"] = DefaultRecipientReason
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
