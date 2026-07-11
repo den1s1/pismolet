@@ -15,7 +15,9 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         services.AddSingleton(MailruPostmasterAlertOptionsReader.Read(configuration));
         services.AddSingleton<IMailruPostmasterAlertEvaluator, MailruPostmasterAlertEvaluator>();
         services.AddSingleton<IMailruPostmasterAlertJournalReconciler, MailruPostmasterAlertJournalReconciler>();
+        services.AddSingleton<IMailruPostmasterAlertNotifier, UnconfiguredMailruPostmasterAlertNotifier>();
         services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddScoped<IMailruPostmasterAlertNotificationDispatcher, MailruPostmasterAlertNotificationDispatcher>();
         services.AddScoped<IMailruPostmasterAlertJournalProcessor, MailruPostmasterAlertJournalProcessor>();
 
         var provider = configuration["Persistence:Provider"]
