@@ -176,7 +176,7 @@ public static class AdminEndpoints
             <div class='admin-stats'>
                 <div class='admin-stat'><b>{allRows.Length}</b><span>Получателей</span></div>
                 <div class='admin-stat'><b>{allRows.Count(row => row.StatusCode == "active")}</b><span>Активных</span></div>
-                <div class='admin-stat'><b>{allRows.Count(row => row.StatusCode is "unsubscribed" or "blocked")}</b><span>Глобально исключены</span></div>
+                <div class='admin-stat'><b>{allRows.Count(row => row.StatusCode is "unsubscribed" or "blocked")}</b><span>Исключены из отправки</span></div>
                 <div class='admin-stat'><b>{allRows.Count(row => row.StatusCode is "hard_bounce" or "unavailable")}</b><span>Недоступны</span></div>
             </div>
             """;
@@ -189,7 +189,7 @@ public static class AdminEndpoints
                     <div>
                         <p class='eyebrow'>Администрирование</p>
                         <h1>Получатели</h1>
-                        <p class='admin-muted'>Глобальные статусы адресов, отписки и история появления в списках клиентов.</p>
+                        <p class='admin-muted'>Статусы адресов, отписки через сервис и история появления в списках клиентов.</p>
                     </div>
                     <a class='admin-export' href='/admin/recipients?export=csv'>Экспорт CSV - скоро</a>
                 </div>
@@ -245,14 +245,14 @@ public static class AdminEndpoints
                 <p class='eyebrow'>Профиль получателя</p>
                 <h1>{H(summary.Email)}</h1>
                 <div class='admin-profile-grid'>
-                    <div><span>Глобальный статус</span><b>{H(summary.StatusText)}</b></div>
+                    <div><span>Статус в сервисе</span><b>{H(summary.StatusText)}</b></div>
                     <div><span>Первое появление</span><b>{FormatDate(summary.FirstSeenAt)}</b></div>
                     <div><span>Последнее письмо</span><b>{FormatDate(summary.LastMessageAt)}</b></div>
                     <div><span>Отписки</span><b>{suppression}</b></div>
                 </div>
                 <div class='admin-actions-row'>
                     <form method='post' action='/admin/recipients/{Uri.EscapeDataString(summary.Email)}/suppress'>
-                        <button class='admin-button danger' type='submit'>Добавить глобальную отписку</button>
+                        <button class='admin-button danger' type='submit'>Исключить из рассылок через сервис</button>
                     </form>
                     <a class='admin-link' href='/admin/recipients?q={Uri.EscapeDataString(summary.Email)}'>Найти дубли</a>
                     <a class='admin-link' href='/admin/recipients'>К списку</a>
@@ -374,6 +374,7 @@ public static class AdminEndpoints
             : string.Join(string.Empty, sendEvents.Select(x => $"<tr><td>{H(x.RecipientEmail)}</td><td>{H(x.Status.ToString())}</td><td>{H(x.DeliveryStatus.ToString())}</td><td>{FormatDate(x.UpdatedAt)}</td><td>{H(x.Reason?.ToString())}</td></tr>"));
         var timeline = CampaignTimeline(mailing, sendEvents.Length != 0);
         var bodyText = mailing.MessageDraft?.Body ?? "Письмо ещё не заполнено.";
+        var recipientReason = mailing.RecipientReason ?? "Не указано.";
         var body = $"""
             <section class='admin-panel'>
                 <p class='eyebrow'>Профиль кампании</p>
@@ -397,6 +398,8 @@ public static class AdminEndpoints
                 </div>
                 <div class='section-head'><div><p class='eyebrow'>Контроль</p><h2>Таймлайн кампании</h2></div></div>
                 <ol class='admin-timeline'>{timeline}</ol>
+                <div class='section-head'><div><p class='eyebrow'>Письмо</p><h2>Почему получатель получает это письмо</h2></div></div>
+                <p>{H(recipientReason)}</p>
                 <div class='section-head'><div><p class='eyebrow'>Письмо</p><h2>Текст письма</h2></div></div>
                 <pre>{H(bodyText)}</pre>
                 <div class='section-head'><div><p class='eyebrow'>Отправка</p><h2>Лог отправки</h2></div><a class='admin-link' href='/mailings/{mailing.Id}/send'>Открыть клиентский экран</a></div>
@@ -499,7 +502,7 @@ public static class AdminEndpoints
             ? "<li>Действий пока нет.</li>"
             : string.Join(string.Empty, result.Logs.Select(log => $"<li>{log.CreatedAt:yyyy-MM-dd HH:mm}: {H(log.ActorEmail)} - {H(log.Action)} ({H(log.PreviousState)} → {H(log.NewState)})</li>"));
 
-        return $"<section class='admin-panel'><h1>Карточка модерации</h1><p><span class='admin-badge'>{review.Status.ToRu()}</span></p><p><strong>Рассылка:</strong> {H(mailing?.Subject ?? "не найдена")}</p><p><strong>Клиент:</strong> {H(mailing?.OwnerEmail ?? "неизвестно")}</p><p><strong>Причина ручной проверки:</strong> {H(review.Reason)}</p><h2>Письмо</h2><p><strong>Отправитель:</strong> {H(mailing?.MessageDraft?.SenderName)}</p><p><strong>Тема:</strong> {H(mailing?.MessageDraft?.Subject)}</p><pre>{H(mailing?.MessageDraft?.Body)}</pre><h2>Служебные блоки</h2><p>{H(preview?.ReasonBlock)}</p><p>{H(preview?.UnsubscribeUrl)}</p><p>{H(preview?.ServiceIdentifier)}</p><h2>Формальные причины</h2><ul>{rules}</ul><h2>Решение</h2>{actions}<h2>Лог действий</h2><ul>{logs}</ul><p><a class='admin-link' href='/admin/moderation'>Вернуться к очереди</a></p></section>";
+        return $"<section class='admin-panel'><h1>Карточка модерации</h1><p><span class='admin-badge'>{review.Status.ToRu()}</span></p><p><strong>Рассылка:</strong> {H(mailing?.Subject ?? "не найдена")}</p><p><strong>Клиент:</strong> {H(mailing?.OwnerEmail ?? "неизвестно")}</p><p><strong>Причина ручной проверки:</strong> {H(review.Reason)}</p><h2>Письмо</h2><p><strong>Отправитель:</strong> {H(mailing?.MessageDraft?.SenderName)}</p><p><strong>Тема:</strong> {H(mailing?.MessageDraft?.Subject)}</p><pre>{H(mailing?.MessageDraft?.Body)}</pre><h2>Почему получатель получает это письмо</h2><p>{H(mailing?.RecipientReason ?? "Не указано.")}</p><h2>Служебные блоки</h2><p>{H(preview?.ReasonBlock)}</p><p>{H(preview?.UnsubscribeUrl)}</p><p>{H(preview?.ServiceIdentifier)}</p><h2>Формальные причины</h2><ul>{rules}</ul><h2>Решение</h2>{actions}<h2>Лог действий</h2><ul>{logs}</ul><p><a class='admin-link' href='/admin/moderation'>Вернуться к очереди</a></p></section>";
     }
 
     private static string LimitPage(string? message, string? clientEmail, string? dailyLimit)
