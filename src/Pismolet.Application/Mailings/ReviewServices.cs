@@ -89,12 +89,21 @@ public sealed class RiskCheckService : IRiskCheckService
     {
         var hits = new List<RiskRuleHit>();
         var draft = mailing.MessageDraft;
-        var text = string.Join("\n", mailing.Subject, draft?.Subject, draft?.SenderName, draft?.Body);
+        var text = string.Join("\n", mailing.Subject, draft?.Subject, draft?.SenderName, draft?.Body, mailing.RecipientReason);
 
         if (draft is null)
         {
             hits.Add(RiskRuleHit.Review("message_missing", 100, "Текст письма ещё не сохранён."));
             return RiskCheckResult.Create(mailing.Id, hits);
+        }
+
+        if (string.IsNullOrWhiteSpace(mailing.RecipientReason))
+        {
+            hits.Add(RiskRuleHit.Review("recipient_reason_missing", 50, "Не указано, почему получатель получает письмо."));
+        }
+        else if (LinkRegex.IsMatch(mailing.RecipientReason) || Regex.IsMatch(mailing.RecipientReason, @"<[^>]+>", RegexOptions.CultureInvariant))
+        {
+            hits.Add(RiskRuleHit.Review("recipient_reason_contains_link_or_markup", 30, "Пояснение причины получения письма должно быть обычным текстом без ссылок и HTML-разметки."));
         }
 
         if (string.IsNullOrWhiteSpace(draft.SenderName) || draft.SenderName.Trim().Length < 3)
@@ -194,9 +203,15 @@ public sealed class MailingReviewService(
         }
 
         var existing = riskChecks.GetByMailingId(mailing.Id);
-        if (existing is not null)
+        var shouldRepeatChecks = existing is not null && mailing.Status == MailingStatus.MessagePrepared;
+        if (existing is not null && !shouldRepeatChecks)
         {
             return BuildState(mailing);
+        }
+
+        if (shouldRepeatChecks)
+        {
+            reviews.RemoveOpenByMailingId(mailing.Id);
         }
 
         mailing = mailing.WithStatus(MailingStatus.PendingChecks);
