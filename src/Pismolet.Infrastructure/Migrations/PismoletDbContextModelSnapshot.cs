@@ -35,6 +35,7 @@ public partial class PismoletDbContextModelSnapshot : ModelSnapshot
             entity.Property(x => x.Subject).HasMaxLength(160).IsRequired();
             entity.Property(x => x.StatusRu).HasMaxLength(80).IsRequired();
             entity.Property(x => x.PublicId).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.RecipientReason).HasMaxLength(1000);
         });
 
         modelBuilder.Entity<ImportBatchEntity>(entity =>
