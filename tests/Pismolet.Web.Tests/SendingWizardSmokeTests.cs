@@ -214,7 +214,8 @@ public sealed class SendingWizardSmokeTests
         {
             ["senderName"] = "Sender",
             ["subject"] = subject,
-            ["body"] = "Hello from Pismolet."
+            ["body"] = "Hello from Pismolet.",
+            ["recipientReason"] = "Вы зарегистрировались как участник тестового мероприятия."
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
@@ -238,45 +239,3 @@ public sealed class SendingWizardSmokeTests
                 }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, _ => { });
             });
         });
-
-    private static HttpClient CreateAuthenticatedClient(WebApplicationFactory<Program> factory)
-    {
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.EmailHeaderName, OwnerEmail);
-        return client;
-    }
-
-    private static void SeedUser(WebApplicationFactory<Program> factory)
-    {
-        using var scope = factory.Services.CreateScope();
-        var accounts = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
-        var result = accounts.Register(new RegisterUserCommand(OwnerEmail, "TestPassword123!", "Sending Smoke", "+79990000000"), Request());
-        Assert.True(result.Ok, result.Error);
-    }
-
-    private static Guid SeedMailing(WebApplicationFactory<Program> factory, string subject)
-    {
-        using var scope = factory.Services.CreateScope();
-        var mailings = scope.ServiceProvider.GetRequiredService<IMailingService>();
-        var result = mailings.CreateDraft(new CreateMailingCommand(OwnerEmail, subject), Request());
-        Assert.True(result.Ok, result.Error);
-        Assert.NotNull(result.Mailing);
-        return result.Mailing.Id;
-    }
-
-    private static RequestMetadata Request() => new("127.0.0.1", "sending-wizard-smoke-tests");
-
-    private sealed class TestAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
-    {
-        public const string SchemeName = "Test";
-        public const string EmailHeaderName = "X-Test-Email";
-
-        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
-        {
-            var email = Request.Headers[EmailHeaderName].ToString();
-            if (string.IsNullOrWhiteSpace(email)) return Task.FromResult(AuthenticateResult.NoResult());
-            var claims = new[] { new Claim(ClaimTypes.NameIdentifier, email), new Claim(ClaimTypes.Email, email), new Claim(ClaimTypes.Name, email) };
-            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName)));
-        }
-    }
-}
