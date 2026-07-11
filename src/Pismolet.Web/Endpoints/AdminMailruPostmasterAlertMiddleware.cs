@@ -13,6 +13,34 @@ public static class AdminMailruPostmasterAlertMiddleware
     private const string BlockId = "mailru-operational-alerts";
     private const string InsertMarker = "<div class='mailru-summary'>";
     private static readonly CultureInfo RussianCulture = CultureInfo.GetCultureInfo("ru-RU");
+    private const string BlockStyles = """
+        <style>
+            .mailru-alert-panel {margin:20px 0 24px;padding:18px;border:1px solid #dfe4ea;border-radius:16px;background:#fff}
+            .mailru-alert-head {display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+            .mailru-alert-head h2 {margin:2px 0 6px}
+            .mailru-alert-status {display:inline-flex;align-items:center;padding:7px 12px;border-radius:999px;font-size:14px;font-weight:700}
+            .mailru-alert-status.off {background:#eceff3;color:#4f5b67}
+            .mailru-alert-status.nodata {background:#eef2f7;color:#465466}
+            .mailru-alert-status.calm {background:#e8f6ee;color:#17653a}
+            .mailru-alert-status.warning {background:#fff4d8;color:#7a5200}
+            .mailru-alert-status.critical {background:#fde9e7;color:#9d2b20}
+            .mailru-alert-observation,.mailru-alert-low-sample {margin:14px 0;padding:12px 14px;border-radius:11px}
+            .mailru-alert-observation {border:1px solid #a7c8b5;background:#edf7f1}
+            .mailru-alert-low-sample {border:1px solid #efc85a;background:#fff8df}
+            .mailru-alert-list {display:grid;gap:10px;margin-top:14px}
+            .mailru-alert-signal {border:1px solid #dfe4ea;border-left-width:5px;border-radius:12px;padding:13px 14px;background:#fff}
+            .mailru-alert-signal.info {border-left-color:#6d7f91}
+            .mailru-alert-signal.warning {border-left-color:#d49421;background:#fffdf6}
+            .mailru-alert-signal.critical {border-left-color:#b84037;background:#fff9f8}
+            .mailru-alert-signal-head {display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+            .mailru-alert-signal h3 {font-size:16px;margin:0 0 6px}
+            .mailru-alert-signal p {margin:0}
+            .mailru-alert-severity {font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+            .mailru-alert-meta {display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;color:#687383;font-size:12px}
+            .mailru-alert-empty {margin-top:14px;padding:14px;border-radius:11px;background:#f7f8fa;color:#586575}
+            .mailru-alert-window {margin:12px 0 0;color:#687383;font-size:13px}
+        </style>
+        """;
 
     public static IApplicationBuilder UseAdminMailruPostmasterAlerts(this IApplicationBuilder app)
     {
@@ -98,32 +126,7 @@ public static class AdminMailruPostmasterAlertMiddleware
 
         return $"""
             <section id='{BlockId}' class='mailru-alert-panel'>
-                <style>
-                    .mailru-alert-panel {{margin:20px 0 24px;padding:18px;border:1px solid #dfe4ea;border-radius:16px;background:#fff}}
-                    .mailru-alert-head {{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}}
-                    .mailru-alert-head h2 {{margin:2px 0 6px}}
-                    .mailru-alert-status {{display:inline-flex;align-items:center;padding:7px 12px;border-radius:999px;font-size:14px;font-weight:700}}
-                    .mailru-alert-status.off {{background:#eceff3;color:#4f5b67}}
-                    .mailru-alert-status.nodata {{background:#eef2f7;color:#465466}}
-                    .mailru-alert-status.calm {{background:#e8f6ee;color:#17653a}}
-                    .mailru-alert-status.warning {{background:#fff4d8;color:#7a5200}}
-                    .mailru-alert-status.critical {{background:#fde9e7;color:#9d2b20}}
-                    .mailru-alert-observation,.mailru-alert-low-sample {{margin:14px 0;padding:12px 14px;border-radius:11px}}
-                    .mailru-alert-observation {{border:1px solid #a7c8b5;background:#edf7f1}}
-                    .mailru-alert-low-sample {{border:1px solid #efc85a;background:#fff8df}}
-                    .mailru-alert-list {{display:grid;gap:10px;margin-top:14px}}
-                    .mailru-alert-signal {{border:1px solid #dfe4ea;border-left-width:5px;border-radius:12px;padding:13px 14px;background:#fff}}
-                    .mailru-alert-signal.info {{border-left-color:#6d7f91}}
-                    .mailru-alert-signal.warning {{border-left-color:#d49421;background:#fffdf6}}
-                    .mailru-alert-signal.critical {{border-left-color:#b84037;background:#fff9f8}}
-                    .mailru-alert-signal-head {{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}}
-                    .mailru-alert-signal h3 {{font-size:16px;margin:0 0 6px}}
-                    .mailru-alert-signal p {{margin:0}}
-                    .mailru-alert-severity {{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}}
-                    .mailru-alert-meta {{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;color:#687383;font-size:12px}}
-                    .mailru-alert-empty {{margin-top:14px;padding:14px;border-radius:11px;background:#f7f8fa;color:#586575}}
-                    .mailru-alert-window {{margin:12px 0 0;color:#687383;font-size:13px}}
-                </style>
+                {BlockStyles}
                 <div class='mailru-alert-head'>
                     <div>
                         <p class='eyebrow'>PM-5 → эксплуатационный контроль</p>
