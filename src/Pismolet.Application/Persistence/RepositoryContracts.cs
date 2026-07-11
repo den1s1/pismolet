@@ -132,6 +132,8 @@ public interface IModerationReviewRepository
 
     IReadOnlyCollection<ModerationReview> ListOpen();
 
+    void RemoveOpenByMailingId(Guid mailingId);
+
     void Save(ModerationReview review);
 }
 
