@@ -41,6 +41,7 @@ public sealed class MailruPostmasterAlertJournalProcessorTests
         Assert.Equal(1, result.ActivatedCount);
         Assert.Equal(0, result.UpdatedCount);
         Assert.Equal(0, result.ResolvedCount);
+        Assert.Equal(0, result.NotificationSentCount);
         var journalEvent = Assert.Single(store.Events);
         Assert.Equal("pismolet.ru", journalEvent.Domain);
         Assert.Equal("spam_detected", journalEvent.Code);
@@ -117,6 +118,7 @@ public sealed class MailruPostmasterAlertJournalProcessorTests
         new MailruPostmasterAlertEvaluator(),
         new MailruPostmasterAlertJournalReconciler(),
         store,
+        new NoopNotificationDispatcher(),
         new FixedTimeProvider(TestNow),
         NullLogger<MailruPostmasterAlertJournalProcessor>.Instance);
 
@@ -200,6 +202,16 @@ public sealed class MailruPostmasterAlertJournalProcessorTests
 
             return Task.FromResult(Data);
         }
+    }
+
+    private sealed class NoopNotificationDispatcher : IMailruPostmasterAlertNotificationDispatcher
+    {
+        public Task<MailruPostmasterAlertNotificationDispatchResult> DispatchAsync(
+            IReadOnlyList<MailruPostmasterAlertJournalChange> changes,
+            MailruPostmasterAlertOptions options,
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(MailruPostmasterAlertNotificationDispatchResult.Skipped(changes.Count));
     }
 
     private sealed class MemoryJournalStore : IMailruPostmasterAlertJournalStore
