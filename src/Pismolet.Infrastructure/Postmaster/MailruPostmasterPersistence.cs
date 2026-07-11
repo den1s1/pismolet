@@ -11,6 +11,7 @@ public sealed class MailruPostmasterDbContext(DbContextOptions<MailruPostmasterD
     public DbSet<MailruPostmasterSyncRunEntity> SyncRuns => Set<MailruPostmasterSyncRunEntity>();
     public DbSet<MailruPostmasterMailingDailyMetricEntity> MailingDailyMetrics => Set<MailruPostmasterMailingDailyMetricEntity>();
     public DbSet<MailruPostmasterMailingSyncStateEntity> MailingSyncStates => Set<MailruPostmasterMailingSyncStateEntity>();
+    public DbSet<MailruPostmasterAlertEventEntity> AlertEvents => Set<MailruPostmasterAlertEventEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -60,6 +61,7 @@ public sealed class MailruPostmasterDbContext(DbContextOptions<MailruPostmasterD
         });
 
         MailruPostmasterMailingModel.Configure(modelBuilder);
+        MailruPostmasterAlertJournalModel.Configure(modelBuilder);
     }
 }
 
