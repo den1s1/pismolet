@@ -15,6 +15,8 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         services.AddSingleton(MailruPostmasterAlertOptionsReader.Read(configuration));
         services.AddSingleton<IMailruPostmasterAlertEvaluator, MailruPostmasterAlertEvaluator>();
         services.AddSingleton<IMailruPostmasterAlertJournalReconciler, MailruPostmasterAlertJournalReconciler>();
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddScoped<IMailruPostmasterAlertJournalProcessor, MailruPostmasterAlertJournalProcessor>();
 
         var provider = configuration["Persistence:Provider"]
             ?? configuration["Pismolet:Persistence"]
@@ -50,9 +52,9 @@ public static class MailruPostmasterPersistenceServiceCollectionExtensions
         services.AddScoped<IMailruPostmasterDashboardReader, EfMailruPostmasterDashboardReader>();
         services.AddSingleton<IMailruPostmasterSyncRunJournal, EfMailruPostmasterSyncRunJournal>();
         services.AddSingleton(MailruPostmasterSyncOptions.Read(configuration));
-        services.AddSingleton<TimeProvider>(TimeProvider.System);
         services.AddSingleton<MailruPostmasterSynchronizer>();
-        services.AddSingleton<IMailruPostmasterSynchronizer, MailruPostmasterCompositeSynchronizer>();
+        services.AddSingleton<MailruPostmasterCompositeSynchronizer>();
+        services.AddSingleton<IMailruPostmasterSynchronizer, MailruPostmasterAlertJournaledSynchronizer>();
         services.AddSingleton<IMailruPostmasterSyncExecutor, MailruPostmasterSyncExecutor>();
         services.AddSingleton<IMailruPostmasterManualSyncService, MailruPostmasterManualSyncService>();
         services.AddHostedService<MailruPostmasterJournaledSyncHostedService>();
