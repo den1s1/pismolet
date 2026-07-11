@@ -107,7 +107,8 @@ public sealed class LegalUiLinksTests
         {
             ["senderName"] = "Библиотека №5",
             ["subject"] = "Приглашаем на встречу",
-            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас."
+            ["body"] = "Здравствуйте!\n\nБудем рады видеть вас.",
+            ["recipientReason"] = "Вы записались на мероприятие библиотеки."
         });
 
         var response = await client.PostAsync($"/mailings/{mailingId}/message", messageForm);
