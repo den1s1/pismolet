@@ -10,6 +10,7 @@ public sealed class Sprint3ServiceTests
     [Fact]
     public void Message_rendering_adds_unsubscribe_reason_and_service_identifier()
     {
+        const string recipientReason = "Вы оставили адрес при регистрации в сервисе.";
         var mailing = Mailing
             .Draft("client@test.local", "Новости")
             .WithImportResult(new ImportStats(1, 1, 0, 0, 0), new[] { Recipient.Accepted("lead@test.local", "lead@test.local") })
@@ -23,13 +24,18 @@ public sealed class Sprint3ServiceTests
                 DateTimeOffset.UtcNow,
                 "127.0.0.1",
                 "unit-test"))
-            .WithMessageDraft(MailingMessageDraft.Create("Письмолёт", "Новости", "Текст письма", MessageType.Transactional, DateTimeOffset.UtcNow));
+            .WithMessageDraft(MailingMessageDraft.Create("Письмолёт", "Новости", "Текст письма", MessageType.Transactional, DateTimeOffset.UtcNow)) with
+        {
+            RecipientReason = recipientReason
+        };
 
         var preview = new MessageRenderingService().RenderPreview(mailing);
 
         Assert.Contains("/unsubscribe/", preview.PlainText);
-        Assert.Contains("Вы получили это письмо от Письмолёт через Письмолёт", preview.PlainText);
+        Assert.Contains(recipientReason, preview.PlainText);
+        Assert.Contains(MailingServiceEmailFooter.UnsubscribeExplanation, preview.PlainText);
         Assert.Contains("Служебный идентификатор рассылки", preview.PlainText);
+        Assert.DoesNotContain("потому что отправитель указал", preview.PlainText, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Почему вы получили это письмо", preview.PlainText);
         Assert.DoesNotContain("Отписка действует глобально", preview.PlainText);
     }
@@ -37,17 +43,20 @@ public sealed class Sprint3ServiceTests
     [Fact]
     public void Service_email_footer_matches_legal_text_and_avoids_extra_footer_lines()
     {
-        var reason = MailingServiceEmailFooter.Reason("Библиотека №5");
+        const string recipientReason = "Вы записались на мероприятие библиотеки.";
+        var reason = MailingServiceEmailFooter.Reason(recipientReason);
         var plain = MailingServiceEmailFooter.PlainText(
             "Текст письма",
-            "Библиотека №5",
+            recipientReason,
             "/unsubscribe/example-token",
             "Служебный идентификатор рассылки: PL-TEST");
 
-        Assert.Equal("Вы получили это письмо от Библиотека №5 через Письмолёт, потому что отправитель указал, что у него есть законное основание связаться с вами по этому адресу. Если вы не хотите получать такие письма через Письмолёт, вы можете отписаться от всех рассылок через сервис.", reason);
+        Assert.Equal($"{recipientReason} {MailingServiceEmailFooter.UnsubscribeExplanation}", reason);
         Assert.Contains(reason, plain);
         Assert.Contains("Отписаться от всех рассылок через сервис: /unsubscribe/example-token", plain);
         Assert.Contains("Служебный идентификатор рассылки: PL-TEST", plain);
+        Assert.DoesNotContain("потому что отправитель указал", plain, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Если вы не хотите получать такие письма", plain, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Почему вы получили это письмо", plain);
         Assert.DoesNotContain("Отписка действует глобально", plain);
     }
