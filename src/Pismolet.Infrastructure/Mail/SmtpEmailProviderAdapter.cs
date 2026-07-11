@@ -591,18 +591,27 @@ public sealed class SmtpEmailProviderAdapter(
             return (text, string.Empty);
         }
 
-        var unixMarker = "\n\n" + MailingServiceEmailFooter.ReasonPrefix;
-        var index = text.LastIndexOf(unixMarker, StringComparison.Ordinal);
-        if (index >= 0)
+        var markerIndex = text.LastIndexOf(MailingServiceEmailFooter.UnsubscribeExplanation, StringComparison.Ordinal);
+        if (markerIndex < 0)
         {
-            return (text[..index].TrimEnd(), text[(index + 2)..].Trim());
+            markerIndex = text.LastIndexOf(MailingServiceEmailFooter.ReasonPrefix, StringComparison.Ordinal);
         }
 
-        var windowsMarker = "\r\n\r\n" + MailingServiceEmailFooter.ReasonPrefix;
-        index = text.LastIndexOf(windowsMarker, StringComparison.Ordinal);
-        return index >= 0
-            ? (text[..index].TrimEnd(), text[(index + 4)..].Trim())
-            : (text, string.Empty);
+        if (markerIndex < 0)
+        {
+            return (text, string.Empty);
+        }
+
+        var unixSeparator = text.LastIndexOf("\n\n", markerIndex, StringComparison.Ordinal);
+        var windowsSeparator = text.LastIndexOf("\r\n\r\n", markerIndex, StringComparison.Ordinal);
+        var separator = Math.Max(unixSeparator, windowsSeparator);
+        if (separator < 0)
+        {
+            return (text, string.Empty);
+        }
+
+        var separatorLength = windowsSeparator > unixSeparator ? 4 : 2;
+        return (text[..separator].TrimEnd(), text[(separator + separatorLength)..].Trim());
     }
 
     private static bool LooksLikeHtml(string text) =>
