@@ -26,6 +26,14 @@ public sealed class InMemoryModerationReviewRepository : IModerationReviewReposi
         .OrderBy(review => review.CreatedAt)
         .ToArray();
 
+    public void RemoveOpenByMailingId(Guid mailingId)
+    {
+        foreach (var item in _items.Where(item => item.Value.MailingId == mailingId && item.Value.Status == ModerationReviewStatus.Open).ToArray())
+        {
+            _items.TryRemove(item.Key, out _);
+        }
+    }
+
     public void Save(ModerationReview review) => _items[review.Id] = review;
 }
 
