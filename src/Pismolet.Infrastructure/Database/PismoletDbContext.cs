@@ -45,6 +45,7 @@ public sealed class PismoletDbContext(DbContextOptions<PismoletDbContext> option
             entity.Property(x => x.Subject).HasMaxLength(160).IsRequired();
             entity.Property(x => x.StatusRu).HasMaxLength(80).IsRequired();
             entity.Property(x => x.PublicId).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.RecipientReason).HasMaxLength(1000);
         });
 
         modelBuilder.Entity<ImportBatchEntity>(entity =>
@@ -278,6 +279,7 @@ public sealed class MailingEntity
     public string Subject { get; set; } = string.Empty;
     public string StatusRu { get; set; } = string.Empty;
     public string PublicId { get; set; } = string.Empty;
+    public string? RecipientReason { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
 
