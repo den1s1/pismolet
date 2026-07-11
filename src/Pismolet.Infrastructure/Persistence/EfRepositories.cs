@@ -100,6 +100,7 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
             e.Subject = m.Subject;
             e.StatusRu = m.StatusRu;
             e.PublicId = m.PublicId;
+            e.RecipientReason = m.RecipientReason;
             e.CreatedAt = m.CreatedAt.ToUniversalTime();
         }
 
@@ -118,7 +119,7 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
         return ids.Length;
     }
 
-    private MailingEntity ToEntity(Mailing m) => new() { Id = m.Id, OwnerEmail = N(m.OwnerEmail), Subject = m.Subject, StatusRu = m.StatusRu, PublicId = m.PublicId, CreatedAt = m.CreatedAt.ToUniversalTime() };
+    private MailingEntity ToEntity(Mailing m) => new() { Id = m.Id, OwnerEmail = N(m.OwnerEmail), Subject = m.Subject, StatusRu = m.StatusRu, PublicId = m.PublicId, RecipientReason = m.RecipientReason, CreatedAt = m.CreatedAt.ToUniversalTime() };
 
     private void ClearOwned(Guid id)
     {
@@ -234,6 +235,7 @@ public sealed class EfMailingRepository(PismoletDbContext db) : IMailingReposito
             OwnerEmail = e.OwnerEmail,
             CreatedAt = e.CreatedAt,
             PublicId = e.PublicId,
+            RecipientReason = e.RecipientReason,
             ImportBatches = batches,
             LastImportBatch = last,
             LastImportStats = last?.ToStats() ?? ImportStats.Empty,
