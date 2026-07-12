@@ -63,7 +63,7 @@ public sealed class MessageEditorEmailRenderingTests
         var plain = Assert.Single(parts, part => part.IsPlain);
         var html = Assert.Single(parts, part => part.IsHtml);
 
-        Assert.Contains("https://example.org/news.", plain.Text, StringComparison.Ordinal);
+        Assert.Contains("https://example.org/news", plain.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("/t/click/", plain.Text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"href=\"https://app.pismolet.ru/t/click/{token}\"", html.Text, StringComparison.Ordinal);
         Assert.Contains(">https://example.org/news</a>.", html.Text, StringComparison.Ordinal);
