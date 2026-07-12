@@ -33,7 +33,7 @@ public sealed class MessageEditorServerFlowTests
         Assert.True(second.Ok, second.Error);
         Assert.Equal(expected, first.Mailing?.MessageDraft?.Body);
         Assert.Equal(expected, second.Mailing?.MessageDraft?.Body);
-        Assert.Equal(2, CountOccurrences(expected, "<a href="));
+        Assert.Equal(2, CountOccurrences(second.Mailing!.MessageDraft!.Body, "<a href="));
     }
 
     [Fact]
@@ -111,8 +111,11 @@ public sealed class MessageEditorServerFlowTests
         Assert.Contains("createLink", script, StringComparison.Ordinal);
         Assert.Contains("deleteLink", script, StringComparison.Ordinal);
         Assert.Contains("clearSelectedFormatting", script, StringComparison.Ordinal);
-        Assert.Contains("fontFamily", script, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("background", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("preservedTags", script, StringComparison.Ordinal);
+        Assert.Contains("element.removeAttribute(attribute.name)", script, StringComparison.Ordinal);
+        Assert.Contains("preserveBold", script, StringComparison.Ordinal);
+        Assert.Contains("preserveItalic", script, StringComparison.Ordinal);
+        Assert.Contains("preserveUnderline", script, StringComparison.Ordinal);
         Assert.Contains("isServiceFooterElement", script, StringComparison.Ordinal);
     }
 
