@@ -287,11 +287,24 @@ public static class HtmlMessageLinkifier
 
     private static bool IsTechnicalServiceUrl(Uri uri)
     {
+        if (!IsPismoletHost(uri.Host))
+        {
+            return false;
+        }
+
         var path = uri.AbsolutePath.TrimEnd('/');
         return path.StartsWith("/unsubscribe", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/t/open", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/t/click", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool IsPismoletHost(string host) =>
+        host.Equals("pismolet.ru", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith(".pismolet.ru", StringComparison.OrdinalIgnoreCase)
+        || host.Equals("pismolet.test", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith(".pismolet.test", StringComparison.OrdinalIgnoreCase)
+        || host.Equals("pismolet.local", StringComparison.OrdinalIgnoreCase)
+        || host.EndsWith(".pismolet.local", StringComparison.OrdinalIgnoreCase);
 
     private static (string Url, string Trailing) SplitTrailingPunctuation(string value)
     {
