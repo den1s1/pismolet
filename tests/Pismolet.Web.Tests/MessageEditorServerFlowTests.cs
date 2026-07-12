@@ -16,6 +16,20 @@ public sealed class MessageEditorServerFlowTests
 {
     private static readonly RequestMetadata Request = new("127.0.0.1", "message-editor-tests");
 
+    private static readonly string[] StandardColors =
+    {
+        "#111827",
+        "#374151",
+        "#6b7280",
+        "#b91c1c",
+        "#c2410c",
+        "#a16207",
+        "#15803d",
+        "#1d4ed8",
+        "#7e22ce",
+        "#0f766e"
+    };
+
     [Fact]
     public void Save_linkifies_plain_url_once_and_keeps_existing_anchor_unchanged()
     {
@@ -78,7 +92,12 @@ public sealed class MessageEditorServerFlowTests
 
         var html = InvokeMessageForm(mailing);
 
-        Assert.Equal(10, CountOccurrences(html, "data-rich-color-value="));
+        Assert.Equal(StandardColors.Length, CountOccurrences(html, "data-rich-color-value="));
+        foreach (var color in StandardColors)
+        {
+            Assert.Equal(1, CountOccurrences(html, $"data-rich-color-value='{color}'"));
+        }
+
         Assert.DoesNotContain("type='color'", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("type=\"color\"", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-rich-color-current", html, StringComparison.Ordinal);
@@ -105,9 +124,13 @@ public sealed class MessageEditorServerFlowTests
         var script = await client.GetStringAsync("/message-editor.js");
 
         Assert.Contains("normalizeLinkUrl", script, StringComparison.Ordinal);
-        Assert.Contains("https://", script, StringComparison.Ordinal);
+        Assert.Contains("var trimmed = (value || '').trim();", script, StringComparison.Ordinal);
+        Assert.Contains("candidate = 'https://' + candidate", script, StringComparison.Ordinal);
         Assert.Contains("Разрешены только ссылки", script, StringComparison.Ordinal);
-        Assert.Contains("linkInput.focus()", script, StringComparison.Ordinal);
+        Assert.Contains("var normalized = normalizeLinkUrl(linkInput.value);", script, StringComparison.Ordinal);
+        Assert.Contains("setLinkError(normalized.error);", script, StringComparison.Ordinal);
+        Assert.Contains("linkInput.focus();", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("linkInput.value = '';", script, StringComparison.Ordinal);
         Assert.Contains("createLink", script, StringComparison.Ordinal);
         Assert.Contains("deleteLink", script, StringComparison.Ordinal);
         Assert.Contains("clearSelectedFormatting", script, StringComparison.Ordinal);
