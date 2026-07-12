@@ -199,7 +199,8 @@ public interface IMailingMessageService
 public sealed class MailingMessageService(
     IMailingRepository mailings,
     IEmailNormalizer emailNormalizer,
-    IAuditLogger auditLogger) : IMailingMessageService
+    IAuditLogger auditLogger,
+    IClickTrackingRepository? clickTracking = null) : IMailingMessageService
 {
     public MailingMessageResult Save(SaveMailingMessageCommand command)
     {
@@ -239,7 +240,10 @@ public sealed class MailingMessageService(
                     return MailingMessageResult.Failure(validation.Error);
                 }
 
-                body = HtmlMessageLinkifier.Linkify(command.Body);
+                var restoredBody = LegacyClickTrackingLinkRestorer.RestoreHtml(
+                    command.Body,
+                    token => clickTracking?.GetByToken(token)?.OriginalUrl);
+                body = HtmlMessageLinkifier.Linkify(restoredBody);
             }
 
             draft = MailingMessageDraft.Create(command.SenderName, command.Subject, body, command.MessageType, DateTimeOffset.UtcNow, attachments, command.BodyFormat);
