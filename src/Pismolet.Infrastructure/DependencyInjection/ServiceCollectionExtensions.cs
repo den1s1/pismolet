@@ -167,7 +167,7 @@ public static class ServiceCollectionExtensions
         if (provider.Equals("Smtp", StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton(ReadSmtpOptions(configuration));
-            services.AddScoped<IEmailProviderAdapter, SmtpEmailProviderAdapter>();
+            services.AddScoped<IEmailProviderAdapter, DirectLinkSmtpEmailProviderAdapter>();
             return;
         }
         services.AddScoped<IEmailProviderAdapter, PublicUrlFakeEmailProviderAdapter>();
