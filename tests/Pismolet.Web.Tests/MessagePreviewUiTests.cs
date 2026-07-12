@@ -155,7 +155,7 @@ public sealed class MessagePreviewUiTests
         Assert.Contains("data-rich-command='italic'", html);
         Assert.Contains("data-rich-font-size", html);
         Assert.Contains("data-rich-color", html);
-        Assert.Contains("data-rich-link-input", html);
+        Assert.Contains("data-rich-link-toggle", html);
         Assert.Contains("name='visualBody'", html);
         Assert.Contains("name='htmlBody'", html);
         Assert.Contains("name='recipientReason'", html);
