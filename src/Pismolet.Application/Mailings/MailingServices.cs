@@ -238,6 +238,8 @@ public sealed class MailingMessageService(
                 {
                     return MailingMessageResult.Failure(validation.Error);
                 }
+
+                body = HtmlMessageLinkifier.Linkify(command.Body);
             }
 
             draft = MailingMessageDraft.Create(command.SenderName, command.Subject, body, command.MessageType, DateTimeOffset.UtcNow, attachments, command.BodyFormat);
