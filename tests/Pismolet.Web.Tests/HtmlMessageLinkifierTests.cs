@@ -96,6 +96,15 @@ public sealed class HtmlMessageLinkifierTests
         Assert.Equal($"<p>{url}</p>", HtmlMessageLinkifier.Linkify($"<p>{url}</p>"));
     }
 
+    [Theory]
+    [InlineData("https://example.org/unsubscribe/article")]
+    [InlineData("https://example.org/t/open/article")]
+    [InlineData("https://example.org/t/click/article")]
+    public void Linkify_keeps_external_urls_with_similar_paths_as_user_links(string url)
+    {
+        Assert.Equal($"<p><a href=\"{url}\">{url}</a></p>", HtmlMessageLinkifier.Linkify($"<p>{url}</p>"));
+    }
+
     [Fact]
     public void Linkify_is_idempotent()
     {
