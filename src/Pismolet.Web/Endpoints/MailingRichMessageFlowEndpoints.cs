@@ -258,13 +258,50 @@ public static class MailingRichMessageFlowEndpoints
         <div data-body-panel='visual'{visualPanelStyle}>
           <div class='rich-editor' data-rich-text-editor>
             <div class='rich-toolbar' aria-label='Форматирование обычного письма'>
-              <button type='button' class='btn secondary compact rich-tool' data-rich-command='bold' title='Жирный'><b>B</b></button>
-              <button type='button' class='btn secondary compact rich-tool' data-rich-command='italic' title='Курсив'><i>I</i></button>
-              <select class='rich-select' data-rich-font-size title='Размер текста'><option value=''>Размер</option><option value='14px'>14</option><option value='16px'>16</option><option value='18px'>18</option><option value='22px'>22</option><option value='28px'>28</option></select>
-              <span class='rich-color-control' title='Цвет текста'><span>Цвет</span><input type='color' value='#1f2937' data-rich-color></span>
-              <span class='rich-link-control'><input class='rich-link-input' type='url' placeholder='https://example.ru' data-rich-link-input><button type='button' class='btn secondary compact rich-link-button' data-rich-link>Ссылка</button></span>
+              <div class='rich-toolbar-group'>
+                <button type='button' class='rich-toolbar-button' data-rich-command='bold' title='Жирный' aria-label='Жирный'><strong>B</strong></button>
+                <button type='button' class='rich-toolbar-button' data-rich-command='italic' title='Курсив' aria-label='Курсив'><em>I</em></button>
+                <select class='rich-select' data-rich-font-size title='Размер текста' aria-label='Размер текста'><option value=''>Размер</option><option value='14px'>14</option><option value='16px'>16</option><option value='18px'>18</option><option value='22px'>22</option><option value='28px'>28</option></select>
+              </div>
+              <span class='rich-toolbar-separator' aria-hidden='true'></span>
+              <div class='rich-toolbar-group'>
+                <button type='button' class='rich-toolbar-button' data-rich-color-toggle aria-haspopup='dialog' aria-expanded='false' aria-controls='rich-color-menu' title='Цвет текста'><span class='rich-color-current' data-rich-color-current aria-label='Текущий цвет текста'></span><span>Цвет</span></button>
+                <div class='rich-popover' id='rich-color-menu' data-rich-color-menu role='dialog' aria-label='Цвет текста' hidden>
+                  <h3 class='rich-popover-title'>Цвет текста</h3>
+                  <div class='rich-color-grid'>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#111827' style='background:#111827' aria-label='Чёрный' aria-pressed='false'></button>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#374151' style='background:#374151' aria-label='Тёмно-серый' aria-pressed='false'></button>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#6b7280' style='background:#6b7280' aria-label='Серый' aria-pressed='false'></button>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#b91c1c' style='background:#b91c1c' aria-label='Красный' aria-pressed='false'></button>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#c2410c' style='background:#c2410c' aria-label='Оранжевый' aria-pressed='false'></button>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#a16207' style='background:#a16207' aria-label='Тёмно-жёлтый' aria-pressed='false'></button>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#15803d' style='background:#15803d' aria-label='Зелёный' aria-pressed='false'></button>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#1d4ed8' style='background:#1d4ed8' aria-label='Синий' aria-pressed='false'></button>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#7e22ce' style='background:#7e22ce' aria-label='Фиолетовый' aria-pressed='false'></button>
+                    <button type='button' class='rich-color-option' data-rich-color-value='#0f766e' style='background:#0f766e' aria-label='Бирюзовый' aria-pressed='false'></button>
+                  </div>
+                  <button type='button' class='btn secondary compact rich-color-reset' data-rich-color-reset>Цвет по умолчанию</button>
+                </div>
+              </div>
+              <div class='rich-toolbar-group'>
+                <button type='button' class='rich-toolbar-button' data-rich-link-toggle aria-haspopup='dialog' aria-expanded='false' aria-controls='rich-link-popover' title='Добавить или изменить ссылку' aria-label='Добавить или изменить ссылку'>
+                  <svg viewBox='0 0 24 24' aria-hidden='true'><path d='M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1'></path><path d='M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1'></path></svg>
+                </button>
+                <div class='rich-popover' id='rich-link-popover' data-rich-link-popover role='dialog' aria-labelledby='rich-link-title' hidden>
+                  <h3 class='rich-popover-title' id='rich-link-title'>Ссылка</h3>
+                  <label class='rich-link-field'>URL<input type='text' inputmode='url' autocomplete='url' placeholder='https://' data-rich-link-url aria-describedby='rich-link-error'></label>
+                  <p class='rich-link-error' id='rich-link-error' data-rich-link-error role='alert' hidden></p>
+                  <div class='rich-link-actions'>
+                    <button type='button' class='btn ghost compact rich-link-delete' data-rich-link-delete hidden>Удалить ссылку</button>
+                    <button type='button' class='button compact' data-rich-link-save>Сохранить</button>
+                    <button type='button' class='btn secondary compact' data-rich-link-cancel>Отмена</button>
+                  </div>
+                </div>
+              </div>
+              <span class='rich-toolbar-separator' aria-hidden='true'></span>
+              <button type='button' class='rich-toolbar-button' data-rich-clear-formatting title='Очистить форматирование'>Очистить форматирование</button>
             </div>
-            <div class='rich-editable' contenteditable='true' data-rich-editable aria-label='Текст обычного письма' data-placeholder='Здравствуйте! Расскажите, почему вы пишете и что нужно сделать получателю.' style='display:block;min-height:260px;border:1px solid #dbe4ef;border-radius:0 0 16px 16px;background:#fff;padding:16px;line-height:1.55;outline:none;overflow-wrap:anywhere'></div>
+            <div class='rich-editable' contenteditable='true' data-rich-editable aria-label='Текст обычного письма' data-placeholder='Здравствуйте! Расскажите, почему вы пишете и что нужно сделать получателю.'></div>
             <textarea name='visualBody' data-rich-html-source hidden>{H(visualBody)}</textarea>
           </div>
           <span class='field-hint message-service-hint'>{serviceFooterHint}</span>
@@ -296,7 +333,7 @@ public static class MailingRichMessageFlowEndpoints
     </form>
   </section>
 </section>
-{BodyEditorScript()}";
+{BodyEditorAssets()}";
     }
 
     private static string MessagePreviewPage(Mailing mailing, IMessageRenderingService renderer)
@@ -346,15 +383,16 @@ public static class MailingRichMessageFlowEndpoints
 <p class='service-preview-note'>Письмолёт добавит введённое вами пояснение, отписку и служебный номер.</p>
 <details class='service-preview-details'>
   <summary>Показать служебный блок</summary>
-  <div class='unsubscribe service-preview-footer'><p>{reasonBlock}</p><p>Отписаться: <code>{unsubscribeUrl}</code></p><p>{serviceBlock}</p></div>
+  <div class='unsubscribe service-preview-footer' data-pismolet-service-footer><p>{reasonBlock}</p><p>Отписаться: <code>{unsubscribeUrl}</code></p><p>{serviceBlock}</p></div>
 </details>";
 
     private static string HtmlBodyPreview(string body, string reasonBlock, string unsubscribeUrl, string serviceBlock)
     {
+        var normalizedBody = HtmlMessageLinkifier.Linkify(body);
         var srcdoc = $@"<!doctype html>
 <html lang='ru'>
 <head><meta charset='utf-8'><base target='_blank'><style>body{{font-family:Arial,sans-serif;margin:0;padding:20px;color:#1f2937;line-height:1.5}}img{{max-width:100%;height:auto}}.pismolet-footer{{margin-top:24px;padding-top:14px;border-top:1px solid #dbe4ef;color:#64748b;font-size:12px}}</style></head>
-<body>{body}<div class='pismolet-footer'><p>{reasonBlock}</p><p>Отписаться: {unsubscribeUrl}</p><p>{serviceBlock}</p></div></body>
+<body>{normalizedBody}<div class='pismolet-footer' data-pismolet-service-footer><p>{reasonBlock}</p><p>Отписаться: {unsubscribeUrl}</p><p>{serviceBlock}</p></div></body>
 </html>";
         return $"<iframe title='HTML-предпросмотр письма' sandbox style='width:100%;min-height:520px;border:1px solid #dbe4ef;border-radius:16px;background:white' srcdoc='{H(srcdoc)}'></iframe>";
     }
@@ -416,55 +454,9 @@ public static class MailingRichMessageFlowEndpoints
             : MessageType.Transactional;
     }
 
-    private static string BodyEditorScript() => """
-<script>
-(function () {
-  var root = document.querySelector('[data-body-editor]');
-  if (!root) return;
-  var tabInput = root.querySelector('input[name="bodyTab"]');
-  var formatInput = root.querySelector('input[name="bodyFormat"]');
-  var buttons = root.querySelectorAll('[data-body-tab]');
-  var panels = root.querySelectorAll('[data-body-panel]');
-  var richEditor = root.querySelector('[data-rich-text-editor]');
-  var fallbackBody = root.querySelector('textarea[name="body"][data-body-fallback]');
-  var visualSource = root.querySelector('textarea[name="visualBody"]');
-  var htmlSource = root.querySelector('textarea[name="htmlBody"]');
-  function syncRichEditor() {
-    if (!richEditor) return;
-    var editable = richEditor.querySelector('[data-rich-editable]');
-    var source = richEditor.querySelector('[data-rich-html-source]');
-    if (!editable || !source) return;
-    source.value = editable.innerHTML.trim();
-  }
-  function syncFallbackBody() {
-    syncRichEditor();
-    if (!fallbackBody) return;
-    var tab = tabInput ? tabInput.value : 'visual';
-    fallbackBody.value = tab === 'html' ? (htmlSource ? htmlSource.value : '') : (visualSource ? visualSource.value : '');
-  }
-  function select(tab) {
-    if (tab !== 'html') tab = 'visual';
-    syncFallbackBody();
-    if (tabInput) tabInput.value = tab;
-    if (formatInput) formatInput.value = 'html';
-    buttons.forEach(function (button) { var active = button.getAttribute('data-body-tab') === tab; button.className = active ? 'button compact' : 'btn secondary compact'; });
-    panels.forEach(function (panel) { panel.style.display = panel.getAttribute('data-body-panel') === tab ? '' : 'none'; });
-  }
-  if (richEditor) {
-    var editable = richEditor.querySelector('[data-rich-editable]');
-    var source = richEditor.querySelector('[data-rich-html-source]');
-    if (editable && source) {
-      editable.innerHTML = source.value || '';
-      editable.addEventListener('input', syncFallbackBody);
-      richEditor.querySelectorAll('[data-rich-command]').forEach(function (button) { button.addEventListener('click', function () { document.execCommand(button.getAttribute('data-rich-command'), false, null); syncFallbackBody(); }); });
-    }
-  }
-  buttons.forEach(function (button) { button.addEventListener('click', function () { select(button.getAttribute('data-body-tab')); }); });
-  var form = root.closest('form');
-  if (form) form.addEventListener('submit', syncFallbackBody);
-  select(tabInput ? tabInput.value : 'visual');
-})();
-</script>
+    private static string BodyEditorAssets() => """
+<link rel="stylesheet" href="/message-editor.css">
+<script src="/message-editor.js"></script>
 """;
 
     private static string WizardSteps(int current) => $"<div class='wizard-steps'><span class='wizard-step {StepClass(current, 1)}'>1. Письмо</span><span class='wizard-step {StepClass(current, 2)}'>2. Адресаты</span><span class='wizard-step {StepClass(current, 3)}'>3. Просмотр списка</span><span class='wizard-step {StepClass(current, 4)}'>4. Подтверждение</span><span class='wizard-step {StepClass(current, 5)}'>5. Оплата</span></div>";
@@ -485,7 +477,9 @@ public static class MailingRichMessageFlowEndpoints
 
     private static string InferBodyFormat(string? body) => ToBodyFormatCode(MessageBodyFormatDetector.InferFromBody(body));
 
-    private static string ToVisualEditorHtml(string body, MessageBodyFormat format) => format == MessageBodyFormat.Html ? HtmlMessageSanitizer.Sanitize(body) : ToHtmlText(body);
+    private static string ToVisualEditorHtml(string body, MessageBodyFormat format) => format == MessageBodyFormat.Html
+        ? HtmlMessageLinkifier.Linkify(HtmlMessageSanitizer.Sanitize(body))
+        : ToHtmlText(body);
 
     private static string ToHtmlText(string value) => H(value)
         .Replace("\r\n", "\n", StringComparison.Ordinal)
