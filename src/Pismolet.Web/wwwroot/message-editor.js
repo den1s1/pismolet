@@ -127,25 +127,54 @@
   });
 
   var fontSizeSelect = richEditor.querySelector('[data-rich-font-size]');
+  var fontSizeValues = ['10px', '12px', '14px', '16px', '18px', '22px', '28px'];
+  var pendingFontSize = '';
+
+  function fillFontSizeOptions() {
+    if (!fontSizeSelect) return;
+    while (fontSizeSelect.options.length > 1) fontSizeSelect.remove(1);
+    fontSizeValues.forEach(function (value) {
+      var option = document.createElement('option');
+      option.value = value;
+      option.textContent = value.replace('px', '');
+      fontSizeSelect.appendChild(option);
+    });
+  }
+
+  function normalizeFontSizeMarkup(value) {
+    var changed = false;
+    editable.querySelectorAll('font[size="7"]').forEach(function (font) {
+      font.removeAttribute('size');
+      font.style.fontSize = value;
+      changed = true;
+    });
+    return changed;
+  }
+
   if (fontSizeSelect) {
+    fillFontSizeOptions();
     fontSizeSelect.addEventListener('mousedown', rememberSelection);
     fontSizeSelect.addEventListener('change', function () {
       var value = fontSizeSelect.value;
       if (!value) return;
       restoreSelection(true);
+      pendingFontSize = value;
       try {
-        document.execCommand('styleWithCSS', false, true);
+        document.execCommand('styleWithCSS', false, false);
       } catch (_) {
       }
       document.execCommand('fontSize', false, '7');
-      editable.querySelectorAll('font[size="7"]').forEach(function (font) {
-        font.removeAttribute('size');
-        font.style.fontSize = value;
-      });
+      if (normalizeFontSizeMarkup(value)) pendingFontSize = '';
       fontSizeSelect.value = '';
       rememberSelection();
       syncFallbackBody();
       editable.focus();
+    });
+
+    editable.addEventListener('input', function () {
+      if (!pendingFontSize || !normalizeFontSizeMarkup(pendingFontSize)) return;
+      pendingFontSize = '';
+      syncFallbackBody();
     });
   }
 
