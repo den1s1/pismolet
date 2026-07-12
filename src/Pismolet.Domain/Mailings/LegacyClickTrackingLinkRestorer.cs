@@ -12,7 +12,7 @@ public static class LegacyClickTrackingLinkRestorer
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
 
     private static readonly Regex PlainTrackingUrlRegex = new(
-        "(?<url>(?:https?://[^\\s<>\"']+)?/t/click/(?<token>[0-9a-f]{64})(?:[?#][^\\s<>\"']*)?)",
+        "(?<url>https?://(?:[a-z0-9-]+\\.)*pismolet\\.(?:ru|test|local)(?::\\d+)?/t/click/[0-9a-f]{64}(?:[?#][^\\s<>\"']*)?|(?<![\\p{L}\\p{N}_:/.-])/t/click/[0-9a-f]{64}(?:[?#][^\\s<>\"']*)?)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public static string RestoreHtml(string? html, Func<string, string?> originalUrlResolver)
