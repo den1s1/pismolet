@@ -15,14 +15,8 @@ public sealed class DirectLinkSmtpEmailProviderAdapter(
 
     public string ProviderName => inner.ProviderName;
 
-    public Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken)
-    {
-        var restoredBody = message.BodyFormat == MessageBodyFormat.Html
-            ? LegacyClickTrackingLinkRestorer.RestoreHtml(message.PlainTextBody, ResolveOriginalUrl)
-            : LegacyClickTrackingLinkRestorer.RestoreText(message.PlainTextBody, ResolveOriginalUrl);
-
-        return inner.SendAsync(message with { PlainTextBody = restoredBody }, cancellationToken);
-    }
+    public Task<EmailProviderSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken) =>
+        inner.SendAsync(PrepareMessage(message), cancellationToken);
 
     public Task<EmailProviderWebhookParseResult> ParseWebhookAsync(
         string rawBody,
@@ -40,6 +34,15 @@ public sealed class DirectLinkSmtpEmailProviderAdapter(
         ReplyEvent replyEvent,
         CancellationToken cancellationToken) =>
         inner.ForwardReplyToClientAsync(replyEvent, cancellationToken);
+
+    private EmailMessage PrepareMessage(EmailMessage message)
+    {
+        var restoredBody = message.BodyFormat == MessageBodyFormat.Html
+            ? LegacyClickTrackingLinkRestorer.RestoreHtml(message.PlainTextBody, ResolveOriginalUrl)
+            : LegacyClickTrackingLinkRestorer.RestoreText(message.PlainTextBody, ResolveOriginalUrl);
+
+        return message with { PlainTextBody = restoredBody };
+    }
 
     private string? ResolveOriginalUrl(string token) => clickTracking.GetByToken(token)?.OriginalUrl;
 }
