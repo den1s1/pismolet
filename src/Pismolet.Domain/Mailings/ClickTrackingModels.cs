@@ -62,7 +62,20 @@ public sealed record TrackedLink(
             throw new ArgumentException("Для отслеживания переходов допустимы только абсолютные http/https ссылки.", nameof(originalUrl));
         }
 
+        if (IsTechnicalServiceUrl(uri))
+        {
+            throw new ArgumentException("Служебные ссылки Письмолёта не должны добавляться в пользовательскую статистику переходов.", nameof(originalUrl));
+        }
+
         return uri.ToString();
+    }
+
+    private static bool IsTechnicalServiceUrl(Uri uri)
+    {
+        var path = uri.AbsolutePath.TrimEnd('/');
+        return path.StartsWith("/unsubscribe", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/t/open", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/t/click", StringComparison.OrdinalIgnoreCase);
     }
 }
 
