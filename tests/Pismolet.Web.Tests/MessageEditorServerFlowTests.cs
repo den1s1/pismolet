@@ -115,7 +115,7 @@ public sealed class MessageEditorServerFlowTests
     }
 
     [Fact]
-    public async Task Editor_script_contains_validation_focus_link_editing_and_format_cleanup_logic()
+    public async Task Editor_script_contains_validation_focus_link_editing_format_cleanup_and_font_size_logic()
     {
         using var factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
@@ -140,6 +140,10 @@ public sealed class MessageEditorServerFlowTests
         Assert.Contains("preserveItalic", script, StringComparison.Ordinal);
         Assert.Contains("preserveUnderline", script, StringComparison.Ordinal);
         Assert.Contains("isServiceFooterElement", script, StringComparison.Ordinal);
+        Assert.Contains("var fontSizeValues = ['10px', '12px', '14px', '16px', '18px', '22px', '28px'];", script, StringComparison.Ordinal);
+        Assert.Contains("fillFontSizeOptions", script, StringComparison.Ordinal);
+        Assert.Contains("document.execCommand('styleWithCSS', false, false);", script, StringComparison.Ordinal);
+        Assert.Contains("normalizeFontSizeMarkup", script, StringComparison.Ordinal);
     }
 
     private static SaveMailingMessageCommand Command(Guid mailingId, string body) => new(
