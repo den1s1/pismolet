@@ -378,6 +378,8 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
         Assert.Contains("политика обработки персональных данных", html);
         Assert.DoesNotContain("target='_blank'", html);
         Assert.DoesNotContain("rel='noopener'", html);
+        Assert.Contains("src='/registration-analytics.js?v=20260906'", html);
+        Assert.DoesNotContain("data-registration-success", html);
     }
 
     [Fact]
@@ -401,6 +403,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Подтвердите обязательные условия регистрации.", html);
+        Assert.DoesNotContain("registration-analytics.js", html);
     }
 
     [Fact]
@@ -419,6 +422,7 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Аккаунт создан", html);
+        Assert.Contains("data-registration-success='true'", html);
 
         using var scope = factory.Services.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<ILegalEvidenceRepository>();
@@ -437,6 +441,21 @@ public sealed class RegistrationLegalDocumentTests : IClassFixture<WebApplicatio
             LegalDocumentKeys.ClientPersonalDataConsent,
             LegalEvidenceTextSnapshots.ClientPersonalDataConsentText,
             "personalDataConsentAccepted");
+    }
+
+    [Fact]
+    public async Task DuplicateRegistrationDoesNotReportSuccessfulConversion()
+    {
+        using var client = factory.CreateClient();
+        var email = $"analytics-{Guid.NewGuid():N}@example.test";
+        using var firstForm = CreateRegistrationForm(email);
+        var first = await client.PostAsync("/account/register", firstForm);
+        Assert.Contains("data-registration-success='true'", await first.Content.ReadAsStringAsync());
+
+        using var duplicateForm = CreateRegistrationForm(email);
+        var duplicate = await client.PostAsync("/account/register", duplicateForm);
+        Assert.DoesNotContain("registration-analytics.js", await duplicate.Content.ReadAsStringAsync());
+        Assert.DoesNotContain("registration-analytics.js", await client.GetStringAsync("/account/login"));
     }
 
     [Fact]

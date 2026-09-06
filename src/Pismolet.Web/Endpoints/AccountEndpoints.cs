@@ -17,7 +17,8 @@ public static class AccountEndpoints
     {
         app.MapGet("/account/register", () => HtmlRenderer.Html(HtmlRenderer.Page(
             "Регистрация",
-            HtmlRenderer.AccountForm("/account/register", "Создать аккаунт", name: true, registrationConsents: true))));
+            HtmlRenderer.AccountForm("/account/register", "Создать аккаунт", name: true, registrationConsents: true)
+            + "<script defer src='/registration-analytics.js?v=20260906'></script>")));
 
         app.MapPost("/account/register", Register);
 
@@ -79,7 +80,8 @@ public static class AccountEndpoints
         RecordRegistrationConsentEvents(command, request, legalEvidence);
 
         const string body = "<section class='card'><h1>Аккаунт создан</h1><p>Мы отправили ссылку подтверждения на указанный email. Перейдите по ней, чтобы активировать аккаунт.</p><p><a class='button' href='/account/login'>К странице входа</a></p></section>";
-        return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение", body));
+        return HtmlRenderer.Html(HtmlRenderer.Page("Подтверждение", body
+            + "<script defer src='/registration-analytics.js?v=20260906' data-registration-success='true'></script>"));
     }
 
     private static async Task<IResult> ResendConfirmation(HttpContext http, IUserAccountService accounts)
