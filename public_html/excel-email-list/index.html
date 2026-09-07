@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Рассылка из Excel-таблицы по email — Письмолёт</title>
-  <meta name="description" content="Как отправить простую email-рассылку по адресам из Excel: загрузка таблицы, проверка дублей, отписок и ошибок без скрытых копий." />
+  <meta name="description" content="Отправьте email-рассылку по адресам из Excel: образец CSV, подготовка таблицы, проверка дублей и отписок. Загрузка XLSX или CSV и расчёт стоимости до оплаты." />
   <link rel="canonical" href="https://pismolet.ru/excel-email-list/" />
   <link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/site.css?v=20260707-1" />
@@ -43,9 +43,32 @@
 
     <section class="block panel"><div class="panel-head"><div><h2>Что делает сервис с таблицей</h2><p>Письмолёт нужен не как CRM, а как короткий путь от списка адресов к аккуратной отправке письма.</p></div></div><div class="grid-3"><div class="card"><h3>Находит email</h3><p>Для простого старта достаточно загрузить список с колонкой email.</p></div><div class="card"><h3>Чистит список</h3><p>Сервис исключает дубли, явно ошибочные адреса и получателей, которые уже отписались от писем через Письмолёт.</p></div><div class="card"><h3>Считает отправку</h3><p>Перед запуском видно, сколько адресов принято и сколько будет стоить рассылка.</p></div></div></section>
 
+    <section class="block panel" id="sample">
+      <div class="panel-head"><div><h2>Образец таблицы с email-адресами</h2><p>Для одинакового письма всем получателям достаточно одной колонки. В первой строке укажите <strong>email</strong>, ниже — по одному адресу в строке.</p></div></div>
+      <table class="table" aria-label="Образец списка получателей">
+        <thead><tr><th scope="col">email</th></tr></thead>
+        <tbody><tr><td>anna@example.com</td></tr><tr><td>ivan@example.com</td></tr></tbody>
+      </table>
+      <p>Это вымышленные адреса для примера. Замените их адресами своих получателей перед загрузкой.</p>
+      <div class="actions"><a class="btn secondary" href="/downloads/email-list-template.csv" download>Скачать образец CSV для Excel</a></div>
+      <p class="microcopy">Откройте файл в Excel, замените примеры и сохраните как XLSX или CSV. Не добавляйте в ячейку с адресом имя, комментарий или второй email.</p>
+    </section>
+
+    <section class="block panel">
+      <div class="panel-head"><div><h2>Как подготовить Excel к загрузке</h2><p>Эти шаги помогут сервису правильно прочитать список.</p></div></div>
+      <ol>
+        <li>Поместите список на первый лист книги: при загрузке XLSX сервис читает именно его.</li>
+        <li>Начните таблицу со строки заголовка <strong>email</strong>, без названия организации и пояснений над ней.</li>
+        <li>Оставьте один адрес в каждой строке. Для простой рассылки имена, телефоны и другие колонки не нужны.</li>
+        <li>Сохраните файл в формате <strong>.xlsx</strong> или <strong>.csv</strong>. Старый формат .xls сначала пересохраните в .xlsx.</li>
+        <li>Загрузите файл в Письмолёт и посмотрите результат проверки перед оплатой.</li>
+      </ol>
+      <p>Если список находится в Google Sheets, скачайте его как Microsoft Excel (.xlsx) или CSV, затем загрузите полученный файл в сервис.</p>
+    </section>
+
     <section class="block panel"><h2>Когда это подходит</h2><ul class="list" style="margin-top:16px"><li>адреса клиентов или участников лежат в Excel, Google Sheets или CSV;</li><li>нужно отправить одно простое письмо без сложного конструктора;</li><li>важно не раскрыть адреса получателей друг другу;</li><li>нужно не забыть про отписавшихся и дубли;</li><li>нет желания заниматься отдельной технической настройкой перед простой отправкой.</li></ul></section>
 
-    <section class="block panel"><div class="panel-head"><div><h2>Как выглядит сценарий</h2><p>Страница закрывает практический запрос: «у меня есть таблица с email, как отправить письмо всем аккуратно?»</p></div></div><div class="grid-4"><div class="card"><div class="step-number">1</div><h3>Загрузите файл</h3><p>Excel или CSV со списком адресов.</p></div><div class="card"><div class="step-number">2</div><h3>Проверьте результат</h3><p>Сколько адресов принято, исключено и почему.</p></div><div class="card"><div class="step-number">3</div><h3>Напишите письмо</h3><p>Тема, имя отправителя и простой текст письма.</p></div><div class="card"><div class="step-number">4</div><h3>Оплатите и отправьте</h3><p>После оплаты и проверок рассылка уходит постепенно.</p></div></div></section>
+    <section class="block panel"><div class="panel-head"><div><h2>Как выглядит сценарий</h2><p>От таблицы с адресами до отправки — четыре шага. Стоимость будет видна до оплаты.</p></div></div><div class="grid-4"><div class="card"><div class="step-number">1</div><h3>Загрузите файл</h3><p>Excel или CSV со списком адресов.</p></div><div class="card"><div class="step-number">2</div><h3>Проверьте результат</h3><p>Сколько адресов принято, исключено и почему.</p></div><div class="card"><div class="step-number">3</div><h3>Напишите письмо</h3><p>Тема, имя отправителя и простой текст письма.</p></div><div class="card"><div class="step-number">4</div><h3>Оплатите и отправьте</h3><p>После оплаты и проверок рассылка уходит постепенно.</p></div></div></section>
 
     <section class="block notice"><strong>Важно:</strong> таблица должна быть вашей законной базой. Списки с неподтверждённым происхождением не подходят для отправки через сервис. Подробнее — в <a href="/anti-spam/">антиспам-правилах</a>.</section>
 
